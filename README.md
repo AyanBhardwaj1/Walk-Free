@@ -4,14 +4,22 @@ An architectural atlas for exploring urban shade, planning walks, and designing 
 
 ## Run
 
-Node 24 is used in development. From this repository:
+Install Node 24 (or run `nvm use` if you use nvm). From a terminal on your computer:
 
 ```sh
-npm ci
+git clone https://github.com/AyanBhardwaj1/Walk-Free.git
+cd Walk-Free
+npm run setup
 npm run dev
 ```
 
-Vite serves the web app on port 5173; Express serves its API on port 8787. Open the running web app, not `index.html` directly. The starter district is an explicitly fictional design study. Search for a US city to request a real bounded OpenStreetMap neighborhood.
+Open **http://localhost:5173**. This workflow does not require a Codex cloud environment or publishing its settings. If you already cloned the repository, run the commands from `npm run setup` onward in that checkout. Setup installs locked dependencies and creates `.env` only when it is absent; it never overwrites existing configuration.
+
+Vite serves the web app on port 5173; Express serves its API on port 8787. Open the running web app, not `index.html` directly. The starter district is an explicitly fictional design study. Search for a US city to open the city atlas, then select a neighborhood for a detailed editable scene.
+
+For the assistant, set `WALK_FREE_OPENAI_API_KEY` in your computer's `.env`. Credentials are deliberately excluded from Git, so cloning does not transfer the key saved in another workspace. The other features need no API keys. Local requests use your computer's network; source availability and complete journeys still need verification there.
+
+To continue development with Codex on your computer, open this cloned folder in a local Codex session. Repository instructions in `AGENTS.md` preserve the request to commit and push verified milestones regularly.
 
 ```sh
 npm run build
@@ -43,7 +51,8 @@ Shade calculations estimate direct solar occlusion, not measured local air tempe
 
 Required outbound hosts:
 
-- `overpass-api.de`: bounded OSM area queries, cached for 24 hours. `WALK_FREE_OVERPASS_URL` can select an alternate instance such as `https://overpass.kumi.systems/api/interpreter`; enable that host in network settings before using it.
+- `overpass-api.de`: bounded OSM area queries, cached for 24 hours. `WALK_FREE_OVERPASS_URL` can select an alternate instance such as `https://overpass.kumi.systems/api/interpreter`.
+- `tiles.openfreemap.org`: streamed city atlas and map assets.
 - `api.weather.gov`: hourly forecasts and grid visibility where supplied.
 - `www.bart.gov` (and its canonical redirects): official static GTFS schedules.
 - `api.openai.com`: optional assistant.
