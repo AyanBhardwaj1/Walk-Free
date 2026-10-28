@@ -969,3 +969,25 @@ footer {
   padding: 8px;
   margin-left: auto;
 }
+
+.endpoint-picker label {
+  margin-bottom: 5px;
+}
+.endpoint-picker select {
+  text-overflow: ellipsis;
+}
+.route-area {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 6px;
+}
+.location-status {
+  background: #e7ecdf;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.use-location {
+  margin-left: 12px;
+}

@@ -1,4 +1,4 @@
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import { useMemo, useEffect } from "react";
 import * as THREE from "three";
@@ -13,6 +13,53 @@ import Building from "./scene/Buildings";
 import Trees from "./scene/Trees";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
+function FrameArea({ extent }: { extent: number }) {
+  const { camera, size, invalidate } = useThree();
+  useEffect(() => {
+    const fit = Math.max(1, 1.2 / (size.width / size.height));
+    camera.position.set(
+      extent * 0.65 * fit,
+      extent * 0.72 * fit,
+      extent * 0.7 * fit,
+    );
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [camera, extent, size.width, size.height, invalidate]);
+  return null;
+}
+function WalkingPaths({
+  world,
+  onClick,
+}: {
+  world: World;
+  onClick: (point: Point) => void;
+}) {
+  const geometry = useMemo(() => {
+    const positions: number[] = [];
+    for (const edge of world.graph.edges) {
+      if (edge.indoor === "hypothetical") continue;
+      for (let i = 1; i < edge.points.length; i++)
+        for (const p of [edge.points[i - 1], edge.points[i]])
+          positions.push(p[0], terrainHeight(p, world.terrain) + 1.2, p[1]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return g;
+  }, [world.graph, world.terrain]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <lineSegments
+      geometry={geometry}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick([e.point.x, e.point.z]);
+      }}
+    >
+      <lineBasicMaterial color="#699271" transparent opacity={0.65} />
+    </lineSegments>
+  );
+}
 function Ground({
   world,
   onClick,
@@ -124,6 +171,9 @@ export default function WorldCanvas({
   route,
   startPoint,
   endPoint,
+  showWalkingPaths = false,
+  locationPoint,
+  pickingEndpoint = false,
   showTrees = true,
   showBuildings = true,
 }: {
@@ -135,6 +185,9 @@ export default function WorldCanvas({
   route: RouteResult | null;
   startPoint?: Point;
   endPoint?: Point;
+  locationPoint?: Point;
+  showWalkingPaths?: boolean;
+  pickingEndpoint?: boolean;
   showTrees?: boolean;
   showBuildings?: boolean;
 }) {
@@ -152,6 +205,7 @@ export default function WorldCanvas({
       dpr={[1, 1.6]}
       gl={{ antialias: true }}
     >
+      <FrameArea extent={extent} />
       <color attach="background" args={["#eeece3"]} />
       <ambientLight intensity={1.1} />
       <hemisphereLight args={["#fff7e2", "#9aab91", 1.2]} />
@@ -187,33 +241,45 @@ export default function WorldCanvas({
           lineWidth={r.kind === "road" ? 5 : 2}
         />
       ))}
-      {showBuildings &&
-        world.objects
-          .filter((o) => o.kind !== "tree")
-          .map((o) => (
-            <Building
-              key={o.id}
-              object={o}
-              terrain={world.terrain}
-              selected={o.id === selectedId}
-              detailed={world.objects.length < 500}
-              onPointerDown={(e, obj) => {
-                e.stopPropagation();
-                onSelect(obj.id);
-              }}
-            />
-          ))}
-      {showTrees && (
-        <Trees
-          objects={world.objects.filter((o) => o.kind === "tree")}
-          terrain={world.terrain}
-          selectedId={selectedId}
-          onPointerDown={(e, o) => {
-            e.stopPropagation();
-            onSelect(o.id);
-          }}
-        />
+      {showWalkingPaths && (
+        <WalkingPaths world={world} onClick={onGroundClick} />
       )}
+      <group
+        onClick={(e) => {
+          if (pickingEndpoint) {
+            e.stopPropagation();
+            onGroundClick([e.point.x, e.point.z]);
+          }
+        }}
+      >
+        {showBuildings &&
+          world.objects
+            .filter((o) => o.kind !== "tree")
+            .map((o) => (
+              <Building
+                key={o.id}
+                object={o}
+                terrain={world.terrain}
+                selected={o.id === selectedId}
+                detailed={world.objects.length < 500}
+                onPointerDown={(e, obj) => {
+                  e.stopPropagation();
+                  if (!pickingEndpoint) onSelect(obj.id);
+                }}
+              />
+            ))}
+        {showTrees && (
+          <Trees
+            objects={world.objects.filter((o) => o.kind === "tree")}
+            terrain={world.terrain}
+            selectedId={selectedId}
+            onPointerDown={(e, o) => {
+              e.stopPropagation();
+              if (!pickingEndpoint) onSelect(o.id);
+            }}
+          />
+        )}
+      </group>
       {route && (
         <Line
           points={route.points.map((p) => [
@@ -231,10 +297,24 @@ export default function WorldCanvas({
       {endPoint && (
         <Endpoint point={endPoint} label="Finish" terrain={world.terrain} />
       )}
+      {locationPoint && (
+        <mesh
+          position={[
+            locationPoint[0],
+            terrainHeight(locationPoint, world.terrain) + 5,
+            locationPoint[1],
+          ]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={11}
+        >
+          <circleGeometry args={[6, 24]} />
+          <meshBasicMaterial color="#3479bf" depthTest={false} />
+        </mesh>
+      )}
       <OrbitControls
         makeDefault
         minDistance={70}
-        maxDistance={extent * 2.4}
+        maxDistance={extent * 4}
         maxPolarAngle={Math.PI * 0.48}
         target={[0, 0, 0]}
       />

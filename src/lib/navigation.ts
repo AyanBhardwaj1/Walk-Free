@@ -1,3 +1,4 @@
+import type { LocationFix } from "./walk-location";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
@@ -7,7 +8,7 @@ const background = registerPlugin<BackgroundGeolocationPlugin>(
 );
 export const nativeNavigation = Capacitor.isNativePlatform();
 export async function startTracking(
-  onLocation: (lat: number, lon: number) => void,
+  onLocation: (fix: LocationFix) => void,
   onError: (message: string) => void,
 ): Promise<() => void> {
   if (nativeNavigation) {
@@ -32,13 +33,13 @@ export async function startTracking(
           onError(error.message);
           return;
         }
-        if (
-          location &&
-          location.time !== null &&
-          Date.now() - location.time < 60000 &&
-          location.accuracy < 100
-        )
-          onLocation(location.latitude, location.longitude);
+        if (location)
+          onLocation({
+            lat: location.latitude,
+            lon: location.longitude,
+            accuracy: location.accuracy,
+            timestamp: location.time ?? 0,
+          });
       },
     );
     return () => {
@@ -49,8 +50,12 @@ export async function startTracking(
     throw Error("Location services are unavailable in this browser.");
   const id = navigator.geolocation.watchPosition(
     (p) => {
-      if (p.coords.accuracy < 100)
-        onLocation(p.coords.latitude, p.coords.longitude);
+      onLocation({
+        lat: p.coords.latitude,
+        lon: p.coords.longitude,
+        accuracy: p.coords.accuracy,
+        timestamp: p.timestamp,
+      });
     },
     (e) => onError(e.message),
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },

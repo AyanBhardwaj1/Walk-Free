@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { World } from "../../shared/types";
 import { TrainFront, ArrowUpRight } from "lucide-react";
 interface Walk {
   distance: number;
@@ -23,7 +24,7 @@ interface Journey {
     tripId: string;
   }[];
 }
-export default function JourneyPanel() {
+export default function JourneyPanel({ world }: { world: World }) {
   const [departure, setDeparture] = useState(() =>
     new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
       .toISOString()
@@ -69,6 +70,26 @@ export default function JourneyPanel() {
       hour: "numeric",
       minute: "2-digit",
     });
+  const inBayArea =
+    Math.abs(world.origin.lat - 37.8) < 0.25 &&
+    Math.abs(world.origin.lon + 122.3) < 0.3;
+  if (world.provenance.live && !inBayArea)
+    return (
+      <section>
+        <div className="section-title">
+          <TrainFront size={18} />
+          Transit in {world.name}
+        </div>
+        <p className="intro">
+          Transit planning is not available for this area yet. Use Route to
+          compare walks on this area's mapped paths.
+        </p>
+        <p className="fine">
+          The current transit integration covers the UC Berkeley–Chase Center
+          trip using BART schedules.
+        </p>
+      </section>
+    );
   return (
     <section>
       <div className="section-title">

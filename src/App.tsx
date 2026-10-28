@@ -38,14 +38,13 @@ import { heatIndexC, isShaded, sunDirection } from "./lib/environment";
 import { applyDesignProposal, type DesignProposal } from "./lib/proposals";
 import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
-import {
-  startTracking,
-  speak,
-  stopSpeech,
-  nativeNavigation,
-} from "./lib/navigation";
+import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
+import EndpointPicker from "./components/EndpointPicker";
+import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
+import { snapWalkPosition, hasArrived } from "./lib/walk-location";
+import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
@@ -108,8 +107,12 @@ export default function App() {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState("route");
-  const [start, setStart] = useState("market-gate");
-  const [end, setEnd] = useState("observatory");
+  const [start, setStart] = useState(() =>
+    world.provenance.live ? defaultEndpoints(world)[0] : "market-gate",
+  );
+  const [end, setEnd] = useState(() =>
+    world.provenance.live ? defaultEndpoints(world)[1] : "observatory",
+  );
   const [picking, setPicking] = useState<"start" | "end" | null>(null);
   const [pref, setPref] = useState<RoutePreference>("shade");
   const [hypothetical, setHypothetical] = useState(false);
@@ -125,41 +128,70 @@ export default function App() {
   } | null>(null);
   const [roadStart, setRoadStart] = useState<Point | null>(null);
   const [forecast, setForecast] = useState<WeatherForecast | null>(null);
-  const [tracking, setTracking] = useState(false);
-  const watch = useRef<(() => void) | null>(null);
+  const location = useWalkLocation();
+  const tracking = location.mode === "walking";
+  const locating = location.mode === "locating";
+  const [voice, setVoice] = useState(true);
+  const [showPaths, setShowPaths] = useState(true);
+  const userPosition = useMemo(
+    () =>
+      location.fix
+        ? toLocal(location.fix.lat, location.fix.lon, world.origin)
+        : null,
+    [location.fix, world.origin],
+  );
+  const snappedLocation = useMemo(
+    () =>
+      userPosition
+        ? snapWalkPosition(world, userPosition, {
+            avoidStairs: stairs,
+            allowHypothetical: tracking ? false : hypothetical,
+          })
+        : null,
+    [world, userPosition, stairs, hypothetical, tracking],
+  );
+  const routeWorld = snappedLocation?.world || world;
+  const routeStart = location.fix ? snappedLocation?.nodeId || "" : start;
   const lastSpoken = useRef("");
+  const buildRequest = useRef(0);
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
   const routeChoices = useMemo(
     () =>
-      compareRoutes(world, start, end, {
+      compareRoutes(routeWorld, routeStart, end, {
         avoidStairs: stairs,
-        allowHypothetical: hypothetical,
+        allowHypothetical: tracking ? false : hypothetical,
         maxDetour: detour,
         environment: env,
       }),
-    [world, start, end, stairs, hypothetical, detour, env],
+    [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
   );
   const currentRoute = routeChoices[pref];
-  const startNode = world.graph.nodes.find((n) => n.id === start);
+  const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
-  const named = world.graph.nodes.filter((n) => n.name);
-  const listedNodes =
-    named.length > 1 ? named : world.graph.nodes.slice(0, 250);
-  const nodes = [
-    ...new Map(
-      [
-        ...listedNodes,
-        ...[startNode, endNode].filter((n) => n !== undefined),
-      ].map((n) => [n.id, n]),
-    ).values(),
-  ];
+  const catalog = useMemo(() => destinationCatalog(world), [world]);
+  const endpointCatalog =
+    snappedLocation && !catalog.some((n) => n.id === routeStart)
+      ? [
+          {
+            id: routeStart,
+            label: "Your location on mapped path",
+            detail: "GPS start",
+            search: "your location",
+          },
+          ...catalog,
+        ]
+      : catalog;
   useEffect(() => {
-    if (!startNode) setStart(world.graph.nodes[0]?.id || "");
-    if (!endNode) setEnd(world.graph.nodes.at(-1)?.id || "");
-  }, [world.graph.nodes, startNode, endNode]);
+    const [from, to] = defaultEndpoints(world, {
+      avoidStairs: stairs,
+      allowHypothetical: hypothetical,
+    });
+    if (!world.graph.nodes.some((n) => n.id === start)) setStart(from);
+    if (!world.graph.nodes.some((n) => n.id === end)) setEnd(to);
+  }, [world.graph, start, end, stairs, hypothetical]);
   useEffect(() => {
     setPicking(null);
   }, [mode, atlas, world.id, tab]);
@@ -208,16 +240,9 @@ export default function App() {
       controller.abort();
     };
   }, [query]);
-  useEffect(
-    () => () => {
-      if (watch.current) watch.current();
-    },
-    [],
-  );
+  useEffect(() => () => stopSpeech(), []);
   function edit(next: World) {
-    watch.current?.();
-    watch.current = null;
-    setTracking(false);
+    location.reset();
     stopSpeech();
     setProposal(null);
     setHistory((h) => [...h.slice(-29), world]);
@@ -231,11 +256,11 @@ export default function App() {
       ),
     });
   }
-  async function loadCity(c: City, build = false) {
+  async function loadCity(c: City, build = false, radius = 800) {
+    const request = ++buildRequest.current;
     if (!build) {
-      watch.current?.();
-      watch.current = null;
-      setTracking(false);
+      setBusy("");
+      location.reset();
       stopSpeech();
       setAtlas(c);
       setQuery("");
@@ -247,21 +272,41 @@ export default function App() {
     setQuery("");
     try {
       const w = await api(
-        `/api/world?lat=${c.lat}&lon=${c.lon}&name=${encodeURIComponent(c.name + ", " + c.state)}`,
+        `/api/world?lat=${c.lat}&lon=${c.lon}&name=${encodeURIComponent([c.name, c.state].filter(Boolean).join(", "))}&radius=${radius}`,
       );
-      edit(w);
+      if (request !== buildRequest.current) return;
+      edit(worldSchema.parse(w));
       setAtlas(null);
       setSelected(null);
-      setStart(w.graph.nodes[0]?.id || "");
-      setEnd(w.graph.nodes.at(-1)?.id || "");
+      const [from, to] = defaultEndpoints(w, {
+        avoidStairs: stairs,
+        allowHypothetical: false,
+      });
+      setStart(from);
+      setEnd(to);
+      setHypothetical(false);
+      setMode("explore");
+      setTab("route");
+      setPicking(null);
+      setTrees(true);
+      setBuildings(true);
+      setShowPaths(true);
+      setEnv((previous) => ({
+        ...previous,
+        dateTime: new Date().toISOString(),
+        weatherMode: "scenario",
+      }));
       setForecast(null);
       setMessage(
-        "Loaded mapped geometry. Open Data & sources to inspect coverage.",
+        from && to
+          ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
+          : "This area has no public walking connections. Build a nearby area to plan a walk.",
       );
     } catch (e) {
-      setMessage(String(e instanceof Error ? e.message : e));
+      if (request === buildRequest.current)
+        setMessage(String(e instanceof Error ? e.message : e));
     } finally {
-      setBusy("");
+      if (request === buildRequest.current) setBusy("");
     }
   }
   function ground(p: Point) {
@@ -274,8 +319,10 @@ export default function App() {
           );
           return;
         }
-        if (picking === "start") setStart(node.id);
-        else setEnd(node.id);
+        if (picking === "start") {
+          location.reset();
+          setStart(node.id);
+        } else setEnd(node.id);
         setMessage(
           `Selected ${node.name || "path junction"} as your ${picking === "start" ? "start" : "destination"}.`,
         );
@@ -424,66 +471,65 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(a.href);
   }
-  async function navigation() {
-    if (tracking) {
-      watch.current?.();
-      watch.current = null;
-      setTracking(false);
+  function navigation() {
+    if (tracking || locating) {
+      location.stop();
       stopSpeech();
       return;
     }
-    if (!world.provenance.live || currentRoute?.hypothetical || !currentRoute) {
+    if (
+      !world.provenance.live ||
+      !endNode ||
+      hypothetical ||
+      currentRoute?.hypothetical
+    ) {
       setMessage(
-        "Live navigation requires a mapped area and a route without hypothetical passages.",
+        "GPS walking requires a mapped area, a destination, and hypothetical planning turned off.",
       );
       return;
     }
-    try {
-      watch.current = await startTracking(
-        (lat, lon) => {
-          const p = toLocal(lat, lon, world.origin);
-          const n = [...world.graph.nodes].sort(
-            (a, b) =>
-              Math.hypot(a.point[0] - p[0], a.point[1] - p[1]) -
-              Math.hypot(b.point[0] - p[0], b.point[1] - p[1]),
-          )[0];
-          if (n && Math.hypot(n.point[0] - p[0], n.point[1] - p[1]) < 100) {
-            if (
-              n.id !== end ||
-              Math.hypot(n.point[0] - p[0], n.point[1] - p[1]) < 20
-            )
-              setStart(n.id);
-          } else
-            setMessage("Your location is outside the loaded walking network.");
-        },
-        (msg) => {
-          setMessage(msg);
-          watch.current?.();
-          watch.current = null;
-          setTracking(false);
-        },
-      );
-      setTracking(true);
-      speak(currentRoute.directions[0].text);
-    } catch (e) {
-      setMessage((e as Error).message);
-    }
+    setPicking(null);
+    lastSpoken.current = "";
+    location.begin(true);
   }
+  const gpsRouteStatus =
+    location.fix && !snappedLocation
+      ? "Your location is outside the loaded walking paths. Build an area around you or choose a start on the map."
+      : location.fix && !currentRoute && routeStart !== end
+        ? "No connected walk from your location with these settings. Try another destination or route option."
+        : "";
   useEffect(() => {
-    if (!tracking) return;
-    if (start === end) {
-      speak("You have arrived.");
-      watch.current?.();
-      watch.current = null;
-      setTracking(false);
+    if (!tracking || !location.fix || !userPosition || !endNode) return;
+    const remaining = routeStart === end ? 0 : (currentRoute?.distance ?? null);
+    if (
+      hasArrived(userPosition, endNode.point, location.fix.accuracy, remaining)
+    ) {
+      location.stop();
+      setMessage("You have arrived at your selected mapped destination.");
+      if (voice) speak("You have arrived.");
       return;
     }
     const text = currentRoute?.directions[0]?.text;
-    if (text && text !== lastSpoken.current) {
+    if (!text) {
+      stopSpeech();
+      lastSpoken.current = "";
+      return;
+    }
+    if (voice && text !== lastSpoken.current) {
       lastSpoken.current = text;
       speak(text);
     }
-  }, [tracking, start, end, currentRoute]);
+  }, [
+    tracking,
+    location.fix,
+    userPosition,
+    endNode,
+    routeStart,
+    end,
+    currentRoute,
+    voice,
+    location.stop,
+  ]);
 
   return (
     <div className="app">
@@ -507,9 +553,7 @@ export default function App() {
           <button
             className={mode === "studio" ? "active" : ""}
             onClick={() => {
-              watch.current?.();
-              watch.current = null;
-              setTracking(false);
+              location.reset();
               stopSpeech();
               setMode("studio");
               setTab("build");
@@ -553,9 +597,10 @@ export default function App() {
               ? "Less heat. More green. A little more discovery between here and there."
               : "Shape a place worth walking through. See how every change feels on the ground."}
           </p>
-          {tracking && (
+          {(tracking || locating) && (
             <button className="secondary" onClick={navigation}>
-              End active navigation <X size={16} />
+              {tracking ? "End active navigation" : "Cancel location lookup"}{" "}
+              <X size={16} />
             </button>
           )}
           <div className="search">
@@ -604,54 +649,81 @@ export default function App() {
                 <div className="section-title">
                   <Route size={17} /> Your next walk
                 </div>
-                <label>
-                  FROM
-                  <select
-                    value={start}
-                    disabled={tracking}
-                    onChange={(e) => {
-                      setStart(e.target.value);
-                      setPicking(null);
-                    }}
+                <p className="route-area">
+                  Walking in <strong>{world.name}</strong>
+                </p>
+                <p className="fine">
+                  {catalog.length.toLocaleString()} mapped path points. Nearby
+                  building names select a path outside the building; entry is
+                  not verified.
+                </p>
+                {world.provenance.live && (
+                  <button
+                    className="endpoint-pick"
+                    onClick={() =>
+                      loadCity({
+                        id: world.id,
+                        name: world.name,
+                        state: "",
+                        lat: world.origin.lat,
+                        lon: world.origin.lon,
+                        timezone: world.timezone,
+                      })
+                    }
                   >
-                    {nodes.map((n) => (
-                      <option value={n.id} key={n.id}>
-                        {n.name || n.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    Change built area · {(world.extent / 1000).toFixed(1)} km
+                    across
+                  </button>
+                )}
+                <EndpointPicker
+                  key={world.id + "-from"}
+                  label="From"
+                  catalog={endpointCatalog}
+                  value={routeStart}
+                  disabled={tracking || locating}
+                  onChange={(id) => {
+                    location.reset();
+                    setStart(id);
+                    setPicking(null);
+                  }}
+                />
                 <button
                   className="endpoint-pick"
                   aria-pressed={picking === "start"}
-                  disabled={tracking || !world.graph.edges.length}
+                  disabled={tracking || locating || !world.graph.edges.length}
                   onClick={() => pickEndpoint("start")}
                 >
                   <MapPin size={14} />
                   Pick start on map
                 </button>
-                <label>
-                  TO
-                  <select
-                    value={end}
-                    disabled={tracking}
-                    onChange={(e) => {
-                      setEnd(e.target.value);
+                {world.provenance.live && (
+                  <button
+                    className="endpoint-pick use-location"
+                    disabled={tracking || locating || !catalog.length}
+                    onClick={() => {
                       setPicking(null);
+                      location.begin(false);
                     }}
                   >
-                    {nodes.map((n) => (
-                      <option value={n.id} key={n.id}>
-                        {n.name || n.id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    Use my location
+                  </button>
+                )}
+                <EndpointPicker
+                  key={world.id + "-to"}
+                  label="To"
+                  catalog={catalog}
+                  value={end}
+                  disabled={tracking || locating}
+                  onChange={(id) => {
+                    setEnd(id);
+                    setPicking(null);
+                  }}
+                />
                 <div className="endpoint-actions">
                   <button
                     className="endpoint-pick"
                     aria-pressed={picking === "end"}
-                    disabled={tracking || !world.graph.edges.length}
+                    disabled={tracking || locating || !world.graph.edges.length}
                     onClick={() => pickEndpoint("end")}
                   >
                     <MapPin size={14} />
@@ -659,7 +731,13 @@ export default function App() {
                   </button>
                   <button
                     className="endpoint-pick"
-                    disabled={tracking || !startNode || !endNode}
+                    disabled={
+                      tracking ||
+                      locating ||
+                      !!location.fix ||
+                      !startNode ||
+                      !endNode
+                    }
                     onClick={() => {
                       setStart(end);
                       setEnd(start);
@@ -669,6 +747,36 @@ export default function App() {
                     Swap
                   </button>
                 </div>
+                {(location.status || gpsRouteStatus) && (
+                  <p className="location-status" role="status">
+                    {gpsRouteStatus || location.status}
+                  </p>
+                )}
+                {tracking && !location.fix && (
+                  <p className="fine">
+                    Waiting for GPS before starting guidance.
+                  </p>
+                )}
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={showPaths}
+                    onChange={(e) => setShowPaths(e.target.checked)}
+                  />
+                  Show walking paths
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={voice}
+                    onChange={(e) => {
+                      setVoice(e.target.checked);
+                      stopSpeech();
+                      lastSpoken.current = "";
+                    }}
+                  />
+                  Spoken guidance
+                </label>
                 <label>WHAT MATTERS TODAY?</label>
                 <RouteChoices
                   choices={routeChoices}
@@ -687,6 +795,7 @@ export default function App() {
                   <input
                     type="checkbox"
                     checked={hypothetical}
+                    disabled={tracking}
                     onChange={(e) => setHypothetical(e.target.checked)}
                   />
                   Hypothetical indoor planning
@@ -702,6 +811,18 @@ export default function App() {
                     onChange={(e) => setDetour(+e.target.value)}
                   />
                 </label>
+                {!currentRoute &&
+                  world.provenance.live &&
+                  endNode &&
+                  !tracking && (
+                    <button
+                      className="primary"
+                      disabled={locating || hypothetical}
+                      onClick={navigation}
+                    >
+                      Start walking from my location <Navigation size={17} />
+                    </button>
+                  )}
                 {currentRoute ? (
                   <>
                     <div className="route-summary">
@@ -716,7 +837,14 @@ export default function App() {
                         shade
                       </span>
                     </div>
-                    <button className="primary" onClick={navigation}>
+                    <button
+                      className="primary"
+                      onClick={navigation}
+                      disabled={
+                        locating ||
+                        (!tracking && (!world.provenance.live || hypothetical))
+                      }
+                    >
                       <Navigation size={17} />
                       {tracking ? "End walk" : "Start walking"}
                       <ArrowUpRight size={18} />
@@ -745,9 +873,11 @@ export default function App() {
                   </>
                 ) : (
                   <p className="fine">
-                    {start === end
-                      ? "Start and destination are the same. Choose a different endpoint."
-                      : "No connected walk with these settings. Try different endpoints or route options."}
+                    {!catalog.length
+                      ? "No public walking paths in this build. Choose another area in the city atlas."
+                      : routeStart === end
+                        ? "Start and destination are the same. Choose a different endpoint."
+                        : "No connected walk with these settings. Try different endpoints or route options."}
                   </p>
                 )}
               </section>
@@ -770,7 +900,9 @@ export default function App() {
               </p>
             </section>
           )}
-          {!atlas && tab === "transit" && <JourneyPanel />}
+          {!atlas && tab === "transit" && (
+            <JourneyPanel key={world.id} world={world} />
+          )}
           {!atlas && tab === "climate" && (
             <section>
               <div className="section-title">
@@ -1107,24 +1239,25 @@ export default function App() {
               <Atlas
                 lat={atlas.lat}
                 lon={atlas.lon}
-                onBuild={(lat, lon) => loadCity({ ...atlas, lat, lon }, true)}
+                onBuild={(lat, lon, radius) =>
+                  loadCity({ ...atlas, lat, lon }, true, radius)
+                }
               />
             </Suspense>
           ) : (
             <WorldCanvas
+              key={world.id}
               world={proposal ? applyDesignProposal(world, proposal) : world}
               environment={env}
               selectedId={selected}
-              onSelect={(id) => {
-                if (picking) {
-                  const item = world.objects.find((o) => o.id === id);
-                  if (item) ground(item.position);
-                } else setSelected(id);
-              }}
+              onSelect={setSelected}
               onGroundClick={ground}
               route={mode === "explore" ? currentRoute : null}
               startPoint={mode === "explore" ? startNode?.point : undefined}
               endPoint={mode === "explore" ? endNode?.point : undefined}
+              pickingEndpoint={!!picking}
+              showWalkingPaths={showPaths && mode === "explore"}
+              locationPoint={userPosition || undefined}
               showTrees={trees}
               showBuildings={buildings}
             />
@@ -1175,6 +1308,8 @@ export default function App() {
               aria-label="Undo"
               disabled={!history.length}
               onClick={() => {
+                location.reset();
+                stopSpeech();
                 setWorld(history.at(-1)!);
                 setHistory(history.slice(0, -1));
               }}

@@ -8,11 +8,12 @@ export default function Atlas({
 }: {
   lat: number;
   lon: number;
-  onBuild: (lat: number, lon: number) => void;
+  onBuild: (lat: number, lon: number, radius: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [error, setError] = useState("");
+  const [radius, setRadius] = useState(800);
   useEffect(() => {
     if (!host.current) return;
     const m = new maplibregl.Map({
@@ -75,16 +76,31 @@ export default function Atlas({
       <div className="atlas-map" ref={host} />
       <div className="atlas-build">
         <p>Explore the city. Choose a neighborhood.</p>
+        <label>
+          AREA TO BUILD
+          <select
+            aria-label="Area to build"
+            value={radius}
+            onChange={(e) => setRadius(+e.target.value)}
+          >
+            <option value={400}>Local blocks · 0.8 km across</option>
+            <option value={800}>Neighborhood · 1.6 km across</option>
+            <option value={1000}>Campus / wider area · 2 km across</option>
+          </select>
+        </label>
         <button
           className="primary"
           onClick={() => {
             const c = map.current?.getCenter();
-            if (c) onBuild(c.lat, c.lng);
+            if (c) onBuild(c.lat, c.lng, radius);
           }}
         >
           Build a detailed scene here ↗
         </button>
-        <small>Uses real mapped paths and geometry for local analysis.</small>
+        <small>
+          Walking routes stay inside the built area. Pan to center your start
+          and destination before building.
+        </small>
         {error && <p role="status">{error}</p>}
       </div>
     </>
