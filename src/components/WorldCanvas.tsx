@@ -11,6 +11,7 @@ import type {
 } from "../../shared/types";
 import Building from "./scene/Buildings";
 import Trees from "./scene/Trees";
+import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
 function FrameArea({ extent }: { extent: number }) {
@@ -118,6 +119,31 @@ function HeatPaths({
       />
       {highlight.length > 0 && (
         <Line points={highlight} segments color="#1f2a1c" lineWidth={7} />
+      )}
+    </>
+  );
+}
+const MERGE_THRESHOLD = 500;
+/** Streets and footpaths batched into two lines instead of one per road. */
+function Roads({ world }: { world: World }) {
+  const batches = useMemo(() => {
+    const road: [number, number, number][] = [],
+      path: [number, number, number][] = [];
+    for (const r of world.roads) {
+      const target = r.kind === "road" ? road : path;
+      for (let i = 1; i < r.points.length; i++)
+        for (const p of [r.points[i - 1], r.points[i]])
+          target.push([p[0], terrainHeight(p, world.terrain) + 0.6, p[1]]);
+    }
+    return { road, path };
+  }, [world.roads, world.terrain]);
+  return (
+    <>
+      {batches.road.length > 0 && (
+        <Line points={batches.road} segments color="#faf7ed" lineWidth={5} />
+      )}
+      {batches.path.length > 0 && (
+        <Line points={batches.path} segments color="#dfd4bd" lineWidth={2} />
       )}
     </>
   );
@@ -259,6 +285,18 @@ export default function WorldCanvas({
 }) {
   const sun = sunDirection(environment, world.origin);
   const extent = world.extent;
+  // Large mapped areas draw OSM buildings as one mesh; designed objects and
+  // the selected building stay individual so they keep their detail.
+  const merged = useMemo(
+    () =>
+      world.objects.length >= MERGE_THRESHOLD
+        ? world.objects.filter(
+            (o) =>
+              o.kind !== "tree" && o.source === "osm" && o.id !== selectedId,
+          )
+        : null,
+    [world.objects, selectedId],
+  );
   return (
     <Canvas
       shadows
@@ -270,6 +308,9 @@ export default function WorldCanvas({
       }}
       dpr={[1, 1.6]}
       gl={{ antialias: true }}
+      // Draw only when the camera or scene changes, not 60 times a second.
+      frameloop="demand"
+      raycaster={{ params: { Line: { threshold: 3 } } } as never}
     >
       <FrameArea extent={extent} />
       <color attach="background" args={["#eeece3"]} />
@@ -295,18 +336,7 @@ export default function WorldCanvas({
           color={l.kind === "water" ? "#a5bcba" : "#bdc6a0"}
         />
       ))}
-      {world.roads.map((r) => (
-        <Line
-          key={r.id}
-          points={r.points.map((p) => [
-            p[0],
-            terrainHeight(p, world.terrain) + 0.6,
-            p[1],
-          ])}
-          color={r.kind === "road" ? "#faf7ed" : "#dfd4bd"}
-          lineWidth={r.kind === "road" ? 5 : 2}
-        />
-      ))}
+      <Roads world={world} />
       {heat ? (
         <HeatPaths
           world={world}
@@ -330,9 +360,22 @@ export default function WorldCanvas({
           }
         }}
       >
+        {showBuildings && merged && (
+          <MergedBuildings
+            objects={merged}
+            terrain={world.terrain}
+            onPick={(o) => {
+              if (!pickingEndpoint) onSelect(o.id);
+            }}
+          />
+        )}
         {showBuildings &&
           world.objects
-            .filter((o) => o.kind !== "tree")
+            .filter(
+              (o) =>
+                o.kind !== "tree" &&
+                (!merged || o.source !== "osm" || o.id === selectedId),
+            )
             .map((o) => (
               <Building
                 key={o.id}
