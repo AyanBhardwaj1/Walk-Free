@@ -19,6 +19,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run areas:build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hero-areas
+          path: public/areas/*.json
+          if-no-files-found: warn
       - name: Commit updated areas
         run: |
           git config user.name "github-actions[bot]"
@@ -26,4 +32,6 @@ jobs:
           git add public/areas
           git diff --cached --quiet && exit 0
           git commit -m "chore: refresh pre-built hero areas"
-          git push
+          # The branch may have moved while the build ran.
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
