@@ -1,0 +1,29 @@
+name: Build hero areas
+
+# Regenerates the pre-built UT Austin and UC Berkeley map data from
+# OpenStreetMap and commits it to the branch the workflow ran on.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run areas:build
+      - name: Commit updated areas
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/areas
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: refresh pre-built hero areas"
+          git push
