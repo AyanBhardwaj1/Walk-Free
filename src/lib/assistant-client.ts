@@ -23,14 +23,20 @@ type Post = (
 ) => Promise<{ reply: string; toolCalls: ToolCall[] }>;
 
 const KEEP_USER_TURNS = 6;
+/** Stays well under the server's message limit. */
+const MAX_MESSAGES = 60;
 const TOOL_RESULT_CHARS = 11_000;
 
 /** Drop the oldest whole turns so tool calls always keep their results. */
 export function trimHistory(messages: ChatMessage[]) {
   const starts = messages.flatMap((m, i) => (m.role === "user" ? [i] : []));
-  return starts.length > KEEP_USER_TURNS
-    ? messages.slice(starts[starts.length - KEEP_USER_TURNS])
-    : messages;
+  let from = Math.max(0, starts.length - KEEP_USER_TURNS);
+  while (
+    from < starts.length - 1 &&
+    messages.length - starts[from] > MAX_MESSAGES
+  )
+    from++;
+  return starts.length ? messages.slice(starts[from]) : messages;
 }
 
 /**
@@ -73,6 +79,9 @@ export async function converse(
           error: error instanceof Error ? error.message : "The tool failed.",
         };
       }
+      // Let React re-render after a new area so later tools see it.
+      if (call.function.name === "build_area")
+        await new Promise((resolve) => setTimeout(resolve, 250));
       results.push({
         role: "tool",
         tool_call_id: call.id,

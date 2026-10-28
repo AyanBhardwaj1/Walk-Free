@@ -122,9 +122,17 @@ export function usageLimits(): UsageLimits {
   };
 }
 
+export type UsageResult = "ok" | "daily" | "monthly";
 export interface UsageStore {
-  /** Records one call and returns the totals including it. */
-  record(userId: string, day: string): Promise<{ day: number; month: number }>;
+  /**
+   * Counts one call if both limits allow it. A refused call is never
+   * counted, so retrying past a limit cannot use up the site's budget.
+   */
+  record(
+    userId: string,
+    day: string,
+    limits: UsageLimits,
+  ): Promise<UsageResult>;
 }
 
 /** Durable counts in Postgres, shared by every serverless instance. */
@@ -132,20 +140,28 @@ export function postgresUsage(url: string): UsageStore {
   const sql = neon(url);
   let ready: Promise<unknown> | null = null;
   return {
-    async record(userId, day) {
-      ready ??= sql.query(
-        "create table if not exists walk_free_ai_usage (user_id text not null, day date not null, calls integer not null default 0, primary key (user_id, day))",
-      );
+    async record(userId, day, limits) {
+      ready ??= sql
+        .query(
+          "create table if not exists walk_free_ai_usage (user_id text not null, day date not null, calls integer not null default 0, primary key (user_id, day))",
+        )
+        .catch((error) => {
+          // Retry setup on the next call instead of caching the failure.
+          ready = null;
+          throw error;
+        });
       await ready;
-      const [row] = (await sql.query(
-        "insert into walk_free_ai_usage (user_id, day, calls) values ($1, $2, 1) on conflict (user_id, day) do update set calls = walk_free_ai_usage.calls + 1 returning calls",
-        [userId, day],
-      )) as { calls: number }[];
       const [total] = (await sql.query(
         "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date)",
         [day],
       )) as { calls: number }[];
-      return { day: row.calls, month: total.calls };
+      if (total.calls >= limits.monthlyTotal) return "monthly";
+      // Atomic: concurrent requests cannot push one user past the daily cap.
+      const rows = (await sql.query(
+        "insert into walk_free_ai_usage (user_id, day, calls) values ($1, $2, 1) on conflict (user_id, day) do update set calls = walk_free_ai_usage.calls + 1 where walk_free_ai_usage.calls < $3 returning calls",
+        [userId, day, limits.dailyPerUser],
+      )) as { calls: number }[];
+      return rows.length ? "ok" : "daily";
     },
   };
 }
@@ -154,13 +170,16 @@ export function postgresUsage(url: string): UsageStore {
 export function memoryUsage(): UsageStore {
   const counts = new Map<string, number>();
   return {
-    async record(userId, day) {
-      const key = `${userId}:${day}`;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+    async record(userId, day, limits) {
       let month = 0;
       for (const [k, v] of counts)
         if (k.split(":")[1].slice(0, 7) === day.slice(0, 7)) month += v;
-      return { day: counts.get(key)!, month };
+      if (month >= limits.monthlyTotal) return "monthly";
+      const key = `${userId}:${day}`;
+      const today = counts.get(key) ?? 0;
+      if (today >= limits.dailyPerUser) return "daily";
+      counts.set(key, today + 1);
+      return "ok";
     },
   };
 }
@@ -185,11 +204,10 @@ export function setUsageStore(next: UsageStore | null) {
 
 /** Counts one model call against the user's daily and the site's monthly cap. */
 export async function chargeAiCall(userId: string, now = new Date()) {
-  const limits = usageLimits();
   const day = now.toISOString().slice(0, 10);
-  let usage: { day: number; month: number };
+  let result: UsageResult;
   try {
-    usage = await usageStore().record(userId, day);
+    result = await usageStore().record(userId, day, usageLimits());
   } catch (error) {
     if (error instanceof ServiceError) throw error;
     throw new ServiceError(
@@ -198,19 +216,18 @@ export async function chargeAiCall(userId: string, now = new Date()) {
       503,
     );
   }
-  if (usage.month > limits.monthlyTotal)
+  if (result === "monthly")
     throw new ServiceError(
       "AI_MONTHLY_LIMIT",
       "The assistant has reached this month's usage limit. Routes and heat maps still work without it.",
       429,
     );
-  if (usage.day > limits.dailyPerUser)
+  if (result === "daily")
     throw new ServiceError(
       "AI_DAILY_LIMIT",
       "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
       429,
     );
-  return usage;
 }
 
 export function requireAi(): AiConfig {

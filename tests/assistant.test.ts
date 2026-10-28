@@ -11,7 +11,8 @@ vi.mock("../server/network.js", async (original) => ({
 }));
 const { chargeAiCall, memoryUsage, setUsageStore, aiConfig } =
   await import("../server/ai");
-const { agentRouter, toolRounds } = await import("../server/agent");
+const { agentRouter, toolRounds, recentTurns } =
+  await import("../server/agent");
 
 afterEach(() => {
   requestJson.mockReset();
@@ -72,9 +73,25 @@ describe("assistant usage limits", () => {
       code: "AI_DAILY_LIMIT",
       status: 429,
     });
-    await expect(chargeAiCall("b", now)).rejects.toMatchObject({
+    await chargeAiCall("b", now);
+    await expect(chargeAiCall("c", now)).rejects.toMatchObject({
       code: "AI_MONTHLY_LIMIT",
     });
+  });
+
+  it("does not count refused calls, so one user cannot exhaust the site", async () => {
+    vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "2");
+    vi.stubEnv("WALK_FREE_AI_MONTHLY_LIMIT", "5");
+    setUsageStore(memoryUsage());
+    const now = new Date("2026-10-28T12:00:00Z");
+    await chargeAiCall("spammer", now);
+    await chargeAiCall("spammer", now);
+    for (let i = 0; i < 20; i++)
+      await expect(chargeAiCall("spammer", now)).rejects.toMatchObject({
+        code: "AI_DAILY_LIMIT",
+      });
+    await chargeAiCall("someone-else", now);
+    await chargeAiCall("someone-else", now);
   });
 
   it("refuses hosted calls without a shared usage database", async () => {
@@ -130,7 +147,8 @@ describe("assistant chat", () => {
     expect(
       sent.tools.map((t: { function: { name: string } }) => t.function.name),
     ).toContain("plan_route");
-    expect(sent.messages[0].content).toContain("UT Austin, TX");
+    expect(sent.messages[0].content).not.toContain("UT Austin");
+    expect(sent.messages[1].content).toContain("UT Austin, TX");
     expect(options.headers.Authorization).toBe("Bearer sk-test");
   });
 
@@ -198,5 +216,22 @@ describe("assistant chat", () => {
     });
     expect(result.status).toBe(503);
     expect(result.body.code).toBe("KEY_REQUIRED");
+  });
+});
+
+describe("assistant history", () => {
+  it("keeps recent turns starting at a question, never an orphaned tool result", () => {
+    const turn = (i: number) => [
+      { role: "user", content: `q${i}` },
+      { role: "assistant", content: null },
+      { role: "tool", content: "{}" },
+      { role: "tool", content: "{}" },
+      { role: "assistant", content: `a${i}` },
+    ];
+    const messages = Array.from({ length: 6 }, (_, i) => turn(i)).flat();
+    const kept = recentTurns(messages, 24);
+    expect(kept[0]).toEqual({ role: "user", content: "q2" });
+    expect(kept.length).toBeLessThanOrEqual(24);
+    expect(recentTurns(turn(9), 2)[0]).toEqual({ role: "user", content: "q9" });
   });
 });

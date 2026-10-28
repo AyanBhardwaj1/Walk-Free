@@ -572,7 +572,7 @@ export default function App({
         weatherMode: "scenario",
       }));
       setForecast(null);
-      void weather(w.origin, true);
+      void weather(w.origin, true, request);
       flash(
         from && to
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
@@ -689,11 +689,25 @@ export default function App({
     edit({ ...world, objects: [...world.objects, o] });
     setSelected(o.id);
   }
-  async function weather(origin = world.origin, quiet = false) {
+  async function weather(
+    origin = world.origin,
+    quiet = false,
+    request?: number,
+  ) {
     if (!quiet) setBusy("Fetching the forecast…");
     try {
       const f = await api(`/api/weather?lat=${origin.lat}&lon=${origin.lon}`);
+      // A forecast that arrives after another area was built is discarded.
+      if (request !== undefined && request !== buildRequest.current) return;
       setForecast(f);
+      if (quiet) {
+        // Keep whatever time the person (or assistant) chose meanwhile.
+        setEnv((env) => ({
+          ...weatherAt(env, env.dateTime, f),
+          weatherMode: "forecast",
+        }));
+        return;
+      }
       const h = f.hours[0];
       setEnv((env) => ({
         ...env,

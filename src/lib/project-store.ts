@@ -37,8 +37,12 @@ function run<T>(
 }
 
 export async function loadProject(key: string): Promise<unknown | null> {
-  const stored = await run("readonly", (s) => s.get(key));
-  if (stored != null) return stored;
+  try {
+    const stored = await run("readonly", (s) => s.get(key));
+    if (stored != null) return stored;
+  } catch {
+    /* IndexedDB can be unavailable (some private windows); try the old copy. */
+  }
   try {
     const legacy = localStorage.getItem(key);
     return legacy ? JSON.parse(legacy) : null;

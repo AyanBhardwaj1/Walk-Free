@@ -236,7 +236,7 @@ export function atLocalHour(iso: string, timeZone: string, hour: number) {
     +parts.month - 1,
     +parts.day,
     Math.floor(hour),
-    Math.round((hour % 1) * 60),
+    Math.min(59, Math.round((hour % 1) * 60)),
   );
   // Correct by the zone offset at that wall time (twice, for DST edges).
   let guess = wall;
