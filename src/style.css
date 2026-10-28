@@ -991,3 +991,213 @@ footer {
 .use-location {
   margin-left: 12px;
 }
+
+/* Heat on the ground */
+.heat-time {
+  margin: -8px 0 6px;
+  font-size: 11px;
+  color: #7c8670;
+}
+.heat-legend {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 18px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.heat-legend li {
+  font-size: 10px;
+  color: #5b6650;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.heat-legend li > span {
+  height: 6px;
+  border-radius: 3px;
+}
+.heat-legend small {
+  font-size: 9px;
+  color: #969c86;
+}
+.heat-badge {
+  color: #fffdf4;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.heat-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.heat-hint {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6f7964;
+  background: #efeee5;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+.place-card {
+  border: 1px solid #dedfd0;
+  background: #fbfaf3;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.place-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.place-card-head small {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8b9080;
+}
+.place-card h3 {
+  margin: 3px 0 0;
+  font:
+    20px "Playfair Display",
+    Georgia,
+    serif;
+  overflow-wrap: anywhere;
+}
+.place-reading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+.place-reading strong {
+  font:
+    32px Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+}
+.place-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+}
+.place-stats dt {
+  font-size: 9px;
+  color: #8b9080;
+}
+.place-stats dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.day-profile-bars {
+  height: 64px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.day-profile-bars button {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.75;
+}
+.day-profile-bars button:hover,
+.day-profile-bars .now {
+  opacity: 1;
+  outline: 2px solid #2f3c2b;
+  outline-offset: 1px;
+}
+.day-profile-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #969c86;
+  margin-top: 4px;
+}
+.heat-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.heat-compare > div {
+  background: #efeee5;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.heat-compare small {
+  font-size: 10px;
+  color: #6f7964;
+  overflow-wrap: anywhere;
+}
+.heat-compare strong {
+  font-size: 20px;
+  font-weight: 500;
+}
+.heat-compare span {
+  font-size: 10px;
+  color: #8b9080;
+}
+.heat-compare p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.place-list h4 {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8b9080;
+  font-weight: 500;
+  margin: 16px 0 6px;
+}
+.place-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  background: none;
+  border-bottom: 1px solid #e6e6db;
+  text-align: left;
+  font-size: 12px;
+}
+.place-list button:hover {
+  background: #efeee5;
+}
+.place-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.place-temp {
+  font-variant-numeric: tabular-nums;
+}
+.place-list small {
+  font-size: 10px;
+  color: #969c86;
+  min-width: 58px;
+  text-align: right;
+}
+.route-heat {
+  display: block;
+  color: #7a4b2a;
+}

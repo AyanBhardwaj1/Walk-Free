@@ -60,6 +60,68 @@ function WalkingPaths({
     </lineSegments>
   );
 }
+export interface HeatOverlay {
+  colors: Map<string, string>;
+  highlight?: Set<string>;
+}
+/** Walking paths coloured by heat, drawn as one batched line. */
+function HeatPaths({
+  world,
+  heat,
+  onSelect,
+}: {
+  world: World;
+  heat: HeatOverlay;
+  onSelect: (edgeId: string, point: Point) => void;
+}) {
+  const { points, colors, edgeAt, highlight } = useMemo(() => {
+    const points: [number, number, number][] = [],
+      colors: [number, number, number][] = [],
+      edgeAt: string[] = [],
+      highlight: [number, number, number][] = [];
+    const color = new THREE.Color();
+    for (const edge of world.graph.edges) {
+      const hex = heat.colors.get(edge.id);
+      if (!hex) continue;
+      color.set(hex);
+      const lifted = heat.highlight?.has(edge.id);
+      for (let i = 1; i < edge.points.length; i++) {
+        for (const p of [edge.points[i - 1], edge.points[i]]) {
+          const v: [number, number, number] = [
+            p[0],
+            terrainHeight(p, world.terrain) + 1.4,
+            p[1],
+          ];
+          points.push(v);
+          colors.push([color.r, color.g, color.b]);
+          if (lifted) highlight.push([v[0], v[1] + 0.6, v[2]]);
+        }
+        edgeAt.push(edge.id);
+      }
+    }
+    return { points, colors, edgeAt, highlight };
+  }, [world.graph, world.terrain, heat]);
+  if (!points.length) return null;
+  return (
+    <>
+      <Line
+        points={points}
+        vertexColors={colors}
+        segments
+        lineWidth={4}
+        onClick={(e) => {
+          const edgeId = edgeAt[e.faceIndex ?? -1];
+          if (!edgeId) return;
+          e.stopPropagation();
+          onSelect(edgeId, [e.point.x, e.point.z]);
+        }}
+      />
+      {highlight.length > 0 && (
+        <Line points={highlight} segments color="#1f2a1c" lineWidth={7} />
+      )}
+    </>
+  );
+}
 function Ground({
   world,
   onClick,
@@ -176,6 +238,8 @@ export default function WorldCanvas({
   pickingEndpoint = false,
   showTrees = true,
   showBuildings = true,
+  heat,
+  onHeatSelect,
 }: {
   world: World;
   environment: Environment;
@@ -190,6 +254,8 @@ export default function WorldCanvas({
   pickingEndpoint?: boolean;
   showTrees?: boolean;
   showBuildings?: boolean;
+  heat?: HeatOverlay | null;
+  onHeatSelect?: (edgeId: string, point: Point) => void;
 }) {
   const sun = sunDirection(environment, world.origin);
   const extent = world.extent;
@@ -241,8 +307,20 @@ export default function WorldCanvas({
           lineWidth={r.kind === "road" ? 5 : 2}
         />
       ))}
-      {showWalkingPaths && (
-        <WalkingPaths world={world} onClick={onGroundClick} />
+      {heat ? (
+        <HeatPaths
+          world={world}
+          heat={heat}
+          onSelect={(edgeId, point) =>
+            pickingEndpoint
+              ? onGroundClick(point)
+              : onHeatSelect?.(edgeId, point)
+          }
+        />
+      ) : (
+        showWalkingPaths && (
+          <WalkingPaths world={world} onClick={onGroundClick} />
+        )
       )}
       <group
         onClick={(e) => {
@@ -280,17 +358,41 @@ export default function WorldCanvas({
           />
         )}
       </group>
-      {route && (
-        <Line
-          points={route.points.map((p) => [
-            p[0],
-            terrainHeight(p, world.terrain) + 3,
-            p[1],
-          ])}
-          color="#d57b48"
-          lineWidth={5}
-        />
-      )}
+      {route &&
+        (heat ? (
+          // Over heat colours, draw the route as a dark line with a light
+          // casing so it never blends into the orange "hot" paths.
+          <>
+            <Line
+              points={route.points.map((p) => [
+                p[0],
+                terrainHeight(p, world.terrain) + 3,
+                p[1],
+              ])}
+              color="#fffdf4"
+              lineWidth={10}
+            />
+            <Line
+              points={route.points.map((p) => [
+                p[0],
+                terrainHeight(p, world.terrain) + 3.2,
+                p[1],
+              ])}
+              color="#1d3557"
+              lineWidth={5}
+            />
+          </>
+        ) : (
+          <Line
+            points={route.points.map((p) => [
+              p[0],
+              terrainHeight(p, world.terrain) + 3,
+              p[1],
+            ])}
+            color="#d57b48"
+            lineWidth={5}
+          />
+        ))}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
       )}

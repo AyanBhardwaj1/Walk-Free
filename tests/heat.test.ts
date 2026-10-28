@@ -161,7 +161,13 @@ describe("heat estimates", () => {
         },
       ],
     };
-    const profile = dailyProfile(w, afternoon, ["speedway"], forecast, [9, 15]);
+    const profile = dailyProfile(
+      w,
+      afternoon,
+      { edgeIds: ["speedway"], samples: [] },
+      forecast,
+      [9, 15],
+    );
     expect(profile.map((p) => p.hour)).toEqual([9, 15]);
     expect(profile[1].shadeFeelsC).toBeCloseTo(40, 0);
     expect(profile[0].feelsLikeC).toBeLessThan(profile[1].feelsLikeC);

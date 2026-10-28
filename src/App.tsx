@@ -1,4 +1,12 @@
-import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  lazy,
+  Suspense,
+  useDeferredValue,
+} from "react";
 import {
   ArrowUpRight,
   Search,
@@ -24,6 +32,7 @@ import {
   Compass,
   Check,
   X,
+  Thermometer,
 } from "lucide-react";
 import type {
   World,
@@ -41,6 +50,16 @@ import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
+import HeatPanel, { clock } from "./components/HeatPanel";
+import {
+  HEAT_LEVELS,
+  atLocalHour,
+  dailyProfile,
+  edgeHeatMap,
+  edgePlace,
+  localHour,
+  placeHeat,
+} from "./lib/heat";
 import EndpointPicker from "./components/EndpointPicker";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { snapWalkPosition, hasArrived } from "./lib/walk-location";
@@ -154,6 +173,10 @@ export default function App({
   const locating = location.mode === "locating";
   const [voice, setVoice] = useState(true);
   const [showPaths, setShowPaths] = useState(true);
+  const [heatMap, setHeatMap] = useState(true);
+  const [heatPlaceId, setHeatPlaceId] = useState<string | null>(null);
+  const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
   const userPosition = useMemo(
     () =>
       location.fix
@@ -189,6 +212,90 @@ export default function App({
     [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
   );
   const currentRoute = routeChoices[pref];
+  // Heat follows the slider a frame behind so dragging stays smooth.
+  const heatEnv = useDeferredValue(env);
+  const heatActive =
+    mode === "explore" && !atlas && (heatMap || tab === "heat");
+  const edgeHeat = useMemo(
+    () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
+    [heatActive, world, heatEnv],
+  );
+  const places = useMemo(
+    () => (edgeHeat ? placeHeat(world, heatEnv, edgeHeat) : []),
+    [edgeHeat, world, heatEnv],
+  );
+  const findPlace = (id: string | null) => {
+    if (!id || !edgeHeat) return null;
+    if (id.startsWith("edge:")) {
+      const edgeId = id.slice(5);
+      const reading = edgeHeat.get(edgeId);
+      return reading ? edgePlace(world, edgeId, reading) : null;
+    }
+    return places.find((p) => p.id === id) ?? null;
+  };
+  const heatPlace = findPlace(heatPlaceId);
+  const comparePlace = findPlace(comparePlaceId);
+  const profileDay = atLocalHour(heatEnv.dateTime, world.timezone, 12);
+  const heatProfile = useMemo(
+    () =>
+      heatPlace
+        ? dailyProfile(
+            world,
+            { ...heatEnv, dateTime: profileDay },
+            heatPlace,
+            heatEnv.weatherMode === "forecast" ? forecast : null,
+          )
+        : null,
+    // Recompute per place and day, not on every slider move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      heatPlace?.id,
+      world,
+      profileDay,
+      heatEnv.temperatureC,
+      heatEnv.humidity,
+      heatEnv.windMps,
+      heatEnv.cloudCover,
+      heatEnv.weatherMode,
+      forecast,
+    ],
+  );
+  const heatOverlay = useMemo(() => {
+    if (!edgeHeat || !heatMap) return null;
+    const colors = new Map<string, string>();
+    for (const [id, reading] of edgeHeat)
+      colors.set(id, HEAT_LEVELS[reading.level].color);
+    const highlight = new Set([
+      ...(heatPlace?.edgeIds ?? []),
+      ...(comparePlace?.edgeIds ?? []),
+    ]);
+    return { colors, highlight };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
+  const currentHour = localHour(env.dateTime, world.timezone);
+  function setLocalHour(hour: number) {
+    setEnv((previous) => ({
+      ...previous,
+      dateTime: atLocalHour(previous.dateTime, world.timezone, hour),
+      weatherMode:
+        previous.weatherMode === "forecast" && forecast
+          ? "forecast"
+          : "scenario",
+    }));
+  }
+  function selectHeatPlace(id: string) {
+    setTab("heat");
+    if (comparing && heatPlaceId && id !== heatPlaceId) {
+      setComparePlaceId(id);
+      return;
+    }
+    setHeatPlaceId(id);
+    setComparePlaceId(null);
+  }
+  function selectHeatEdge(edgeId: string) {
+    const place = places.find((p) => p.edgeIds.includes(edgeId));
+    selectHeatPlace(place ? place.id : `edge:${edgeId}`);
+  }
   const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
@@ -693,7 +800,7 @@ export default function App({
           {!atlas && (
             <div className="tabs">
               {(mode === "explore"
-                ? ["route", "transit", "climate", "data"]
+                ? ["route", "heat", "climate", "data"]
                 : ["build", "assistant", "data"]
               ).map((t) => (
                 <button
@@ -710,6 +817,7 @@ export default function App({
             mode === "explore" &&
             tab !== "climate" &&
             tab !== "data" &&
+            tab !== "heat" &&
             tab !== "transit" && (
               <section>
                 <div className="section-title">
@@ -848,6 +956,8 @@ export default function App({
                   choices={routeChoices}
                   selected={pref}
                   onSelect={setPref}
+                  environment={env}
+                  origin={world.origin}
                 />
                 <label className="check">
                   <input
@@ -965,6 +1075,37 @@ export default function App({
                 contributors. Building heights depend on mapped coverage.
               </p>
             </section>
+          )}
+          {!atlas && mode === "explore" && tab === "heat" && (
+            <HeatPanel
+              places={places}
+              selected={heatPlace}
+              compare={comparePlace}
+              profile={heatProfile}
+              currentHour={currentHour}
+              timeLabel={`${new Date(env.dateTime).toLocaleString("en-US", {
+                timeZone: world.timezone,
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })} · ${env.weatherMode === "forecast" ? "NWS forecast" : "your weather scenario"}`}
+              showMap={heatMap}
+              onShowMap={setHeatMap}
+              onSelect={(p) => selectHeatPlace(p.id)}
+              comparing={comparing}
+              onCompare={() => {
+                setComparing(!comparing);
+                setComparePlaceId(null);
+              }}
+              onClose={() => {
+                setHeatPlaceId(null);
+                setComparePlaceId(null);
+                setComparing(false);
+              }}
+              onHour={setLocalHour}
+            />
           )}
           {!atlas && tab === "transit" && (
             <JourneyPanel key={world.id} world={world} />
@@ -1326,6 +1467,8 @@ export default function App({
               locationPoint={userPosition || undefined}
               showTrees={trees}
               showBuildings={buildings}
+              heat={heatOverlay}
+              onHeatSelect={selectHeatEdge}
             />
           )}
           {picking && (
@@ -1358,7 +1501,7 @@ export default function App({
             <div className="weather-chip">
               <Sun size={23} />
               <strong>
-                {Math.round(env.temperatureC)}°<small>C</small>
+                {Math.round((env.temperatureC * 9) / 5 + 32)}°<small>F</small>
               </strong>
               <div>
                 {env.weatherMode === "scenario"
@@ -1391,6 +1534,15 @@ export default function App({
               <TreePine size={19} />
             </button>
             <button
+              title="Toggle heat map"
+              aria-label="Toggle heat map"
+              aria-pressed={heatMap}
+              className={!heatMap ? "muted" : ""}
+              onClick={() => setHeatMap(!heatMap)}
+            >
+              <Thermometer size={19} />
+            </button>
+            <button
               title="Toggle buildings"
               aria-label="Toggle buildings"
               onClick={() => setBuildings(!buildings)}
@@ -1420,7 +1572,7 @@ export default function App({
             <div className="timeline">
               <div>
                 <Sun size={18} />
-                <strong>Follow the sun</strong>
+                <strong>Time of day</strong>
                 <span>
                   {new Date(env.dateTime).toLocaleString("en-US", {
                     timeZone: world.timezone,
@@ -1432,36 +1584,18 @@ export default function App({
                 </span>
               </div>
               <input
-                aria-label="Sun time"
+                aria-label="Time of day"
                 type="range"
                 min="0"
-                max="23"
+                max="23.75"
                 step=".25"
-                value={
-                  new Date(env.dateTime).getUTCHours() +
-                  new Date(env.dateTime).getUTCMinutes() / 60
-                }
-                onChange={(e) => {
-                  const d = new Date(env.dateTime);
-                  d.setUTCHours(
-                    Math.floor(+e.target.value),
-                    (+e.target.value % 1) * 60,
-                    0,
-                    0,
-                  );
-                  setEnv({
-                    ...env,
-                    dateTime: d.toISOString(),
-                    weatherMode: "scenario",
-                  });
-                }}
+                value={currentHour}
+                onChange={(e) => setLocalHour(+e.target.value)}
               />
               <div className="timeline-labels">
-                <span>00:00 UTC</span>
-                <span>06:00</span>
-                <span>12:00</span>
-                <span>18:00</span>
-                <span>24:00 UTC</span>
+                {[0, 6, 12, 18, 23.75].map((h) => (
+                  <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
+                ))}
               </div>
             </div>
           )}

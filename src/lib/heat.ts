@@ -26,7 +26,7 @@ const GENERIC_NAMES = new Set(["Footpath", "Street", "Path", "Green space"]);
 
 export const HEAT_LEVELS = [
   { label: "Cool", maxF: 75, color: "#4f8a9c" },
-  { label: "Comfortable", maxF: 85, color: "#6f9b5f" },
+  { label: "Mild", maxF: 85, color: "#6f9b5f" },
   { label: "Warm", maxF: 95, color: "#d9b142" },
   { label: "Hot", maxF: 105, color: "#d7772d" },
   { label: "Very hot", maxF: Infinity, color: "#b13a2b" },
@@ -52,6 +52,8 @@ export interface PlaceHeat extends HeatReading {
   kind: "street" | "park";
   length: number;
   edgeIds: string[];
+  /** Sample points for parks, which have no walking edges of their own. */
+  samples: Point[];
   center: Point;
 }
 
@@ -188,6 +190,7 @@ export function placeHeat(
       kind: "street" as const,
       length: s.length,
       edgeIds: s.edgeIds,
+      samples: [],
       center: [s.sum[0] / s.edgeIds.length, s.sum[1] / s.edgeIds.length],
       ...readHeat(conditions, s.shaded / s.length),
     }));
@@ -202,6 +205,7 @@ export function placeHeat(
       kind: "park",
       length: 0,
       edgeIds: [],
+      samples,
       center: [
         samples.reduce((s, p) => s + p[0], 0) / samples.length,
         samples.reduce((s, p) => s + p[1], 0) / samples.length,
@@ -299,15 +303,16 @@ function weatherAt(
     : { ...env, dateTime: iso };
 }
 
-/** How a set of edges feels hour by hour through the local day. */
+/** How a place feels hour by hour through the local day. */
 export function dailyProfile(
   w: World,
   env: Environment,
-  edgeIds: string[],
+  place: Pick<PlaceHeat, "edgeIds" | "samples">,
   forecast?: WeatherForecast | null,
   hours = Array.from({ length: 15 }, (_, i) => i + 6),
 ) {
-  const chosen = w.graph.edges.filter((e) => edgeIds.includes(e.id));
+  const ids = new Set(place.edgeIds);
+  const chosen = w.graph.edges.filter((e) => ids.has(e.id));
   const length = chosen.reduce((s, e) => s + e.distance, 0);
   return hours.map((hour) => {
     const at = weatherAt(
@@ -321,9 +326,31 @@ export function dailyProfile(
           (s, e) => s + e.distance * edgeShadeFraction(e, shadedAt),
           0,
         ) / length
-      : 0;
+      : place.samples.length
+        ? place.samples.filter(shadedAt).length / place.samples.length
+        : 0;
     return { hour, ...readHeat(heatConditions(at, w.origin), shade) };
   });
+}
+
+/** A single unnamed path, for clicks on paths without a street name. */
+export function edgePlace(
+  w: World,
+  edgeId: string,
+  reading: HeatReading,
+): PlaceHeat | null {
+  const e = w.graph.edges.find((x) => x.id === edgeId);
+  if (!e) return null;
+  return {
+    id: `edge:${e.id}`,
+    name: e.name,
+    kind: "street",
+    length: e.distance,
+    edgeIds: [e.id],
+    samples: [],
+    center: e.points[Math.floor(e.points.length / 2)],
+    ...reading,
+  };
 }
 
 /** Sun exposure and feels-like for a whole route. */
