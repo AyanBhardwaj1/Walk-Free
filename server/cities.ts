@@ -1,4 +1,4 @@
-import type { City } from "../shared/types";
+import type { City } from "../shared/types.js";
 
 /**
  * An independently curated, bundled gazetteer of approximate city and campus

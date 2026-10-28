@@ -6,7 +6,7 @@ import type {
   SceneObject,
   SceneRoad,
   World,
-} from "../../shared/types";
+} from "../../shared/types.js";
 
 /** A deliberately fictional, editable urban study; never a substitute for mapped city data. */
 export function createStudyWorld(): World {

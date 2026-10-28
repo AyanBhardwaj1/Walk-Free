@@ -27,7 +27,13 @@ export async function accountRequest(
       body: body ? JSON.stringify(body) : undefined,
     },
   );
-  const data = await response.json();
+  // A crashed or misconfigured host can answer with plain text or HTML.
+  const data = await response.json().catch(() => {
+    throw new AccountError(
+      "The account service is unavailable right now. Please try again shortly.",
+      "SERVICE_UNAVAILABLE",
+    );
+  });
   if (!response.ok)
     throw new AccountError(
       data.error || "Unable to complete account request.",

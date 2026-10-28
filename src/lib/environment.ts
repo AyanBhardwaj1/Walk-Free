@@ -1,5 +1,5 @@
 import SunCalc from "suncalc";
-import type { Environment, Point, World } from "../../shared/types";
+import type { Environment, Point, World } from "../../shared/types.js";
 export function sunDirection(e: Environment, o: { lat: number; lon: number }) {
   const s = SunCalc.getPosition(new Date(e.dateTime), o.lat, o.lon);
   return {

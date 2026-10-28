@@ -1,4 +1,9 @@
-import type { GraphNode, Point, RouteOptions, World } from "../../shared/types";
+import type {
+  GraphNode,
+  Point,
+  RouteOptions,
+  World,
+} from "../../shared/types.js";
 
 export type WalkConstraints = Pick<
   RouteOptions,

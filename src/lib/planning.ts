@@ -1,4 +1,4 @@
-import type { World, Point, GraphNode } from "../../shared/types";
+import type { World, Point, GraphNode } from "../../shared/types.js";
 export function addPlanningPassage(world: World, a: Point, b: Point): World {
   const nodes = [...world.graph.nodes];
   function endpoint(p: Point): GraphNode {

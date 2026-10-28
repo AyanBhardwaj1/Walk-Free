@@ -1,8 +1,8 @@
 import { unzipSync, strFromU8 } from "fflate";
-import { requestBytes, ServiceError } from "./network";
-import { getWorld, getWeather, localPoint } from "./data";
-import { route } from "../src/lib/routing";
-import type { World, Point, Environment } from "../shared/types";
+import { requestBytes, ServiceError } from "./network.js";
+import { getWorld, getWeather, localPoint } from "./data.js";
+import { route } from "../src/lib/routing.js";
+import type { World, Point, Environment } from "../shared/types.js";
 type Row = Record<string, string>;
 export function csv(text: string): Row[] {
   const rows: string[][] = [];

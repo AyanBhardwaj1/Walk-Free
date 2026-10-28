@@ -1,12 +1,12 @@
 import express from "express";
 import { resolve } from "node:path";
-import { getWorld, getWeather } from "./data";
-import { cities, searchCities } from "./cities";
-import { coordinates, boundedRadius, cleanName } from "./validators";
-import { ServiceError } from "./network";
-import { agentRouter } from "./agent";
-import { berkeleyJourney } from "./transit";
-import { authRouter, authenticate } from "./auth";
+import { getWorld, getWeather } from "./data.js";
+import { cities, searchCities } from "./cities.js";
+import { coordinates, boundedRadius, cleanName } from "./validators.js";
+import { ServiceError } from "./network.js";
+import { agentRouter } from "./agent.js";
+import { berkeleyJourney } from "./transit.js";
+import { authRouter, authenticate } from "./auth.js";
 export const app = express();
 app.use((q, r, next) => {
   if (

@@ -1,5 +1,5 @@
-import type { Point, World } from "../../shared/types";
-import { walkEdges, type WalkConstraints } from "./destinations";
+import type { Point, World } from "../../shared/types.js";
+import { walkEdges, type WalkConstraints } from "./destinations.js";
 
 /** Project onto a real walkable edge. Splitting preserves its direction and access attributes. */
 export function snapWalkPosition(
