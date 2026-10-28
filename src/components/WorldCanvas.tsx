@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import type {
   World,
@@ -64,6 +64,57 @@ function Area({ points, color }: { points: Point[]; color: string }) {
     </mesh>
   );
 }
+function Endpoint({
+  point,
+  label,
+  terrain,
+}: {
+  point: Point;
+  label: string;
+  terrain?: Terrain;
+}) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 112;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = label === "Start" ? "#3f5938" : "#a55c32";
+    ctx.strokeStyle = "#fffdf4";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.roundRect(4, 4, 248, 104, 48);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "500 48px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 128, 57);
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    return map;
+  }, [label]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <group position={[point[0], terrainHeight(point, terrain) + 4, point[1]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[5, 9, 32]} />
+        <meshBasicMaterial
+          color={label === "Start" ? "#3f5938" : "#b46539"}
+          depthTest={false}
+        />
+      </mesh>
+      <sprite position={[0, 22, 0]} scale={[58, 25, 1]} renderOrder={10}>
+        <spriteMaterial
+          map={texture}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+    </group>
+  );
+}
 export default function WorldCanvas({
   world,
   environment,
@@ -71,6 +122,8 @@ export default function WorldCanvas({
   onSelect,
   onGroundClick,
   route,
+  startPoint,
+  endPoint,
   showTrees = true,
   showBuildings = true,
 }: {
@@ -80,6 +133,8 @@ export default function WorldCanvas({
   onSelect: (id: string) => void;
   onGroundClick: (p: Point) => void;
   route: RouteResult | null;
+  startPoint?: Point;
+  endPoint?: Point;
   showTrees?: boolean;
   showBuildings?: boolean;
 }) {
@@ -169,6 +224,12 @@ export default function WorldCanvas({
           color="#d57b48"
           lineWidth={5}
         />
+      )}
+      {startPoint && (
+        <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
+      )}
+      {endPoint && (
+        <Endpoint point={endPoint} label="Finish" terrain={world.terrain} />
       )}
       <OrbitControls
         makeDefault

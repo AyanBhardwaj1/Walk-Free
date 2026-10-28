@@ -16,3 +16,15 @@ Source/runtime failures are visible to users. The editable Garden District is ex
 ## Subsequent local credential setup
 
 The supplied credential was saved to the Git-ignored local `.env` with owner-only permissions. Both development and production startup commands now load that file. The restarted API reports `aiConfigured: true`. A small real generation request still failed because the runtime could not reach `api.openai.com`; no successful model response has been verified. The cloud secret-store binding and Vercel configuration are separate from this local setup.
+
+
+## Local macOS continuation — 2026-10-27 (03:15 UTC on October 28)
+
+Restored GitHub main into the local checkout and installed the locked dependencies using Node 24 via `npx --package=node@24`. Local development is running on port 5173 with its API on port 8787. The local setup created an ignored, owner-only `.env` from the example; this checkout currently reports `aiConfigured: false`. The credential in the earlier cloud workspace was not transferred by Git.
+
+- `npm test`: 28 tests passed. Added comparison coverage for preferred alternatives, detour fallbacks, one-way/stair restrictions, identical/missing endpoints, cheaper-path updates, hypothetical passage gating, bounded endpoint snapping, merged walking directions, curved-path shade sampling, rotated footprints, and tree/night shading.
+- `npm run build`: TypeScript and production build passed. The existing large 3D bundle warning remains.
+- In-app browser: verified route-card selection and updated summary, map snapping to an existing endpoint, same-endpoint empty state, endpoint swap, Escape cancellation, and detour-budget feedback. Start/finish labels render in the 3D scene. At 390 × 844, route cards fit without horizontal overflow and picking scrolls back to the map. Native device behavior remains untested.
+- Local NWS request for Berkeley returned 156 hourly forecast records. This verifies local weather access, not Overpass ingestion, transit itinerary correctness, OpenAI generation, or background GPS.
+
+Routing now uses a priority queue and shares graph/shade preparation across preferences. Shade sampling follows each edge polyline, and straight segments on the same road merge into one direction. Map picking snaps within 40 m to an existing path node; it does not create walking links or imply a route exists between disconnected components. Manual endpoint changes are disabled during active GPS tracking.

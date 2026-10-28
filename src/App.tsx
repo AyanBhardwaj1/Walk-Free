@@ -45,8 +45,9 @@ import {
   nativeNavigation,
 } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
+import RouteChoices from "./components/RouteChoices";
 import { createStudyWorld } from "./lib/study";
-import { route } from "./lib/routing";
+import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import WorldCanvas from "./components/WorldCanvas";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -109,6 +110,7 @@ export default function App() {
   const [tab, setTab] = useState("route");
   const [start, setStart] = useState("market-gate");
   const [end, setEnd] = useState("observatory");
+  const [picking, setPicking] = useState<"start" | "end" | null>(null);
   const [pref, setPref] = useState<RoutePreference>("shade");
   const [hypothetical, setHypothetical] = useState(false);
   const [stairs, setStairs] = useState(false);
@@ -129,20 +131,54 @@ export default function App() {
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
-  const currentRoute = useMemo(
+  const routeChoices = useMemo(
     () =>
-      route(world, start, end, {
-        preference: pref,
+      compareRoutes(world, start, end, {
         avoidStairs: stairs,
         allowHypothetical: hypothetical,
         maxDetour: detour,
         environment: env,
       }),
-    [world, start, end, pref, stairs, hypothetical, detour, env],
+    [world, start, end, stairs, hypothetical, detour, env],
   );
+  const currentRoute = routeChoices[pref];
+  const startNode = world.graph.nodes.find((n) => n.id === start);
+  const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
   const named = world.graph.nodes.filter((n) => n.name);
-  const nodes = named.length > 1 ? named : world.graph.nodes.slice(0, 250);
+  const listedNodes =
+    named.length > 1 ? named : world.graph.nodes.slice(0, 250);
+  const nodes = [
+    ...new Map(
+      [
+        ...listedNodes,
+        ...[startNode, endNode].filter((n) => n !== undefined),
+      ].map((n) => [n.id, n]),
+    ).values(),
+  ];
+  useEffect(() => {
+    if (!startNode) setStart(world.graph.nodes[0]?.id || "");
+    if (!endNode) setEnd(world.graph.nodes.at(-1)?.id || "");
+  }, [world.graph.nodes, startNode, endNode]);
+  useEffect(() => {
+    setPicking(null);
+  }, [mode, atlas, world.id, tab]);
+  useEffect(() => {
+    if (!picking) return;
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPicking(null);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [picking]);
+  function pickEndpoint(endpoint: "start" | "end") {
+    setPicking(picking === endpoint ? null : endpoint);
+    setMessage("");
+    if (window.matchMedia("(max-width: 650px)").matches)
+      document
+        .querySelector(".viewport")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   useEffect(() => {
     try {
       localStorage.setItem("walk-free-project", JSON.stringify(world));
@@ -230,6 +266,22 @@ export default function App() {
   }
   function ground(p: Point) {
     if (mode === "explore") {
+      if (picking) {
+        const node = nearestWalkNode(world, p);
+        if (!node) {
+          setMessage(
+            "No path node within 40 m. Choose a point closer to a mapped path junction.",
+          );
+          return;
+        }
+        if (picking === "start") setStart(node.id);
+        else setEnd(node.id);
+        setMessage(
+          `Selected ${node.name || "path junction"} as your ${picking === "start" ? "start" : "destination"}.`,
+        );
+        setPicking(null);
+        return;
+      }
       setProbe(p);
       setTab("climate");
       return;
@@ -556,7 +608,11 @@ export default function App() {
                   FROM
                   <select
                     value={start}
-                    onChange={(e) => setStart(e.target.value)}
+                    disabled={tracking}
+                    onChange={(e) => {
+                      setStart(e.target.value);
+                      setPicking(null);
+                    }}
                   >
                     {nodes.map((n) => (
                       <option value={n.id} key={n.id}>
@@ -565,9 +621,25 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+                <button
+                  className="endpoint-pick"
+                  aria-pressed={picking === "start"}
+                  disabled={tracking || !world.graph.edges.length}
+                  onClick={() => pickEndpoint("start")}
+                >
+                  <MapPin size={14} />
+                  Pick start on map
+                </button>
                 <label>
                   TO
-                  <select value={end} onChange={(e) => setEnd(e.target.value)}>
+                  <select
+                    value={end}
+                    disabled={tracking}
+                    onChange={(e) => {
+                      setEnd(e.target.value);
+                      setPicking(null);
+                    }}
+                  >
                     {nodes.map((n) => (
                       <option value={n.id} key={n.id}>
                         {n.name || n.id}
@@ -575,26 +647,34 @@ export default function App() {
                     ))}
                   </select>
                 </label>
-                <label>WHAT MATTERS TODAY?</label>
-                <div className="preferences">
-                  {(["quickest", "shade", "scenic", "indoors"] as const).map(
-                    (p) => (
-                      <button
-                        className={p === pref ? "selected" : ""}
-                        key={p}
-                        onClick={() => setPref(p)}
-                      >
-                        {p === "quickest"
-                          ? "Quickest"
-                          : p === "shade"
-                            ? "More shade"
-                            : p === "scenic"
-                              ? "Scenic"
-                              : "Stay inside"}
-                      </button>
-                    ),
-                  )}
+                <div className="endpoint-actions">
+                  <button
+                    className="endpoint-pick"
+                    aria-pressed={picking === "end"}
+                    disabled={tracking || !world.graph.edges.length}
+                    onClick={() => pickEndpoint("end")}
+                  >
+                    <MapPin size={14} />
+                    Pick destination on map
+                  </button>
+                  <button
+                    className="endpoint-pick"
+                    disabled={tracking || !startNode || !endNode}
+                    onClick={() => {
+                      setStart(end);
+                      setEnd(start);
+                      setPicking(null);
+                    }}
+                  >
+                    Swap
+                  </button>
                 </div>
+                <label>WHAT MATTERS TODAY?</label>
+                <RouteChoices
+                  choices={routeChoices}
+                  selected={pref}
+                  onSelect={setPref}
+                />
                 <label className="check">
                   <input
                     type="checkbox"
@@ -665,7 +745,9 @@ export default function App() {
                   </>
                 ) : (
                   <p className="fine">
-                    Choose two different connected points to calculate a walk.
+                    {start === end
+                      ? "Start and destination are the same. Choose a different endpoint."
+                      : "No connected walk with these settings. Try different endpoints or route options."}
                   </p>
                 )}
               </section>
@@ -1017,7 +1099,7 @@ export default function App() {
             just the destination.
           </footer>
         </aside>
-        <div className="viewport">
+        <div className={`viewport${picking ? " picking-route" : ""}`}>
           {atlas ? (
             <Suspense
               fallback={<div className="loading">Loading the city atlas…</div>}
@@ -1033,12 +1115,28 @@ export default function App() {
               world={proposal ? applyDesignProposal(world, proposal) : world}
               environment={env}
               selectedId={selected}
-              onSelect={setSelected}
+              onSelect={(id) => {
+                if (picking) {
+                  const item = world.objects.find((o) => o.id === id);
+                  if (item) ground(item.position);
+                } else setSelected(id);
+              }}
               onGroundClick={ground}
               route={mode === "explore" ? currentRoute : null}
+              startPoint={mode === "explore" ? startNode?.point : undefined}
+              endPoint={mode === "explore" ? endNode?.point : undefined}
               showTrees={trees}
               showBuildings={buildings}
             />
+          )}
+          {picking && (
+            <div className="pick-banner" role="status">
+              <span>
+                Pick your {picking === "start" ? "start" : "destination"} near a
+                path junction · snaps within 40 m
+              </span>
+              <button onClick={() => setPicking(null)}>Cancel</button>
+            </div>
           )}
           <div className="map-heading">
             <div className="eyebrow">

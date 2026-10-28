@@ -32,7 +32,7 @@ npm start
 ## Implemented
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.
-- Route comparisons for speed, modeled shade, scenery, and indoor preference over a connected pedestrian graph. Hypothetical indoor passages require explicit planning mode and cannot start GPS navigation.
+- Route cards compare walking time, distance, modeled shade, and indoor coverage for speed, shade, scenery, and indoor preference over a connected pedestrian graph. Pick start/destination points near mapped path junctions, swap endpoints, and follow visible start/finish markers. Repeated paths and detour-budget fallbacks are identified. Hypothetical indoor passages require explicit planning mode and cannot start GPS navigation.
 - Date/time and temperature/cloud/wind scenario controls, NWS hourly forecast adapter, timestamped provenance and explicit coverage gaps.
 - Studio placement, dimension/rotation/position controls, terrain raise/lower/flatten, designed roads, undo, local project persistence, validated JSON import and export.
 - OpenAI proposal preview/apply workflow. Server-side key, bounded objects and coordinates; no fake AI response when the key is absent.
@@ -41,7 +41,7 @@ npm start
 
 ## Important current limits
 
-This is a working development implementation, not a validated public navigation service. Live NWS forecasts, the OpenFreeMap style, and the official BART GTFS archive download have been verified. Detailed city extraction currently fails at the primary Overpass provider; its alternate is blocked by the environment network policy, so a complete real walking/transit itinerary has not yet been validated. The OpenAI key is configured separately through local `.env` or server environment settings. The interface reports those failures instead of manufacturing city geometry, forecasts, train times, or assistant responses.
+This is a working development implementation, not a validated public navigation service. Live NWS forecasts, the OpenFreeMap style, and the official BART GTFS archive download have been verified. Detailed city extraction failed in the earlier cloud environment; it has not yet been revalidated on this local setup, so a complete real walking/transit itinerary remains unverified. Local NWS hourly forecasts were successfully checked on October 27, 2026. The OpenAI key is configured separately through local `.env` or server environment settings. The interface reports those failures instead of manufacturing city geometry, forecasts, train times, or assistant responses.
 
 BART transfers, live service disruptions, general nationwide transit, verified indoor campus maps, comprehensive accessibility validation, and background-navigation device tests are not complete. The city atlas streams a broad 3D basemap; detailed editable scenes load a bounded neighborhood selected from that atlas. Designed roads do not automatically become verified navigation links. Terrain changes do not alter the walking graph or the shade estimator's flat-ground assumption. Importing assets as custom glTF models is not implemented.
 
