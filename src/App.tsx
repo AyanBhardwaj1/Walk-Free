@@ -1,4 +1,12 @@
-import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  lazy,
+  Suspense,
+  useDeferredValue,
+} from "react";
 import {
   ArrowUpRight,
   Search,
@@ -24,6 +32,7 @@ import {
   Compass,
   Check,
   X,
+  Thermometer,
 } from "lucide-react";
 import type {
   World,
@@ -41,6 +50,23 @@ import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
+import HeatPanel, { clock } from "./components/HeatPanel";
+import AssistantPanel from "./components/AssistantPanel";
+import { converse, type ChatMessage } from "./lib/assistant-client";
+import type { ToolHost } from "./lib/assistant-tools";
+import { searchCities } from "../server/cities";
+import {
+  atLocalHour,
+  dailyProfile,
+  edgeHeatMap,
+  edgePlace,
+  localHour,
+  placeHeat,
+  relativeHeatColor,
+  weatherAt,
+} from "./lib/heat";
+import { prebuiltAreaFor } from "../shared/areas";
+import { matchDestinations } from "./lib/assistant-tools";
 import EndpointPicker from "./components/EndpointPicker";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { snapWalkPosition, hasArrived } from "./lib/walk-location";
@@ -49,6 +75,7 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
 import type { Account } from "./lib/account";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -108,14 +135,10 @@ export default function App({
       return false;
     }
   });
-  const [world, setWorld] = useState<World>(() => {
-    try {
-      const s = localStorage.getItem(projectKey);
-      return s ? worldSchema.parse(JSON.parse(s)) : createStudyWorld();
-    } catch {
-      return createStudyWorld();
-    }
-  });
+  const [world, setWorld] = useState<World>(createStudyWorld);
+  // Saving waits until the stored scene has been read back.
+  const [hydrated, setHydrated] = useState(false);
+  const firstWorld = useRef(world);
   const [atlas, setAtlas] = useState<City | null>(null);
   const [mode, setMode] = useState<"explore" | "studio">("explore");
   const [env, setEnv] = useState(initial);
@@ -154,6 +177,14 @@ export default function App({
   const locating = location.mode === "locating";
   const [voice, setVoice] = useState(true);
   const [showPaths, setShowPaths] = useState(true);
+  const [heatMap, setHeatMap] = useState(true);
+  const [heatPlaceId, setHeatPlaceId] = useState<string | null>(null);
+  const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [chatStatus, setChatStatus] = useState<string | null>(null);
+  const [chatError, setChatError] = useState("");
+  const [speakReplies, setSpeakReplies] = useState(false);
   const userPosition = useMemo(
     () =>
       location.fix
@@ -175,6 +206,7 @@ export default function App({
   const routeStart = location.fix ? snappedLocation?.nodeId || "" : start;
   const lastSpoken = useRef("");
   const buildRequest = useRef(0);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
@@ -189,6 +221,89 @@ export default function App({
     [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
   );
   const currentRoute = routeChoices[pref];
+  // Heat follows the slider a frame behind so dragging stays smooth.
+  const heatEnv = useDeferredValue(env);
+  const heatActive =
+    mode === "explore" && !atlas && (heatMap || tab === "heat");
+  const edgeHeat = useMemo(
+    () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
+    [heatActive, world, heatEnv],
+  );
+  const places = useMemo(
+    () => (edgeHeat ? placeHeat(world, heatEnv, edgeHeat) : []),
+    [edgeHeat, world, heatEnv],
+  );
+  const findPlace = (id: string | null) => {
+    if (!id || !edgeHeat) return null;
+    if (id.startsWith("edge:")) {
+      const edgeId = id.slice(5);
+      const reading = edgeHeat.get(edgeId);
+      return reading ? edgePlace(world, edgeId, reading) : null;
+    }
+    return places.find((p) => p.id === id) ?? null;
+  };
+  const heatPlace = findPlace(heatPlaceId);
+  const comparePlace = findPlace(comparePlaceId);
+  const profileDay = atLocalHour(heatEnv.dateTime, world.timezone, 12);
+  const heatProfile = useMemo(
+    () =>
+      heatPlace
+        ? dailyProfile(
+            world,
+            { ...heatEnv, dateTime: profileDay },
+            heatPlace,
+            heatEnv.weatherMode === "forecast" ? forecast : null,
+          )
+        : null,
+    // Recompute per place and day, not on every slider move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      heatPlace?.id,
+      world,
+      profileDay,
+      heatEnv.temperatureC,
+      heatEnv.humidity,
+      heatEnv.windMps,
+      heatEnv.cloudCover,
+      heatEnv.weatherMode,
+      forecast,
+    ],
+  );
+  const heatOverlay = useMemo(() => {
+    if (!edgeHeat || !heatMap) return null;
+    const colors = new Map<string, string>();
+    for (const [id, reading] of edgeHeat)
+      colors.set(id, relativeHeatColor(reading));
+    const highlight = new Set([
+      ...(heatPlace?.edgeIds ?? []),
+      ...(comparePlace?.edgeIds ?? []),
+    ]);
+    return { colors, highlight };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
+  const currentHour = localHour(env.dateTime, world.timezone);
+  function setLocalHour(hour: number) {
+    setEnv((previous) => {
+      const dateTime = atLocalHour(previous.dateTime, world.timezone, hour);
+      // In forecast mode, temperature and cloud follow the chosen hour.
+      return previous.weatherMode === "forecast" && forecast
+        ? weatherAt(previous, dateTime, forecast)
+        : { ...previous, dateTime, weatherMode: "scenario" };
+    });
+  }
+  function selectHeatPlace(id: string) {
+    setTab("heat");
+    if (comparing && heatPlaceId && id !== heatPlaceId) {
+      setComparePlaceId(id);
+      return;
+    }
+    setHeatPlaceId(id);
+    setComparePlaceId(null);
+  }
+  function selectHeatEdge(edgeId: string) {
+    const place = places.find((p) => p.edgeIds.includes(edgeId));
+    selectHeatPlace(place ? place.id : `edge:${edgeId}`);
+  }
   const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
@@ -205,6 +320,95 @@ export default function App({
           ...catalog,
         ]
       : catalog;
+  // The assistant's tools read the latest app state through this ref.
+  const toolHost = useRef<ToolHost>(null!);
+  toolHost.current = {
+    world: routeWorld,
+    env,
+    forecast,
+    catalog: endpointCatalog,
+    myLocationNodeId: snappedLocation?.nodeId ?? null,
+    showRoute({ start: from, end: to, preference, avoidStairs, dateTime }) {
+      if (from !== snappedLocation?.nodeId) {
+        location.reset();
+        setStart(from);
+      }
+      setEnd(to);
+      setPref(preference);
+      setStairs(avoidStairs);
+      setEnv((previous) => ({ ...previous, dateTime }));
+    },
+    setDateTime: (dateTime) =>
+      setEnv((previous) => ({ ...previous, dateTime })),
+    highlightPlace(id) {
+      setHeatMap(true);
+      setHeatPlaceId(id);
+      setComparePlaceId(null);
+    },
+    async buildArea(query) {
+      const city = searchCities(query.toLowerCase())[0];
+      if (!city) return `No US city or campus matching "${query}" is indexed.`;
+      const built = await loadCity(city, true, 1000);
+      return built
+        ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
+        : `Could not build ${city.name}; the map providers may be busy.`;
+    },
+    async proposeDesign(request) {
+      setMode("studio");
+      setTab("assistant");
+      setPrompt(request);
+      return ask(request);
+    },
+  };
+  async function sendChat(text: string) {
+    setChatError("");
+    const history: ChatMessage[] = [...chat, { role: "user", content: text }];
+    setChat(history);
+    setChatStatus("Thinking…");
+    try {
+      const { messages, reply } = await converse(
+        history,
+        () => {
+          const t = toolHost.current;
+          const quick = routeChoices[pref];
+          return {
+            area: t.world.name,
+            localTime: new Date(t.env.dateTime).toLocaleString("en-US", {
+              timeZone: t.world.timezone,
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+            weather: `${Math.round((t.env.temperatureC * 9) / 5 + 32)}°F, ${Math.round(t.env.humidity)}% humidity, ${Math.round(t.env.cloudCover)}% cloud, ${t.env.windMps} m/s wind (${t.env.weatherMode === "forecast" ? "NWS forecast" : "scenario"})`,
+            route: quick
+              ? `${pref} route, ${Math.round(quick.durationMinutes)} min`
+              : undefined,
+            canBuildAreas: true,
+          };
+        },
+        () => toolHost.current,
+        (url, body) => api(url, body),
+        (name) =>
+          setChatStatus(
+            {
+              plan_route: "Planning routes…",
+              heat_ranking: "Ranking heat…",
+              place_heat: "Checking the heat…",
+              build_area: "Building the area…",
+              propose_design: "Sketching a design…",
+            }[name] ?? "Working…",
+          ),
+      );
+      setChat(messages);
+      if (speakReplies) speak(reply);
+    } catch (e) {
+      setChatError((e as Error).message);
+    } finally {
+      setChatStatus(null);
+    }
+  }
   useEffect(() => {
     const [from, to] = defaultEndpoints(world, {
       avoidStairs: stairs,
@@ -233,12 +437,35 @@ export default function App({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   useEffect(() => {
-    try {
-      localStorage.setItem(projectKey, JSON.stringify(world));
-    } catch {
-      setMessage("Local storage is full. Export your project to keep a copy.");
-    }
-  }, [world, projectKey]);
+    let active = true;
+    loadProject(projectKey)
+      .then((stored) => {
+        const parsed = stored ? worldSchema.safeParse(stored) : null;
+        // Never replace an area the person built while this was loading.
+        if (active && parsed?.success)
+          setWorld((current) =>
+            current === firstWorld.current ? parsed.data : current,
+          );
+      })
+      .catch(() => {
+        /* No saved scene, or storage is unavailable: keep the study. */
+      })
+      .finally(() => active && setHydrated(true));
+    return () => {
+      active = false;
+    };
+  }, [projectKey]);
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = setTimeout(() => {
+      saveProject(projectKey, world).catch(() =>
+        setMessage(
+          "This browser couldn't save your scene. Export it to keep a copy.",
+        ),
+      );
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [world, projectKey, hydrated]);
   useEffect(() => {
     if (!query.trim()) {
       setCities([]);
@@ -277,7 +504,11 @@ export default function App({
       ),
     });
   }
-  async function loadCity(c: City, build = false, radius = 800) {
+  async function loadCity(
+    c: City,
+    build = false,
+    radius = 800,
+  ): Promise<boolean> {
     const request = ++buildRequest.current;
     if (!build) {
       setBusy("");
@@ -287,7 +518,7 @@ export default function App({
       setQuery("");
       setMode("explore");
       setTab("route");
-      return;
+      return true;
     }
     setBusy(`Building ${c.name}…`);
     setQuery("");
@@ -301,15 +532,31 @@ export default function App({
         },
         { fetch: window.fetch.bind(window), apiBase: API_BASE },
       );
-      if (request !== buildRequest.current) return;
+      if (request !== buildRequest.current) return false;
       const w = worldSchema.parse(loaded);
       edit(w);
       setAtlas(null);
       setSelected(null);
-      const [from, to] = defaultEndpoints(w, {
+      let [from, to] = defaultEndpoints(w, {
         avoidStairs: stairs,
         allowHypothetical: false,
       });
+      const hero = prebuiltAreaFor(c.lat, c.lon, radius)?.walk;
+      if (hero) {
+        const catalog = destinationCatalog(w);
+        const a = matchDestinations(catalog, hero.from)[0]?.id;
+        const b = matchDestinations(catalog, hero.to)[0]?.id;
+        const linked =
+          a &&
+          b &&
+          compareRoutes(w, a, b, {
+            avoidStairs: stairs,
+            allowHypothetical: false,
+            maxDetour: 2,
+            environment: env,
+          }).quickest;
+        if (linked) [from, to] = [a, b];
+      }
       setStart(from);
       setEnd(to);
       setHypothetical(false);
@@ -325,14 +572,17 @@ export default function App({
         weatherMode: "scenario",
       }));
       setForecast(null);
-      setMessage(
+      void weather(w.origin, true, request);
+      flash(
         from && to
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
           : "This area has no public walking connections. Build a nearby area to plan a walk.",
       );
+      return true;
     } catch (e) {
       if (request === buildRequest.current)
         setMessage(String(e instanceof Error ? e.message : e));
+      return false;
     } finally {
       if (request === buildRequest.current) setBusy("");
     }
@@ -439,15 +689,27 @@ export default function App({
     edit({ ...world, objects: [...world.objects, o] });
     setSelected(o.id);
   }
-  async function weather() {
-    setBusy("Fetching the forecast…");
+  async function weather(
+    origin = world.origin,
+    quiet = false,
+    request?: number,
+  ) {
+    if (!quiet) setBusy("Fetching the forecast…");
     try {
-      const f = await api(
-        `/api/weather?lat=${world.origin.lat}&lon=${world.origin.lon}`,
-      );
+      const f = await api(`/api/weather?lat=${origin.lat}&lon=${origin.lon}`);
+      // A forecast that arrives after another area was built is discarded.
+      if (request !== undefined && request !== buildRequest.current) return;
       setForecast(f);
+      if (quiet) {
+        // Keep whatever time the person (or assistant) chose meanwhile.
+        setEnv((env) => ({
+          ...weatherAt(env, env.dateTime, f),
+          weatherMode: "forecast",
+        }));
+        return;
+      }
       const h = f.hours[0];
-      setEnv({
+      setEnv((env) => ({
         ...env,
         dateTime: h.time,
         temperatureC: h.temperatureC,
@@ -455,22 +717,31 @@ export default function App({
         windMps: h.windMps,
         cloudCover: h.cloudCover ?? 50,
         weatherMode: "forecast",
-      });
-      setMessage(
-        "NWS forecast loaded. Shade remains a geometry-based estimate.",
-      );
+      }));
+      if (!quiet)
+        flash("NWS forecast loaded. Shade remains a geometry-based estimate.");
     } catch (e) {
-      setMessage((e as Error).message);
+      // After a build, a missing forecast just leaves the scenario in place.
+      if (!quiet) setMessage((e as Error).message);
     } finally {
-      setBusy("");
+      if (!quiet) setBusy("");
     }
   }
-  async function ask() {
+  /** A short confirmation that clears itself; errors use setMessage. */
+  function flash(text: string) {
+    setMessage(text);
+    clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(
+      () => setMessage((current) => (current === text ? "" : current)),
+      6000,
+    );
+  }
+  async function ask(request = prompt): Promise<string> {
     setBusy("Sketching your proposal…");
     const snapshot = JSON.stringify(world);
     try {
       const result = await api("/api/agent/propose", {
-        prompt,
+        prompt: request,
         extent: world.extent,
         scene: world.objects.slice(0, 300),
         roads: world.roads
@@ -481,11 +752,13 @@ export default function App({
         setMessage(
           "The scene changed while the assistant was working. Request a fresh proposal.",
         );
-        return;
+        return "The scene changed while drafting; nothing was proposed.";
       }
       setProposal(result);
+      return `Preview ready: ${result.summary} The person can apply or discard it in the Design studio.`;
     } catch (e) {
       setMessage((e as Error).message);
+      return `Could not draft a design: ${(e as Error).message}`;
     } finally {
       setBusy("");
     }
@@ -693,7 +966,7 @@ export default function App({
           {!atlas && (
             <div className="tabs">
               {(mode === "explore"
-                ? ["route", "transit", "climate", "data"]
+                ? ["route", "heat", "ask", "climate", "data"]
                 : ["build", "assistant", "data"]
               ).map((t) => (
                 <button
@@ -710,6 +983,8 @@ export default function App({
             mode === "explore" &&
             tab !== "climate" &&
             tab !== "data" &&
+            tab !== "heat" &&
+            tab !== "ask" &&
             tab !== "transit" && (
               <section>
                 <div className="section-title">
@@ -848,6 +1123,8 @@ export default function App({
                   choices={routeChoices}
                   selected={pref}
                   onSelect={setPref}
+                  environment={env}
+                  origin={world.origin}
                 />
                 <label className="check">
                   <input
@@ -966,6 +1243,52 @@ export default function App({
               </p>
             </section>
           )}
+          {!atlas && mode === "explore" && tab === "ask" && (
+            <AssistantPanel
+              messages={chat}
+              status={chatStatus}
+              error={chatError}
+              speakReplies={speakReplies}
+              onSpeakReplies={setSpeakReplies}
+              onSend={(text) => void sendChat(text)}
+              onReset={() => {
+                setChat([]);
+                setChatError("");
+              }}
+            />
+          )}
+          {!atlas && mode === "explore" && tab === "heat" && (
+            <HeatPanel
+              places={places}
+              range={edgeHeat?.values().next().value ?? null}
+              selected={heatPlace}
+              compare={comparePlace}
+              profile={heatProfile}
+              currentHour={currentHour}
+              timeLabel={`${new Date(env.dateTime).toLocaleString("en-US", {
+                timeZone: world.timezone,
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })} · ${env.weatherMode === "forecast" ? "NWS forecast" : "your weather scenario"}`}
+              showMap={heatMap}
+              onShowMap={setHeatMap}
+              onSelect={(p) => selectHeatPlace(p.id)}
+              comparing={comparing}
+              onCompare={() => {
+                setComparing(!comparing);
+                setComparePlaceId(null);
+              }}
+              onClose={() => {
+                setHeatPlaceId(null);
+                setComparePlaceId(null);
+                setComparing(false);
+              }}
+              onHour={setLocalHour}
+            />
+          )}
           {!atlas && tab === "transit" && (
             <JourneyPanel key={world.id} world={world} />
           )}
@@ -1013,7 +1336,7 @@ export default function App({
                   air-temperature measurement.
                 </small>
               </div>
-              <button className="secondary" onClick={weather}>
+              <button className="secondary" onClick={() => void weather()}>
                 Load local forecast <ArrowUpRight size={16} />
               </button>
               {forecast && (
@@ -1232,7 +1555,7 @@ export default function App({
               <button
                 className="primary"
                 disabled={!prompt.trim() || !!busy}
-                onClick={ask}
+                onClick={() => void ask()}
               >
                 Sketch a proposal <Sparkles size={16} />
               </button>
@@ -1297,7 +1620,9 @@ export default function App({
             just the destination.
           </footer>
         </aside>
-        <div className={`viewport${picking ? " picking-route" : ""}`}>
+        <div
+          className={`viewport${picking ? " picking-route" : ""}${atlas ? " atlas-mode" : ""}`}
+        >
           {atlas ? (
             <Suspense
               fallback={<div className="loading">Loading the city atlas…</div>}
@@ -1326,6 +1651,8 @@ export default function App({
               locationPoint={userPosition || undefined}
               showTrees={trees}
               showBuildings={buildings}
+              heat={heatOverlay}
+              onHeatSelect={selectHeatEdge}
             />
           )}
           {picking && (
@@ -1358,7 +1685,7 @@ export default function App({
             <div className="weather-chip">
               <Sun size={23} />
               <strong>
-                {Math.round(env.temperatureC)}°<small>C</small>
+                {Math.round((env.temperatureC * 9) / 5 + 32)}°<small>F</small>
               </strong>
               <div>
                 {env.weatherMode === "scenario"
@@ -1368,59 +1695,72 @@ export default function App({
               </div>
             </div>
           )}
-          <div className="map-actions">
-            <button
-              title="Undo"
-              aria-label="Undo"
-              disabled={!history.length}
-              onClick={() => {
-                location.reset();
-                stopSpeech();
-                setWorld(history.at(-1)!);
-                setHistory(history.slice(0, -1));
-              }}
-            >
-              <Undo2 size={19} />
-            </button>
-            <button
-              title="Toggle trees"
-              aria-label="Toggle trees"
-              className={!trees ? "muted" : ""}
-              onClick={() => setTrees(!trees)}
-            >
-              <TreePine size={19} />
-            </button>
-            <button
-              title="Toggle buildings"
-              aria-label="Toggle buildings"
-              onClick={() => setBuildings(!buildings)}
-            >
-              <Building2 size={19} />
-            </button>
-            <button
-              title="Import scene"
-              aria-label="Import scene"
-              onClick={() => upload.current?.click()}
-            >
-              <Upload size={19} />
-            </button>
-            <button
-              title="Export scene"
-              aria-label="Export scene"
-              onClick={exportWorld}
-            >
-              <Download size={19} />
-            </button>
-          </div>
-          <div className="compass">
-            <Compass size={33} strokeWidth={1} />
-            <small>N</small>
-          </div>
+          {!atlas && (
+            <>
+              <div className="map-actions">
+                <button
+                  title="Undo"
+                  aria-label="Undo"
+                  disabled={!history.length}
+                  onClick={() => {
+                    location.reset();
+                    stopSpeech();
+                    setWorld(history.at(-1)!);
+                    setHistory(history.slice(0, -1));
+                  }}
+                >
+                  <Undo2 size={19} />
+                </button>
+                <button
+                  title="Toggle trees"
+                  aria-label="Toggle trees"
+                  className={!trees ? "muted" : ""}
+                  onClick={() => setTrees(!trees)}
+                >
+                  <TreePine size={19} />
+                </button>
+                <button
+                  title="Toggle heat map"
+                  aria-label="Toggle heat map"
+                  aria-pressed={heatMap}
+                  className={!heatMap ? "muted" : ""}
+                  onClick={() => setHeatMap(!heatMap)}
+                >
+                  <Thermometer size={19} />
+                </button>
+                <button
+                  title="Toggle buildings"
+                  aria-label="Toggle buildings"
+                  onClick={() => setBuildings(!buildings)}
+                >
+                  <Building2 size={19} />
+                </button>
+                <button
+                  title="Import scene"
+                  aria-label="Import scene"
+                  onClick={() => upload.current?.click()}
+                >
+                  <Upload size={19} />
+                </button>
+                <button
+                  title="Export scene"
+                  aria-label="Export scene"
+                  onClick={exportWorld}
+                >
+                  <Download size={19} />
+                </button>
+              </div>
+              <div className="compass">
+                <Compass size={33} strokeWidth={1} />
+                <small>N</small>
+              </div>
+            </>
+          )}
           {!atlas && (
             <div className="timeline">
               <div>
                 <Sun size={18} />
-                <strong>Follow the sun</strong>
+                <strong>Time of day</strong>
                 <span>
                   {new Date(env.dateTime).toLocaleString("en-US", {
                     timeZone: world.timezone,
@@ -1432,43 +1772,27 @@ export default function App({
                 </span>
               </div>
               <input
-                aria-label="Sun time"
+                aria-label="Time of day"
                 type="range"
                 min="0"
-                max="23"
+                max="23.75"
                 step=".25"
-                value={
-                  new Date(env.dateTime).getUTCHours() +
-                  new Date(env.dateTime).getUTCMinutes() / 60
-                }
-                onChange={(e) => {
-                  const d = new Date(env.dateTime);
-                  d.setUTCHours(
-                    Math.floor(+e.target.value),
-                    (+e.target.value % 1) * 60,
-                    0,
-                    0,
-                  );
-                  setEnv({
-                    ...env,
-                    dateTime: d.toISOString(),
-                    weatherMode: "scenario",
-                  });
-                }}
+                value={currentHour}
+                onChange={(e) => setLocalHour(+e.target.value)}
               />
               <div className="timeline-labels">
-                <span>00:00 UTC</span>
-                <span>06:00</span>
-                <span>12:00</span>
-                <span>18:00</span>
-                <span>24:00 UTC</span>
+                {[0, 6, 12, 18, 23.75].map((h) => (
+                  <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
+                ))}
               </div>
             </div>
           )}
           <div className="map-credit">
-            {world.provenance.live
-              ? "© OpenStreetMap contributors"
-              : "Original design study"}
+            {atlas
+              ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
+              : world.provenance.live
+                ? "© OpenStreetMap contributors"
+                : "Original design study"}
             <span>Scene units: meters</span>
           </div>
           {busy && (

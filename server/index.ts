@@ -5,6 +5,7 @@ import { cities, searchCities } from "./cities.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
 import { agentRouter } from "./agent.js";
+import { aiConfig } from "./ai.js";
 import { berkeleyJourney } from "./transit.js";
 import { authRouter, authenticate } from "./auth.js";
 export const app = express();
@@ -30,9 +31,7 @@ app.use("/api/auth", authRouter);
 app.get("/api/health", (_q, r) =>
   r.json({
     ok: true,
-    aiConfigured: Boolean(
-      process.env.WALK_FREE_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-    ),
+    aiConfigured: Boolean(aiConfig()),
   }),
 );
 app.get("/api/cities", (q, r) => {

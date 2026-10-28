@@ -10,6 +10,8 @@ export interface PrebuiltArea {
   lon: number;
   /** Half-width in meters; 1000 m covers a 2 km square. */
   radius: number;
+  /** A recognizable first walk shown after the area opens. */
+  walk?: { from: string; to: string };
 }
 
 export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
@@ -19,6 +21,7 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lat: 30.285,
     lon: -97.7341,
     radius: 1000,
+    walk: { from: "UT Tower", to: "Gregory Gymnasium" },
   },
   {
     slug: "uc-berkeley",
@@ -26,6 +29,7 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lat: 37.8719,
     lon: -122.2585,
     radius: 1000,
+    walk: { from: "Sproul Hall", to: "Moffitt Undergraduate Library" },
   },
 ];
 

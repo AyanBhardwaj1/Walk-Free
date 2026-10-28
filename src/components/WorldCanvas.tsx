@@ -11,6 +11,7 @@ import type {
 } from "../../shared/types";
 import Building from "./scene/Buildings";
 import Trees from "./scene/Trees";
+import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
 function FrameArea({ extent }: { extent: number }) {
@@ -58,6 +59,93 @@ function WalkingPaths({
     >
       <lineBasicMaterial color="#699271" transparent opacity={0.65} />
     </lineSegments>
+  );
+}
+export interface HeatOverlay {
+  colors: Map<string, string>;
+  highlight?: Set<string>;
+}
+/** Walking paths coloured by heat, drawn as one batched line. */
+function HeatPaths({
+  world,
+  heat,
+  onSelect,
+}: {
+  world: World;
+  heat: HeatOverlay;
+  onSelect: (edgeId: string, point: Point) => void;
+}) {
+  const { points, colors, edgeAt, highlight } = useMemo(() => {
+    const points: [number, number, number][] = [],
+      colors: [number, number, number][] = [],
+      edgeAt: string[] = [],
+      highlight: [number, number, number][] = [];
+    const color = new THREE.Color();
+    for (const edge of world.graph.edges) {
+      const hex = heat.colors.get(edge.id);
+      if (!hex) continue;
+      color.set(hex);
+      const lifted = heat.highlight?.has(edge.id);
+      for (let i = 1; i < edge.points.length; i++) {
+        for (const p of [edge.points[i - 1], edge.points[i]]) {
+          const v: [number, number, number] = [
+            p[0],
+            terrainHeight(p, world.terrain) + 1.4,
+            p[1],
+          ];
+          points.push(v);
+          colors.push([color.r, color.g, color.b]);
+          if (lifted) highlight.push([v[0], v[1] + 0.6, v[2]]);
+        }
+        edgeAt.push(edge.id);
+      }
+    }
+    return { points, colors, edgeAt, highlight };
+  }, [world.graph, world.terrain, heat]);
+  if (!points.length) return null;
+  return (
+    <>
+      <Line
+        points={points}
+        vertexColors={colors}
+        segments
+        lineWidth={world.graph.edges.length > 3000 ? 2.5 : 4}
+        onClick={(e) => {
+          const edgeId = edgeAt[e.faceIndex ?? -1];
+          if (!edgeId) return;
+          e.stopPropagation();
+          onSelect(edgeId, [e.point.x, e.point.z]);
+        }}
+      />
+      {highlight.length > 0 && (
+        <Line points={highlight} segments color="#1f2a1c" lineWidth={7} />
+      )}
+    </>
+  );
+}
+const MERGE_THRESHOLD = 500;
+/** Streets and footpaths batched into two lines instead of one per road. */
+function Roads({ world }: { world: World }) {
+  const batches = useMemo(() => {
+    const road: [number, number, number][] = [],
+      path: [number, number, number][] = [];
+    for (const r of world.roads) {
+      const target = r.kind === "road" ? road : path;
+      for (let i = 1; i < r.points.length; i++)
+        for (const p of [r.points[i - 1], r.points[i]])
+          target.push([p[0], terrainHeight(p, world.terrain) + 0.6, p[1]]);
+    }
+    return { road, path };
+  }, [world.roads, world.terrain]);
+  return (
+    <>
+      {batches.road.length > 0 && (
+        <Line points={batches.road} segments color="#faf7ed" lineWidth={5} />
+      )}
+      {batches.path.length > 0 && (
+        <Line points={batches.path} segments color="#dfd4bd" lineWidth={2} />
+      )}
+    </>
   );
 }
 function Ground({
@@ -176,6 +264,8 @@ export default function WorldCanvas({
   pickingEndpoint = false,
   showTrees = true,
   showBuildings = true,
+  heat,
+  onHeatSelect,
 }: {
   world: World;
   environment: Environment;
@@ -190,9 +280,23 @@ export default function WorldCanvas({
   pickingEndpoint?: boolean;
   showTrees?: boolean;
   showBuildings?: boolean;
+  heat?: HeatOverlay | null;
+  onHeatSelect?: (edgeId: string, point: Point) => void;
 }) {
   const sun = sunDirection(environment, world.origin);
   const extent = world.extent;
+  // Large mapped areas draw OSM buildings as one mesh; designed objects and
+  // the selected building stay individual so they keep their detail.
+  const merged = useMemo(
+    () =>
+      world.objects.length >= MERGE_THRESHOLD
+        ? world.objects.filter(
+            (o) =>
+              o.kind !== "tree" && o.source === "osm" && o.id !== selectedId,
+          )
+        : null,
+    [world.objects, selectedId],
+  );
   return (
     <Canvas
       shadows
@@ -204,6 +308,9 @@ export default function WorldCanvas({
       }}
       dpr={[1, 1.6]}
       gl={{ antialias: true }}
+      // Draw only when the camera or scene changes, not 60 times a second.
+      frameloop="demand"
+      raycaster={{ params: { Line: { threshold: 3 } } } as never}
     >
       <FrameArea extent={extent} />
       <color attach="background" args={["#eeece3"]} />
@@ -229,20 +336,21 @@ export default function WorldCanvas({
           color={l.kind === "water" ? "#a5bcba" : "#bdc6a0"}
         />
       ))}
-      {world.roads.map((r) => (
-        <Line
-          key={r.id}
-          points={r.points.map((p) => [
-            p[0],
-            terrainHeight(p, world.terrain) + 0.6,
-            p[1],
-          ])}
-          color={r.kind === "road" ? "#faf7ed" : "#dfd4bd"}
-          lineWidth={r.kind === "road" ? 5 : 2}
+      <Roads world={world} />
+      {heat ? (
+        <HeatPaths
+          world={world}
+          heat={heat}
+          onSelect={(edgeId, point) =>
+            pickingEndpoint
+              ? onGroundClick(point)
+              : onHeatSelect?.(edgeId, point)
+          }
         />
-      ))}
-      {showWalkingPaths && (
-        <WalkingPaths world={world} onClick={onGroundClick} />
+      ) : (
+        showWalkingPaths && (
+          <WalkingPaths world={world} onClick={onGroundClick} />
+        )
       )}
       <group
         onClick={(e) => {
@@ -252,9 +360,22 @@ export default function WorldCanvas({
           }
         }}
       >
+        {showBuildings && merged && (
+          <MergedBuildings
+            objects={merged}
+            terrain={world.terrain}
+            onPick={(o) => {
+              if (!pickingEndpoint) onSelect(o.id);
+            }}
+          />
+        )}
         {showBuildings &&
           world.objects
-            .filter((o) => o.kind !== "tree")
+            .filter(
+              (o) =>
+                o.kind !== "tree" &&
+                (!merged || o.source !== "osm" || o.id === selectedId),
+            )
             .map((o) => (
               <Building
                 key={o.id}
@@ -280,17 +401,41 @@ export default function WorldCanvas({
           />
         )}
       </group>
-      {route && (
-        <Line
-          points={route.points.map((p) => [
-            p[0],
-            terrainHeight(p, world.terrain) + 3,
-            p[1],
-          ])}
-          color="#d57b48"
-          lineWidth={5}
-        />
-      )}
+      {route &&
+        (heat ? (
+          // Over heat colours, draw the route as a dark line with a light
+          // casing so it never blends into the orange "hot" paths.
+          <>
+            <Line
+              points={route.points.map((p) => [
+                p[0],
+                terrainHeight(p, world.terrain) + 3,
+                p[1],
+              ])}
+              color="#fffdf4"
+              lineWidth={10}
+            />
+            <Line
+              points={route.points.map((p) => [
+                p[0],
+                terrainHeight(p, world.terrain) + 3.2,
+                p[1],
+              ])}
+              color="#1d3557"
+              lineWidth={5}
+            />
+          </>
+        ) : (
+          <Line
+            points={route.points.map((p) => [
+              p[0],
+              terrainHeight(p, world.terrain) + 3,
+              p[1],
+            ])}
+            color="#d57b48"
+            lineWidth={5}
+          />
+        ))}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
       )}
