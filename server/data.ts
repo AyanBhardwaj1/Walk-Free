@@ -20,9 +20,9 @@ import type {
   World,
   WeatherForecast,
   WeatherHour,
-} from "../shared/types";
-import { nearestCity } from "./cities";
-import { requestJson, ServiceError } from "./network";
+} from "../shared/types.js";
+import { nearestCity } from "./cities.js";
+import { requestJson, ServiceError } from "./network.js";
 
 const CACHE_ROOT = process.env.VERCEL
   ? join(tmpdir(), "walk-free-cache")

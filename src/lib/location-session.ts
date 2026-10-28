@@ -1,4 +1,4 @@
-import type { LocationFix } from "./walk-location";
+import type { LocationFix } from "./walk-location.js";
 export type LocationAdapter = (
   onFix: (fix: LocationFix) => void,
   onError: (message: string) => void,

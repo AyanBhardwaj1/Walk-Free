@@ -1,4 +1,4 @@
-import type { Point, Terrain } from "../../shared/types";
+import type { Point, Terrain } from "../../shared/types.js";
 export function terrainHeight(p: Point, t?: Terrain) {
   if (!t) return 0;
   const x = Math.max(

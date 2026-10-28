@@ -1,4 +1,4 @@
-import type { LocationFix } from "./walk-location";
+import type { LocationFix } from "./walk-location.js";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";

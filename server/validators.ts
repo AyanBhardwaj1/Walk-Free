@@ -1,4 +1,4 @@
-import { ServiceError } from "./network";
+import { ServiceError } from "./network.js";
 export function coordinates(
   lat: unknown,
   lon: unknown,

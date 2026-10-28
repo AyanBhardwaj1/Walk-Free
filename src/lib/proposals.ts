@@ -1,4 +1,4 @@
-import type { World, SceneObject } from "../../shared/types";
+import type { World, SceneObject } from "../../shared/types.js";
 export interface DesignProposal {
   summary: string;
   objects: SceneObject[];

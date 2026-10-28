@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requestJson, ServiceError } from "./network";
+import { requestJson, ServiceError } from "./network.js";
 const object = z.object({
   id: z.string().max(80),
   kind: z.enum(["tree", "building", "skyscraper", "tower", "landmark"]),

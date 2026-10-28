@@ -6,8 +6,8 @@ import type {
   GraphNode,
   Point,
   RoutePreference,
-} from "../../shared/types";
-import { createShadeTester } from "./environment";
+} from "../../shared/types.js";
+import { createShadeTester } from "./environment.js";
 
 export const routePreferences: RoutePreference[] = [
   "quickest",
