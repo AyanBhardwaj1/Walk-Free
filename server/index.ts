@@ -6,6 +6,7 @@ import { coordinates, boundedRadius, cleanName } from "./validators";
 import { ServiceError } from "./network";
 import { agentRouter } from "./agent";
 import { berkeleyJourney } from "./transit";
+import { authRouter, authenticate } from "./auth";
 export const app = express();
 app.use((q, r, next) => {
   if (
@@ -25,6 +26,7 @@ app.use((q, r, next) => {
   next();
 });
 app.use(express.json({ limit: "2mb" }));
+app.use("/api/auth", authRouter);
 app.get("/api/health", (_q, r) =>
   r.json({
     ok: true,
@@ -37,6 +39,7 @@ app.get("/api/cities", (q, r) => {
   const term = String(q.query.q || "").toLowerCase();
   r.json(searchCities(term));
 });
+app.use("/api", authenticate);
 app.get("/api/world", async (q, r, next) => {
   try {
     const { lat, lon } = coordinates(q.query.lat, q.query.lon);

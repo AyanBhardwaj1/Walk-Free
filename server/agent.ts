@@ -19,6 +19,12 @@ export const proposalSchema = z.object({
 export const agentRouter = Router();
 agentRouter.post("/propose", async (q, r, next) => {
   try {
+    if (process.env.VERCEL)
+      throw new ServiceError(
+        "HOSTED_AI_DISABLED",
+        "The hosted design assistant is not enabled yet. Shared usage limits must be configured first.",
+        503,
+      );
     const key =
       process.env.WALK_FREE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
     if (!key)

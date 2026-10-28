@@ -1,6 +1,6 @@
 # Walk-Free
 
-An architectural atlas for exploring urban shade, planning walks, and designing better places. React, TypeScript, Three.js, Express, and Capacitor. Free data providers; OpenAI is the only paid integration.
+An architectural atlas for exploring urban shade, planning walks, and designing better places. React, TypeScript, Three.js, Express, and Capacitor. Open data providers, managed email/password accounts, and an optional OpenAI assistant. Hosting and authentication use services with free tiers and usage limits; a free deployment is not unlimited.
 
 ## Run
 
@@ -13,11 +13,11 @@ npm run setup
 npm run dev
 ```
 
-Open **http://localhost:5173**. This workflow does not require a Codex cloud environment or publishing its settings. If you already cloned the repository, run the commands from `npm run setup` onward in that checkout. Setup installs locked dependencies and creates `.env` only when it is absent; it never overwrites existing configuration.
+Open **http://localhost:5173** for the public landing page. Email/password signup and login open `/app`. Set `WALK_FREE_AUTH_URL` to your Neon managed-auth base URL before using accounts. This workflow does not require a Codex cloud environment or publishing its settings. If you already cloned the repository, run the commands from `npm run setup` onward in that checkout. Setup installs locked dependencies and creates `.env` only when it is absent; it never overwrites existing configuration.
 
 Vite serves the web app on port 5173; Express serves its API on port 8787. Open the running web app, not `index.html` directly. The starter district is an explicitly fictional design study. Search for a US city to open the city atlas, then select a neighborhood for a detailed editable scene.
 
-For the assistant, set `WALK_FREE_OPENAI_API_KEY` in your computer's `.env`. Credentials are deliberately excluded from Git, so cloning does not transfer the key saved in another workspace. The other features need no API keys. Local requests use your computer's network; source availability and complete journeys still need verification there.
+For the assistant, set `WALK_FREE_OPENAI_API_KEY` in your computer's `.env`. Credentials are deliberately excluded from Git, so cloning does not transfer the key saved in another workspace. The map and weather providers need no API keys; accounts need a configured managed-auth service. Local requests use your computer's network; source availability and complete journeys still need verification there.
 
 To continue development with Codex on your computer, open this cloned folder in a local Codex session. Repository instructions in `AGENTS.md` preserve the request to commit and push verified milestones regularly.
 
@@ -60,14 +60,28 @@ Required outbound hosts:
 
 No map subscription or geocoding key is required. The city index is a curated list of major US city coordinates; see `server/cities.ts`. See [research](docs/RESEARCH.md) for source licenses, data gaps, and examined alternatives. Preserve OSM attribution and applicable ODbL obligations in downstream data exports. The procedural study is original fictional geometry.
 
+## Accounts and privacy
+
+The public website has landing, signup, login, password-reset, and privacy pages. Email/password accounts use Neon managed Better Auth through a same-origin Express proxy. The app does not expose Google/social login endpoints. Session cookies are HTTP-only and scoped to the app host; API requests for maps, forecasts, journeys, and AI are checked against the managed session. Authentication errors fail closed. Set `WALK_FREE_AUTH_URL` on the server, not in browser variables. New passwords require 12–128 characters. The provider performs hashing, account persistence, and auth throttling.
+
+Scenes are stored in browser local storage under the account ID; cross-device project sync and self-service account deletion are not implemented. Existing pre-account scenes remain intact and can be downloaded using **Export earlier scene**, then imported into the signed-in workspace. Browser storage is not an encryption boundary; use a trusted device. GPS tracks are not persisted to the server.
+
+The initial Neon configuration permits email/password signup without email verification. The UI includes a verification-code flow if verification is enabled later. Password reset uses the provider's shared email service, which Neon documents for development/testing; delivery has not been end-to-end verified. A production email provider, ownership verification, support contact, and account-deletion flow should be settled before broad public launch. No marketing emails or Google integration were added.
+
+This account integration targets the same-origin website. Native Capacitor authentication requires a separate secure session handoff and device testing; existing GPS adapters do not establish native login readiness.
+
 ## Vercel
 
-Import this repository with the Vite preset; install `npm ci`, build `npm run build`, output `dist`. The repository contains `api/index.ts` and rewrite configuration for the Express API. Set `WALK_FREE_OPENAI_API_KEY` and optionally `WALK_FREE_OPENAI_MODEL` as server environment variables. No key should be bundled into the browser. The app has not been deployed or tested on Vercel yet. Native builds need `VITE_API_BASE_URL` set to the deployed HTTPS origin before building.
+Import this repository with the Vite preset; install `npm ci`, build `npm run build`, output `dist`. The repository contains `api/index.ts` and rewrite configuration for the Express API. Set `WALK_FREE_OPENAI_API_KEY` and optionally `WALK_FREE_OPENAI_MODEL` as server environment variables. No key should be bundled into the browser. Set `WALK_FREE_AUTH_URL` and `WALK_FREE_APP_URL` (the exact HTTPS production origin) as server variables. Add that exact origin to Neon Auth trusted domains. The current signed-in Vercel workspace is Pro; deployment is pending the user’s free-versus-existing-Pro workspace choice. No Vercel deployment is claimed yet. Native builds need `VITE_API_BASE_URL` set to the deployed HTTPS origin before building.
 
-Caches are bounded local files, using `/tmp` on Vercel; they are not durable or globally shared. Large OSM/GTFS requests may exceed your configured serverless execution limits. Before making a public deployment with the AI key enabled, add user authentication and shared rate/budget enforcement; the current assistant endpoint is intended for private development use. Projects are stored on the current device, not in shared accounts.
+Caches are bounded local files, using `/tmp` on Vercel; they are not durable or globally shared. Large OSM/GTFS requests may exceed your configured serverless execution limits. The assistant is explicitly disabled when `VERCEL` is set, even if an API key exists: durable shared rate/budget enforcement still needs implementation before hosted AI can be enabled. Local authenticated development can use its server key. Projects are stored on the current device, separated by account, with no shared storage yet.
 
 ## Native mobile
 
 See [native setup and device checks](docs/MOBILE.md). Generated projects are present; platform binaries have not been compiled or tested on devices in this Linux workspace.
 
-See [the validation record](docs/VALIDATION.md) for the distinction between passing local checks, earlier live-source checks, and current network blockers. With the dev server running, `python scripts/browser-smoke.py` runs the browser smoke checks in this environment (Chromium and Python Playwright required).
+See [the validation record](docs/VALIDATION.md) for the distinction between passing local checks, earlier live-source checks, and current network blockers. The historical `scripts/browser-smoke.py` predates authentication and no longer represents the current entry flow. Current account and public-page checks are recorded in the validation log; unit/API checks run with `npm test`.
+
+## Cost boundaries
+
+Vercel Hobby is restricted to personal/noncommercial use and stops features at usage caps; the connected account currently uses Pro. Neon’s connected organization is on Free. No paid plan or add-on was selected. Free-tier quotas and external map availability can limit service; “always free at any scale” is not promised. See [Vercel Hobby](https://vercel.com/docs/plans/hobby), [Neon plans](https://neon.com/pricing), and [Neon auth production guidance](https://neon.com/docs/auth/production-checklist).

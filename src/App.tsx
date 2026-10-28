@@ -49,6 +49,7 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import WorldCanvas from "./components/WorldCanvas";
+import type { Account } from "./lib/account";
 const Atlas = lazy(() => import("./components/Atlas"));
 const initial: Environment = {
   dateTime: "2026-07-15T20:00:00Z",
@@ -86,10 +87,24 @@ const tools = [
   ["lower", "Lower", Minus],
   ["flatten", "Flatten", Layers],
 ] as const;
-export default function App() {
+export default function App({
+  account,
+  onSignOut,
+}: {
+  account: Account;
+  onSignOut: () => Promise<void>;
+}) {
+  const projectKey = `walk-free-project:${account.id}`;
+  const [legacyProject, setLegacyProject] = useState(() => {
+    try {
+      return localStorage.getItem("walk-free-project") !== null;
+    } catch {
+      return false;
+    }
+  });
   const [world, setWorld] = useState<World>(() => {
     try {
-      const s = localStorage.getItem("walk-free-project");
+      const s = localStorage.getItem(projectKey);
       return s ? worldSchema.parse(JSON.parse(s)) : createStudyWorld();
     } catch {
       return createStudyWorld();
@@ -213,11 +228,11 @@ export default function App() {
   }
   useEffect(() => {
     try {
-      localStorage.setItem("walk-free-project", JSON.stringify(world));
+      localStorage.setItem(projectKey, JSON.stringify(world));
     } catch {
       setMessage("Local storage is full. Export your project to keep a copy.");
     }
-  }, [world]);
+  }, [world, projectKey]);
   useEffect(() => {
     if (!query.trim()) {
       setCities([]);
@@ -471,6 +486,32 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(a.href);
   }
+  function exportLegacyProject() {
+    try {
+      const saved = localStorage.getItem("walk-free-project");
+      if (!saved) {
+        setLegacyProject(false);
+        return;
+      }
+      const previous = worldSchema.parse(JSON.parse(saved));
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(
+        new Blob([JSON.stringify(previous, null, 2)], {
+          type: "application/json",
+        }),
+      );
+      link.download = "walk-free-before-accounts.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setMessage(
+        "Earlier scene exported. Use Import scene to bring it into your account workspace.",
+      );
+    } catch {
+      setMessage(
+        "The earlier scene could not be read. Its stored copy has been preserved.",
+      );
+    }
+  }
   function navigation() {
     if (tracking || locating) {
       location.stop();
@@ -534,11 +575,11 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <a className="brand" href="#">
+        <a className="brand" href="/">
           <span className="brand-icon">
             w<span>f</span>
           </span>
-          walk-free<span className="brand-dot">®</span>
+          walk-free
         </a>
         <nav>
           <button
@@ -564,7 +605,10 @@ export default function App() {
           </button>
         </nav>
         <div className="header-right">
-          <span className="status-dot" /> Your urban field guide{" "}
+          <div className="account-controls">
+            <span title={account.email}>{account.name || account.email}</span>
+            <button onClick={onSignOut}>Sign out</button>
+          </div>
           <button
             className="icon-button"
             aria-label="Export project"
@@ -576,6 +620,15 @@ export default function App() {
       </header>
       <main>
         <aside>
+          {legacyProject && (
+            <button
+              className="legacy-export"
+              onClick={exportLegacyProject}
+              title="Download the local scene saved before accounts were added"
+            >
+              Export earlier scene
+            </button>
+          )}
           <div className="eyebrow">CITIES, AT HUMAN PACE</div>
           <h1>
             {mode === "explore" ? (
