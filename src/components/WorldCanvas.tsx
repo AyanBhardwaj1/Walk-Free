@@ -109,7 +109,7 @@ function HeatPaths({
         points={points}
         vertexColors={colors}
         segments
-        lineWidth={4}
+        lineWidth={world.graph.edges.length > 3000 ? 2.5 : 4}
         onClick={(e) => {
           const edgeId = edgeAt[e.faceIndex ?? -1];
           if (!edgeId) return;

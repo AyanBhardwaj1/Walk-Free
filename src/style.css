@@ -1314,3 +1314,49 @@ footer {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* On the city atlas the build panel owns the bottom of the map, so
+   messages move to the top instead of covering it. */
+.viewport.atlas-mode .toast {
+  bottom: auto;
+  top: 130px;
+  z-index: 3;
+}
+.toast {
+  z-index: 3;
+}
+@media (max-width: 650px) {
+  .compass {
+    display: none;
+  }
+  .viewport.atlas-mode .toast {
+    top: 96px;
+  }
+  .atlas-build {
+    width: calc(100% - 32px);
+    bottom: 16px;
+    padding: 16px;
+  }
+  .heat-legend small {
+    display: none;
+  }
+}
+.search + section,
+.search-results + section {
+  margin-top: 26px;
+}
+.heat-scale {
+  margin: 4px 0 18px;
+}
+.heat-scale-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+}
+.heat-scale > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #5b6650;
+  margin-top: 5px;
+}

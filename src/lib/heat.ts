@@ -282,7 +282,7 @@ export function localHour(iso: string, timeZone: string) {
 }
 
 /** Forecast values for the hour containing `iso`, when a forecast exists. */
-function weatherAt(
+export function weatherAt(
   env: Environment,
   iso: string,
   forecast?: WeatherForecast | null,
@@ -377,3 +377,31 @@ export function clockLabel(iso: string, timeZone: string) {
     minute: "2-digit",
   });
 }
+
+const RAMP = HEAT_LEVELS.map((l) => l.color);
+/** Below this solar load, sun and shade feel alike and colours use ratings. */
+const MIN_CONTRAST_C = 1;
+
+function mix(a: string, b: string, t: number) {
+  const pa = parseInt(a.slice(1), 16),
+    pb = parseInt(b.slice(1), 16);
+  const channel = (shift: number) =>
+    Math.round(((pa >> shift) & 255) * (1 - t) + ((pb >> shift) & 255) * t);
+  return `#${((channel(16) << 16) | (channel(8) << 8) | channel(0))
+    .toString(16)
+    .padStart(6, "0")}`;
+}
+
+/**
+ * Map colour for a reading: relative to this moment, from fully shaded
+ * (cool end) to full sun (hot end), so hot spots stand out even when the
+ * whole area sits in one comfort band.
+ */
+export function relativeHeatColor(reading: HeatReading) {
+  if (reading.sunFeelsC - reading.shadeFeelsC < MIN_CONTRAST_C)
+    return HEAT_LEVELS[reading.level].color;
+  const t = (1 - reading.shade) * (RAMP.length - 1);
+  const i = Math.min(RAMP.length - 2, Math.floor(t));
+  return mix(RAMP[i], RAMP[i + 1], t - i);
+}
+export const HEAT_RAMP = RAMP;

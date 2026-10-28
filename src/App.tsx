@@ -56,14 +56,17 @@ import { converse, type ChatMessage } from "./lib/assistant-client";
 import type { ToolHost } from "./lib/assistant-tools";
 import { searchCities } from "../server/cities";
 import {
-  HEAT_LEVELS,
   atLocalHour,
   dailyProfile,
   edgeHeatMap,
   edgePlace,
   localHour,
   placeHeat,
+  relativeHeatColor,
+  weatherAt,
 } from "./lib/heat";
+import { prebuiltAreaFor } from "../shared/areas";
+import { matchDestinations } from "./lib/assistant-tools";
 import EndpointPicker from "./components/EndpointPicker";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { snapWalkPosition, hasArrived } from "./lib/walk-location";
@@ -72,6 +75,7 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
 import type { Account } from "./lib/account";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -131,14 +135,10 @@ export default function App({
       return false;
     }
   });
-  const [world, setWorld] = useState<World>(() => {
-    try {
-      const s = localStorage.getItem(projectKey);
-      return s ? worldSchema.parse(JSON.parse(s)) : createStudyWorld();
-    } catch {
-      return createStudyWorld();
-    }
-  });
+  const [world, setWorld] = useState<World>(createStudyWorld);
+  // Saving waits until the stored scene has been read back.
+  const [hydrated, setHydrated] = useState(false);
+  const firstWorld = useRef(world);
   const [atlas, setAtlas] = useState<City | null>(null);
   const [mode, setMode] = useState<"explore" | "studio">("explore");
   const [env, setEnv] = useState(initial);
@@ -206,6 +206,7 @@ export default function App({
   const routeStart = location.fix ? snappedLocation?.nodeId || "" : start;
   const lastSpoken = useRef("");
   const buildRequest = useRef(0);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
@@ -272,7 +273,7 @@ export default function App({
     if (!edgeHeat || !heatMap) return null;
     const colors = new Map<string, string>();
     for (const [id, reading] of edgeHeat)
-      colors.set(id, HEAT_LEVELS[reading.level].color);
+      colors.set(id, relativeHeatColor(reading));
     const highlight = new Set([
       ...(heatPlace?.edgeIds ?? []),
       ...(comparePlace?.edgeIds ?? []),
@@ -282,14 +283,13 @@ export default function App({
   }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
   const currentHour = localHour(env.dateTime, world.timezone);
   function setLocalHour(hour: number) {
-    setEnv((previous) => ({
-      ...previous,
-      dateTime: atLocalHour(previous.dateTime, world.timezone, hour),
-      weatherMode:
-        previous.weatherMode === "forecast" && forecast
-          ? "forecast"
-          : "scenario",
-    }));
+    setEnv((previous) => {
+      const dateTime = atLocalHour(previous.dateTime, world.timezone, hour);
+      // In forecast mode, temperature and cloud follow the chosen hour.
+      return previous.weatherMode === "forecast" && forecast
+        ? weatherAt(previous, dateTime, forecast)
+        : { ...previous, dateTime, weatherMode: "scenario" };
+    });
   }
   function selectHeatPlace(id: string) {
     setTab("heat");
@@ -437,12 +437,35 @@ export default function App({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   useEffect(() => {
-    try {
-      localStorage.setItem(projectKey, JSON.stringify(world));
-    } catch {
-      setMessage("Local storage is full. Export your project to keep a copy.");
-    }
-  }, [world, projectKey]);
+    let active = true;
+    loadProject(projectKey)
+      .then((stored) => {
+        const parsed = stored ? worldSchema.safeParse(stored) : null;
+        // Never replace an area the person built while this was loading.
+        if (active && parsed?.success)
+          setWorld((current) =>
+            current === firstWorld.current ? parsed.data : current,
+          );
+      })
+      .catch(() => {
+        /* No saved scene, or storage is unavailable: keep the study. */
+      })
+      .finally(() => active && setHydrated(true));
+    return () => {
+      active = false;
+    };
+  }, [projectKey]);
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = setTimeout(() => {
+      saveProject(projectKey, world).catch(() =>
+        setMessage(
+          "This browser couldn't save your scene. Export it to keep a copy.",
+        ),
+      );
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [world, projectKey, hydrated]);
   useEffect(() => {
     if (!query.trim()) {
       setCities([]);
@@ -514,10 +537,26 @@ export default function App({
       edit(w);
       setAtlas(null);
       setSelected(null);
-      const [from, to] = defaultEndpoints(w, {
+      let [from, to] = defaultEndpoints(w, {
         avoidStairs: stairs,
         allowHypothetical: false,
       });
+      const hero = prebuiltAreaFor(c.lat, c.lon, radius)?.walk;
+      if (hero) {
+        const catalog = destinationCatalog(w);
+        const a = matchDestinations(catalog, hero.from)[0]?.id;
+        const b = matchDestinations(catalog, hero.to)[0]?.id;
+        const linked =
+          a &&
+          b &&
+          compareRoutes(w, a, b, {
+            avoidStairs: stairs,
+            allowHypothetical: false,
+            maxDetour: 2,
+            environment: env,
+          }).quickest;
+        if (linked) [from, to] = [a, b];
+      }
       setStart(from);
       setEnd(to);
       setHypothetical(false);
@@ -533,7 +572,8 @@ export default function App({
         weatherMode: "scenario",
       }));
       setForecast(null);
-      setMessage(
+      void weather(w.origin, true);
+      flash(
         from && to
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
           : "This area has no public walking connections. Build a nearby area to plan a walk.",
@@ -649,15 +689,13 @@ export default function App({
     edit({ ...world, objects: [...world.objects, o] });
     setSelected(o.id);
   }
-  async function weather() {
-    setBusy("Fetching the forecast…");
+  async function weather(origin = world.origin, quiet = false) {
+    if (!quiet) setBusy("Fetching the forecast…");
     try {
-      const f = await api(
-        `/api/weather?lat=${world.origin.lat}&lon=${world.origin.lon}`,
-      );
+      const f = await api(`/api/weather?lat=${origin.lat}&lon=${origin.lon}`);
       setForecast(f);
       const h = f.hours[0];
-      setEnv({
+      setEnv((env) => ({
         ...env,
         dateTime: h.time,
         temperatureC: h.temperatureC,
@@ -665,15 +703,24 @@ export default function App({
         windMps: h.windMps,
         cloudCover: h.cloudCover ?? 50,
         weatherMode: "forecast",
-      });
-      setMessage(
-        "NWS forecast loaded. Shade remains a geometry-based estimate.",
-      );
+      }));
+      if (!quiet)
+        flash("NWS forecast loaded. Shade remains a geometry-based estimate.");
     } catch (e) {
-      setMessage((e as Error).message);
+      // After a build, a missing forecast just leaves the scenario in place.
+      if (!quiet) setMessage((e as Error).message);
     } finally {
-      setBusy("");
+      if (!quiet) setBusy("");
     }
+  }
+  /** A short confirmation that clears itself; errors use setMessage. */
+  function flash(text: string) {
+    setMessage(text);
+    clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(
+      () => setMessage((current) => (current === text ? "" : current)),
+      6000,
+    );
   }
   async function ask(request = prompt): Promise<string> {
     setBusy("Sketching your proposal…");
@@ -1199,6 +1246,7 @@ export default function App({
           {!atlas && mode === "explore" && tab === "heat" && (
             <HeatPanel
               places={places}
+              range={edgeHeat?.values().next().value ?? null}
               selected={heatPlace}
               compare={comparePlace}
               profile={heatProfile}
@@ -1274,7 +1322,7 @@ export default function App({
                   air-temperature measurement.
                 </small>
               </div>
-              <button className="secondary" onClick={weather}>
+              <button className="secondary" onClick={() => void weather()}>
                 Load local forecast <ArrowUpRight size={16} />
               </button>
               {forecast && (
@@ -1558,7 +1606,9 @@ export default function App({
             just the destination.
           </footer>
         </aside>
-        <div className={`viewport${picking ? " picking-route" : ""}`}>
+        <div
+          className={`viewport${picking ? " picking-route" : ""}${atlas ? " atlas-mode" : ""}`}
+        >
           {atlas ? (
             <Suspense
               fallback={<div className="loading">Loading the city atlas…</div>}
@@ -1631,63 +1681,67 @@ export default function App({
               </div>
             </div>
           )}
-          <div className="map-actions">
-            <button
-              title="Undo"
-              aria-label="Undo"
-              disabled={!history.length}
-              onClick={() => {
-                location.reset();
-                stopSpeech();
-                setWorld(history.at(-1)!);
-                setHistory(history.slice(0, -1));
-              }}
-            >
-              <Undo2 size={19} />
-            </button>
-            <button
-              title="Toggle trees"
-              aria-label="Toggle trees"
-              className={!trees ? "muted" : ""}
-              onClick={() => setTrees(!trees)}
-            >
-              <TreePine size={19} />
-            </button>
-            <button
-              title="Toggle heat map"
-              aria-label="Toggle heat map"
-              aria-pressed={heatMap}
-              className={!heatMap ? "muted" : ""}
-              onClick={() => setHeatMap(!heatMap)}
-            >
-              <Thermometer size={19} />
-            </button>
-            <button
-              title="Toggle buildings"
-              aria-label="Toggle buildings"
-              onClick={() => setBuildings(!buildings)}
-            >
-              <Building2 size={19} />
-            </button>
-            <button
-              title="Import scene"
-              aria-label="Import scene"
-              onClick={() => upload.current?.click()}
-            >
-              <Upload size={19} />
-            </button>
-            <button
-              title="Export scene"
-              aria-label="Export scene"
-              onClick={exportWorld}
-            >
-              <Download size={19} />
-            </button>
-          </div>
-          <div className="compass">
-            <Compass size={33} strokeWidth={1} />
-            <small>N</small>
-          </div>
+          {!atlas && (
+            <>
+              <div className="map-actions">
+                <button
+                  title="Undo"
+                  aria-label="Undo"
+                  disabled={!history.length}
+                  onClick={() => {
+                    location.reset();
+                    stopSpeech();
+                    setWorld(history.at(-1)!);
+                    setHistory(history.slice(0, -1));
+                  }}
+                >
+                  <Undo2 size={19} />
+                </button>
+                <button
+                  title="Toggle trees"
+                  aria-label="Toggle trees"
+                  className={!trees ? "muted" : ""}
+                  onClick={() => setTrees(!trees)}
+                >
+                  <TreePine size={19} />
+                </button>
+                <button
+                  title="Toggle heat map"
+                  aria-label="Toggle heat map"
+                  aria-pressed={heatMap}
+                  className={!heatMap ? "muted" : ""}
+                  onClick={() => setHeatMap(!heatMap)}
+                >
+                  <Thermometer size={19} />
+                </button>
+                <button
+                  title="Toggle buildings"
+                  aria-label="Toggle buildings"
+                  onClick={() => setBuildings(!buildings)}
+                >
+                  <Building2 size={19} />
+                </button>
+                <button
+                  title="Import scene"
+                  aria-label="Import scene"
+                  onClick={() => upload.current?.click()}
+                >
+                  <Upload size={19} />
+                </button>
+                <button
+                  title="Export scene"
+                  aria-label="Export scene"
+                  onClick={exportWorld}
+                >
+                  <Download size={19} />
+                </button>
+              </div>
+              <div className="compass">
+                <Compass size={33} strokeWidth={1} />
+                <small>N</small>
+              </div>
+            </>
+          )}
           {!atlas && (
             <div className="timeline">
               <div>
@@ -1720,9 +1774,11 @@ export default function App({
             </div>
           )}
           <div className="map-credit">
-            {world.provenance.live
-              ? "© OpenStreetMap contributors"
-              : "Original design study"}
+            {atlas
+              ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
+              : world.provenance.live
+                ? "© OpenStreetMap contributors"
+                : "Original design study"}
             <span>Scene units: meters</span>
           </div>
           {busy && (

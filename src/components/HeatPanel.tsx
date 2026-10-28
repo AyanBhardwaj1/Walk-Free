@@ -1,6 +1,8 @@
 import { Thermometer, Trees, X } from "lucide-react";
 import {
   HEAT_LEVELS,
+  HEAT_RAMP,
+  relativeHeatColor,
   toF,
   type HeatReading,
   type PlaceHeat,
@@ -24,26 +26,29 @@ export function HeatBadge({ reading }: { reading: HeatReading }) {
   );
 }
 
-export function HeatLegend() {
+/** The map's colour scale: fully shaded to full sun at this moment. */
+export function HeatLegend({ range }: { range: HeatReading | null }) {
+  const contrast = range && range.sunFeelsC - range.shadeFeelsC >= 1;
+  if (!range || !contrast)
+    return (
+      <p className="heat-hint">
+        The sun is down or hidden, so shade makes little difference right now.
+        Move the time of day to see where it gets hot.
+      </p>
+    );
   return (
-    <ol
-      className="heat-legend"
-      aria-label="Heat levels by feels-like temperature"
-    >
-      {HEAT_LEVELS.map((level, i) => (
-        <li key={level.label}>
-          <span style={{ background: level.color }} />
-          {level.label}
-          <small>
-            {i === 0
-              ? `under ${level.maxF}°`
-              : i === HEAT_LEVELS.length - 1
-                ? `${HEAT_LEVELS[i - 1].maxF}°+`
-                : `${HEAT_LEVELS[i - 1].maxF}–${level.maxF}°`}
-          </small>
-        </li>
-      ))}
-    </ol>
+    <div className="heat-scale">
+      <span
+        className="heat-scale-bar"
+        style={{
+          background: `linear-gradient(90deg, ${HEAT_RAMP.join(", ")})`,
+        }}
+      />
+      <div>
+        <span>Shaded · {degrees(range.shadeFeelsC)}</span>
+        <span>Full sun · {degrees(range.sunFeelsC)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -203,7 +208,7 @@ function PlaceList({
         <button key={p.id} onClick={() => onSelect(p)}>
           <span
             className="heat-dot"
-            style={{ background: HEAT_LEVELS[p.level].color }}
+            style={{ background: relativeHeatColor(p) }}
           />
           <span className="place-name">
             {p.kind === "park" && <Trees size={12} />}
@@ -219,6 +224,7 @@ function PlaceList({
 
 export default function HeatPanel({
   places,
+  range,
   selected,
   compare,
   profile,
@@ -233,6 +239,7 @@ export default function HeatPanel({
   comparing,
 }: {
   places: PlaceHeat[];
+  range: HeatReading | null;
   selected: PlaceHeat | null;
   compare: PlaceHeat | null;
   profile: ProfileHour[] | null;
@@ -259,9 +266,9 @@ export default function HeatPanel({
           checked={showMap}
           onChange={(e) => onShowMap(e.target.checked)}
         />
-        Colour walking paths by heat
+        Colour walking paths by heat (cool = shaded, red = full sun)
       </label>
-      <HeatLegend />
+      <HeatLegend range={range} />
       {selected ? (
         <PlaceCard
           place={selected}

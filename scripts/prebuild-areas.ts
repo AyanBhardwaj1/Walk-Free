@@ -55,7 +55,19 @@ for (const area of PREBUILT_AREAS) {
   try {
     const world = worldSchema.parse(await buildArea(area));
     const file = join(outDir, `${area.slug}.json`);
-    await writeFile(file, JSON.stringify(world));
+    // Centimetre precision is plenty for a walking map and halves file size.
+    await writeFile(
+      file,
+      // Scene coordinates are meters; keep degrees (lat/lon) exact.
+      JSON.stringify(world, (key, value) =>
+        typeof value === "number" &&
+        !Number.isInteger(value) &&
+        key !== "lat" &&
+        key !== "lon"
+          ? Math.round(value * 100) / 100
+          : value,
+      ),
+    );
     console.log(
       `${area.slug}: ${world.objects.length} objects, ${world.graph.edges.length} walking edges -> ${file}`,
     );
