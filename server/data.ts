@@ -98,6 +98,43 @@ async function cached<T>(
     pending.delete(key);
   }
 }
+/** Runs one Overpass query, trying each mirror within the time budget. */
+export async function fetchOverpass(
+  query: string,
+  limits: { budgetMs: number; mirrorTimeoutMs: number },
+): Promise<OsmResponse> {
+  const body = new URLSearchParams({ data: query }).toString();
+  const endpoints = process.env.WALK_FREE_OVERPASS_URL
+    ? [process.env.WALK_FREE_OVERPASS_URL, ...OVERPASS_ENDPOINTS]
+    : [...OVERPASS_ENDPOINTS];
+  // Stay inside the serverless time limit while trying each mirror once.
+  const deadline = Date.now() + limits.budgetMs;
+  let failure: unknown;
+  for (const endpoint of new Set(endpoints)) {
+    const remaining = deadline - Date.now();
+    if (remaining < 3_000) break;
+    try {
+      return await requestJson<OsmResponse>(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+        timeoutMs: Math.min(limits.mirrorTimeoutMs, remaining),
+        maxBytes: 40 * 1024 * 1024,
+      });
+    } catch (error) {
+      if (!overpassRetryable(error)) throw error;
+      failure = error;
+    }
+  }
+  throw (
+    failure ??
+    new ServiceError(
+      "TIMEOUT",
+      "The map providers took too long to respond. Try again shortly.",
+      504,
+    )
+  );
+}
 export async function getWorld(
   lat: number,
   lon: number,
@@ -119,45 +156,16 @@ export async function getWorld(
       );
     activeMapRequests++;
     try {
-      const body = new URLSearchParams({
-        data: overpassQuery(
+      const payload = await fetchOverpass(
+        overpassQuery(
           lat,
           lon,
           radius,
           Math.ceil(limits.mirrorTimeoutMs / 1000),
         ),
-      }).toString();
-      const endpoints = process.env.WALK_FREE_OVERPASS_URL
-        ? [process.env.WALK_FREE_OVERPASS_URL, ...OVERPASS_ENDPOINTS]
-        : [...OVERPASS_ENDPOINTS];
-      // Stay inside the serverless time limit while trying each mirror once.
-      const deadline = Date.now() + limits.budgetMs;
-      let failure: unknown;
-      for (const endpoint of new Set(endpoints)) {
-        const remaining = deadline - Date.now();
-        if (remaining < 3_000) break;
-        try {
-          const payload = await requestJson<OsmResponse>(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body,
-            timeoutMs: Math.min(limits.mirrorTimeoutMs, remaining),
-            maxBytes: 20 * 1024 * 1024,
-          });
-          return parseOsmWorld(payload, origin, name, radius);
-        } catch (error) {
-          if (!overpassRetryable(error)) throw error;
-          failure = error;
-        }
-      }
-      throw (
-        failure ??
-        new ServiceError(
-          "TIMEOUT",
-          "The map providers took too long to respond. Try again shortly.",
-          504,
-        )
+        limits,
       );
+      return parseOsmWorld(payload, origin, name, radius);
     } finally {
       activeMapRequests--;
     }

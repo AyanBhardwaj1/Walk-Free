@@ -195,8 +195,12 @@ export function parseOsmWorld(
   name: string,
   radius = 800,
   now = new Date(),
+  maxElements = 150_000,
 ): World {
-  if (!Array.isArray(response.elements) || response.elements.length > 150000)
+  if (
+    !Array.isArray(response.elements) ||
+    response.elements.length > maxElements
+  )
     throw new ServiceError(
       "INVALID_UPSTREAM_DATA",
       "The map provider returned invalid or excessive map data.",
