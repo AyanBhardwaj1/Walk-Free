@@ -367,3 +367,13 @@ export function routeHeat(
 }
 
 export const walkMinutes = (meters: number) => meters / WALK_METERS_PER_MINUTE;
+
+/** "Wed 3:00 PM" in the area's time zone. */
+export function clockLabel(iso: string, timeZone: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

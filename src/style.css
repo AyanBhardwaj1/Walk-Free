@@ -1201,3 +1201,116 @@ footer {
   display: block;
   color: #7a4b2a;
 }
+
+/* Ask Walk-Free */
+.intro-small {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6f7964;
+  margin: -10px 0 12px;
+}
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.chat-log p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.chat-user {
+  align-self: flex-end;
+  max-width: 85%;
+  background: #3f5938;
+  color: #fffdf2;
+  padding: 8px 11px;
+}
+.chat-reply {
+  align-self: flex-start;
+  max-width: 92%;
+  background: #efeee5;
+  padding: 9px 12px;
+}
+.chat-tool,
+.chat-status {
+  font-size: 10px !important;
+  color: #7c8670;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-tool::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8aa27a;
+}
+.chat-error {
+  color: #8f3427;
+  background: #f6e6df;
+  padding: 8px 11px;
+}
+.spinner.small {
+  width: 12px;
+  height: 12px;
+}
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-suggestions button {
+  background: #efeee5;
+  border: 1px solid #dedfd0;
+  padding: 7px 10px;
+  font-size: 11px;
+  text-align: left;
+}
+.chat-suggestions button:hover {
+  background: #e7ecdc;
+}
+.chat-input {
+  display: flex;
+  border: 1px solid #dddccd;
+  background: #fdfbf5;
+}
+.chat-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 11px;
+  font-size: 12px;
+  color: #36412f;
+}
+.chat-input input:focus-visible {
+  outline: none;
+}
+.chat-input:focus-within {
+  outline: 2px solid #567451;
+  outline-offset: 2px;
+}
+.chat-input button {
+  background: none;
+  padding: 0 11px;
+  display: grid;
+  place-content: center;
+  color: #4c663e;
+}
+.chat-input .listening {
+  color: #b13a2b;
+}
+.text-button {
+  background: none;
+  padding: 8px 0;
+  font-size: 11px;
+  color: #4c663e;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

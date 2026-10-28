@@ -51,6 +51,10 @@ import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
+import AssistantPanel from "./components/AssistantPanel";
+import { converse, type ChatMessage } from "./lib/assistant-client";
+import type { ToolHost } from "./lib/assistant-tools";
+import { searchCities } from "../server/cities";
 import {
   HEAT_LEVELS,
   atLocalHour,
@@ -177,6 +181,10 @@ export default function App({
   const [heatPlaceId, setHeatPlaceId] = useState<string | null>(null);
   const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [chatStatus, setChatStatus] = useState<string | null>(null);
+  const [chatError, setChatError] = useState("");
+  const [speakReplies, setSpeakReplies] = useState(false);
   const userPosition = useMemo(
     () =>
       location.fix
@@ -312,6 +320,95 @@ export default function App({
           ...catalog,
         ]
       : catalog;
+  // The assistant's tools read the latest app state through this ref.
+  const toolHost = useRef<ToolHost>(null!);
+  toolHost.current = {
+    world: routeWorld,
+    env,
+    forecast,
+    catalog: endpointCatalog,
+    myLocationNodeId: snappedLocation?.nodeId ?? null,
+    showRoute({ start: from, end: to, preference, avoidStairs, dateTime }) {
+      if (from !== snappedLocation?.nodeId) {
+        location.reset();
+        setStart(from);
+      }
+      setEnd(to);
+      setPref(preference);
+      setStairs(avoidStairs);
+      setEnv((previous) => ({ ...previous, dateTime }));
+    },
+    setDateTime: (dateTime) =>
+      setEnv((previous) => ({ ...previous, dateTime })),
+    highlightPlace(id) {
+      setHeatMap(true);
+      setHeatPlaceId(id);
+      setComparePlaceId(null);
+    },
+    async buildArea(query) {
+      const city = searchCities(query.toLowerCase())[0];
+      if (!city) return `No US city or campus matching "${query}" is indexed.`;
+      const built = await loadCity(city, true, 1000);
+      return built
+        ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
+        : `Could not build ${city.name}; the map providers may be busy.`;
+    },
+    async proposeDesign(request) {
+      setMode("studio");
+      setTab("assistant");
+      setPrompt(request);
+      return ask(request);
+    },
+  };
+  async function sendChat(text: string) {
+    setChatError("");
+    const history: ChatMessage[] = [...chat, { role: "user", content: text }];
+    setChat(history);
+    setChatStatus("Thinking…");
+    try {
+      const { messages, reply } = await converse(
+        history,
+        () => {
+          const t = toolHost.current;
+          const quick = routeChoices[pref];
+          return {
+            area: t.world.name,
+            localTime: new Date(t.env.dateTime).toLocaleString("en-US", {
+              timeZone: t.world.timezone,
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+            weather: `${Math.round((t.env.temperatureC * 9) / 5 + 32)}°F, ${Math.round(t.env.humidity)}% humidity, ${Math.round(t.env.cloudCover)}% cloud, ${t.env.windMps} m/s wind (${t.env.weatherMode === "forecast" ? "NWS forecast" : "scenario"})`,
+            route: quick
+              ? `${pref} route, ${Math.round(quick.durationMinutes)} min`
+              : undefined,
+            canBuildAreas: true,
+          };
+        },
+        () => toolHost.current,
+        (url, body) => api(url, body),
+        (name) =>
+          setChatStatus(
+            {
+              plan_route: "Planning routes…",
+              heat_ranking: "Ranking heat…",
+              place_heat: "Checking the heat…",
+              build_area: "Building the area…",
+              propose_design: "Sketching a design…",
+            }[name] ?? "Working…",
+          ),
+      );
+      setChat(messages);
+      if (speakReplies) speak(reply);
+    } catch (e) {
+      setChatError((e as Error).message);
+    } finally {
+      setChatStatus(null);
+    }
+  }
   useEffect(() => {
     const [from, to] = defaultEndpoints(world, {
       avoidStairs: stairs,
@@ -384,7 +481,11 @@ export default function App({
       ),
     });
   }
-  async function loadCity(c: City, build = false, radius = 800) {
+  async function loadCity(
+    c: City,
+    build = false,
+    radius = 800,
+  ): Promise<boolean> {
     const request = ++buildRequest.current;
     if (!build) {
       setBusy("");
@@ -394,7 +495,7 @@ export default function App({
       setQuery("");
       setMode("explore");
       setTab("route");
-      return;
+      return true;
     }
     setBusy(`Building ${c.name}…`);
     setQuery("");
@@ -408,7 +509,7 @@ export default function App({
         },
         { fetch: window.fetch.bind(window), apiBase: API_BASE },
       );
-      if (request !== buildRequest.current) return;
+      if (request !== buildRequest.current) return false;
       const w = worldSchema.parse(loaded);
       edit(w);
       setAtlas(null);
@@ -437,9 +538,11 @@ export default function App({
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
           : "This area has no public walking connections. Build a nearby area to plan a walk.",
       );
+      return true;
     } catch (e) {
       if (request === buildRequest.current)
         setMessage(String(e instanceof Error ? e.message : e));
+      return false;
     } finally {
       if (request === buildRequest.current) setBusy("");
     }
@@ -572,12 +675,12 @@ export default function App({
       setBusy("");
     }
   }
-  async function ask() {
+  async function ask(request = prompt): Promise<string> {
     setBusy("Sketching your proposal…");
     const snapshot = JSON.stringify(world);
     try {
       const result = await api("/api/agent/propose", {
-        prompt,
+        prompt: request,
         extent: world.extent,
         scene: world.objects.slice(0, 300),
         roads: world.roads
@@ -588,11 +691,13 @@ export default function App({
         setMessage(
           "The scene changed while the assistant was working. Request a fresh proposal.",
         );
-        return;
+        return "The scene changed while drafting; nothing was proposed.";
       }
       setProposal(result);
+      return `Preview ready: ${result.summary} The person can apply or discard it in the Design studio.`;
     } catch (e) {
       setMessage((e as Error).message);
+      return `Could not draft a design: ${(e as Error).message}`;
     } finally {
       setBusy("");
     }
@@ -800,7 +905,7 @@ export default function App({
           {!atlas && (
             <div className="tabs">
               {(mode === "explore"
-                ? ["route", "heat", "climate", "data"]
+                ? ["route", "heat", "ask", "climate", "data"]
                 : ["build", "assistant", "data"]
               ).map((t) => (
                 <button
@@ -818,6 +923,7 @@ export default function App({
             tab !== "climate" &&
             tab !== "data" &&
             tab !== "heat" &&
+            tab !== "ask" &&
             tab !== "transit" && (
               <section>
                 <div className="section-title">
@@ -1075,6 +1181,20 @@ export default function App({
                 contributors. Building heights depend on mapped coverage.
               </p>
             </section>
+          )}
+          {!atlas && mode === "explore" && tab === "ask" && (
+            <AssistantPanel
+              messages={chat}
+              status={chatStatus}
+              error={chatError}
+              speakReplies={speakReplies}
+              onSpeakReplies={setSpeakReplies}
+              onSend={(text) => void sendChat(text)}
+              onReset={() => {
+                setChat([]);
+                setChatError("");
+              }}
+            />
           )}
           {!atlas && mode === "explore" && tab === "heat" && (
             <HeatPanel
@@ -1373,7 +1493,7 @@ export default function App({
               <button
                 className="primary"
                 disabled={!prompt.trim() || !!busy}
-                onClick={ask}
+                onClick={() => void ask()}
               >
                 Sketch a proposal <Sparkles size={16} />
               </button>
