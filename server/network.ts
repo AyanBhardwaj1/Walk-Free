@@ -1,18 +1,10 @@
 import { EnvHttpProxyAgent, fetch } from "undici";
+import { ServiceError } from "../shared/errors.js";
+
+export { ServiceError };
 
 /** Keep inherited HTTPS proxy and CA configuration; never bypass TLS validation. */
 const dispatcher = new EnvHttpProxyAgent();
-export class ServiceError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status = 502,
-    public details?: string,
-  ) {
-    super(message);
-    this.name = "ServiceError";
-  }
-}
 export interface RequestOptions {
   method?: "GET" | "POST";
   headers?: Record<string, string>;

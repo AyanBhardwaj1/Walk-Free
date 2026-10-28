@@ -48,6 +48,7 @@ import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
+import { loadWorld } from "./lib/world-source";
 import WorldCanvas from "./components/WorldCanvas";
 import type { Account } from "./lib/account";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -59,9 +60,10 @@ const initial: Environment = {
   cloudCover: 15,
   weatherMode: "scenario",
 };
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 async function api(url: string, body?: unknown) {
   const r = await fetch(
-    (import.meta.env.VITE_API_BASE_URL || "") + url,
+    API_BASE + url,
     body
       ? {
           method: "POST",
@@ -70,8 +72,12 @@ async function api(url: string, body?: unknown) {
         }
       : undefined,
   );
-  const data = await r.json();
-  if (!r.ok) throw Error(data.error || "Request failed");
+  // A crashed host can answer with plain text; never surface a JSON parse error.
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data)
+    throw Error(
+      data?.error || "The service is unavailable right now. Please try again.",
+    );
   return data;
 }
 const tools = [
@@ -286,11 +292,18 @@ export default function App({
     setBusy(`Building ${c.name}…`);
     setQuery("");
     try {
-      const w = await api(
-        `/api/world?lat=${c.lat}&lon=${c.lon}&name=${encodeURIComponent([c.name, c.state].filter(Boolean).join(", "))}&radius=${radius}`,
+      const { world: loaded } = await loadWorld(
+        {
+          lat: c.lat,
+          lon: c.lon,
+          name: [c.name, c.state].filter(Boolean).join(", "),
+          radius,
+        },
+        { fetch: window.fetch.bind(window), apiBase: API_BASE },
       );
       if (request !== buildRequest.current) return;
-      edit(worldSchema.parse(w));
+      const w = worldSchema.parse(loaded);
+      edit(w);
       setAtlas(null);
       setSelected(null);
       const [from, to] = defaultEndpoints(w, {
