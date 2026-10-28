@@ -14,7 +14,10 @@ for (const area of PREBUILT_AREAS) {
   if (only.length && !only.includes(area.slug)) continue;
   try {
     const world = worldSchema.parse(
-      await getWorld(area.lat, area.lon, area.name, area.radius),
+      await getWorld(area.lat, area.lon, area.name, area.radius, {
+        budgetMs: 8 * 60_000,
+        mirrorTimeoutMs: 180_000,
+      }),
     );
     const file = join(outDir, `${area.slug}.json`);
     await writeFile(file, JSON.stringify(world));

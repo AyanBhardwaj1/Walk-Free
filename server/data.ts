@@ -103,6 +103,10 @@ export async function getWorld(
   lon: number,
   name: string,
   radius = 800,
+  limits: { budgetMs: number; mirrorTimeoutMs: number } = {
+    budgetMs: MAP_BUDGET_MS,
+    mirrorTimeoutMs: MIRROR_TIMEOUT_MS,
+  },
 ): Promise<World> {
   const origin = worldOrigin(lat, lon);
   const key = `world-v3-${origin.lat}-${origin.lon}-${radius}`;
@@ -116,13 +120,18 @@ export async function getWorld(
     activeMapRequests++;
     try {
       const body = new URLSearchParams({
-        data: overpassQuery(lat, lon, radius),
+        data: overpassQuery(
+          lat,
+          lon,
+          radius,
+          Math.ceil(limits.mirrorTimeoutMs / 1000),
+        ),
       }).toString();
       const endpoints = process.env.WALK_FREE_OVERPASS_URL
         ? [process.env.WALK_FREE_OVERPASS_URL, ...OVERPASS_ENDPOINTS]
         : [...OVERPASS_ENDPOINTS];
       // Stay inside the serverless time limit while trying each mirror once.
-      const deadline = Date.now() + MAP_BUDGET_MS;
+      const deadline = Date.now() + limits.budgetMs;
       let failure: unknown;
       for (const endpoint of new Set(endpoints)) {
         const remaining = deadline - Date.now();
@@ -132,7 +141,7 @@ export async function getWorld(
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body,
-            timeoutMs: Math.min(MIRROR_TIMEOUT_MS, remaining),
+            timeoutMs: Math.min(limits.mirrorTimeoutMs, remaining),
             maxBytes: 20 * 1024 * 1024,
           });
           return parseOsmWorld(payload, origin, name, radius);

@@ -508,11 +508,18 @@ export function worldOrigin(lat: number, lon: number) {
   return { lat: Number(lat.toFixed(5)), lon: Number(lon.toFixed(5)) };
 }
 
-export function overpassQuery(lat: number, lon: number, radius: number) {
+export function overpassQuery(
+  lat: number,
+  lon: number,
+  radius: number,
+  timeoutSeconds = 25,
+) {
   const dy = radius / (RAD * EARTH_RADIUS),
     dx = dy / Math.cos(lat * RAD);
   const bbox = [lat - dy, lon - dx, lat + dy, lon + dx]
     .map((v) => v.toFixed(6))
     .join(",");
-  return `[out:json][timeout:25];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox}););out body geom;>;out body geom;`;
+  // Ways carry their own geometry; of their nodes, only tagged ones (gates,
+  // barriers, crossings, names) affect routing, so skip the untagged bulk.
+  return `[out:json][timeout:${timeoutSeconds}];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox});)->.area;.area out body geom;way.area["highway"];node(w)(if:count_tags()>0);out body;`;
 }
