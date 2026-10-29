@@ -342,9 +342,9 @@ export default function WorldCanvas({
           world={world}
           heat={heat}
           onSelect={(edgeId, point) =>
-            pickingEndpoint
+            pickingEndpoint || !onHeatSelect
               ? onGroundClick(point)
-              : onHeatSelect?.(edgeId, point)
+              : onHeatSelect(edgeId, point)
           }
         />
       ) : (

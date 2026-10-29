@@ -35,6 +35,7 @@ import {
   Thermometer,
   Map as MapIcon,
   Box,
+  Trees,
 } from "lucide-react";
 import type {
   World,
@@ -53,6 +54,7 @@ import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
+import HeatImpact from "./components/HeatImpact";
 import AssistantPanel from "./components/AssistantPanel";
 import { converse, type ChatMessage } from "./lib/assistant-client";
 import type { ToolHost } from "./lib/assistant-tools";
@@ -66,6 +68,8 @@ import {
   placeHeat,
   relativeHeatColor,
   weatherAt,
+  areaHeat,
+  clockLabel,
 } from "./lib/heat";
 import { prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
@@ -78,6 +82,8 @@ import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
 import { openCoolStops } from "./lib/cool-stops";
+import { plantShadeRow } from "./lib/planting";
+import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { describeConditions, liveConditions } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
@@ -99,6 +105,7 @@ const initial: Environment = {
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
+const PLANT_PICK_M = 30;
 async function api(url: string, body?: unknown) {
   const r = await fetch(
     API_BASE + url,
@@ -121,6 +128,7 @@ async function api(url: string, body?: unknown) {
 const tools = [
   ["select", "Select", MousePointer2],
   ["tree", "Tree", TreePine],
+  ["shaderow", "Shade trees", Trees],
   ["building", "Building", Building2],
   ["skyscraper", "High-rise", Building2],
   ["tower", "Tower", Landmark],
@@ -198,6 +206,13 @@ export default function App({
   const [comparing, setComparing] = useState(false);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [view, setView] = useState<"3d" | "2d">("3d");
+  // The scene before the first tree in this comparison, and the last row.
+  const [heatBaseline, setHeatBaseline] = useState<World | null>(null);
+  const [planting, setPlanting] = useState<{
+    street: string;
+    edgeIds: string[];
+    planted: number;
+  } | null>(null);
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [speakReplies, setSpeakReplies] = useState(false);
@@ -240,8 +255,7 @@ export default function App({
   const currentRoute = routeChoices[pref];
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
-  const heatActive =
-    mode === "explore" && !atlas && (heatMap || tab === "heat");
+  const heatActive = !atlas && (heatMap || tab === "heat");
   const edgeHeat = useMemo(
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
     [heatActive, world, heatEnv],
@@ -334,9 +348,45 @@ export default function App({
     setComparePlaceId(null);
   }
   function selectHeatEdge(edgeId: string) {
+    if (mode === "studio") {
+      if (tool === "shaderow") plantShade(edgeId);
+      return;
+    }
     const place = places.find((p) => p.edgeIds.includes(edgeId));
     selectHeatPlace(place ? place.id : `edge:${edgeId}`);
   }
+  function plantShade(edgeId: string) {
+    const result = plantShadeRow(world, edgeId);
+    if (!result) {
+      setMessage("There's no room for more trees along this path.");
+      return;
+    }
+    if (!heatBaseline) setHeatBaseline(world);
+    edit(result.world);
+    setHeatMap(true);
+    setPlanting({
+      street: result.street,
+      edgeIds: result.edgeIds,
+      planted: (planting?.planted ?? 0) + result.planted,
+    });
+    flash(`Planted ${result.planted} shade trees along ${result.street}.`);
+  }
+  const baselineHeat = useMemo(
+    () =>
+      heatBaseline && edgeHeat ? edgeHeatMap(heatBaseline, heatEnv) : null,
+    [heatBaseline, heatEnv, edgeHeat],
+  );
+  const impact = useMemo(() => {
+    if (!heatBaseline || !baselineHeat || !edgeHeat || !planting) return null;
+    const street = new Set(planting.edgeIds);
+    return {
+      street: [
+        areaHeat(heatBaseline, baselineHeat, street),
+        areaHeat(world, edgeHeat, street),
+      ],
+      area: [areaHeat(heatBaseline, baselineHeat), areaHeat(world, edgeHeat)],
+    };
+  }, [heatBaseline, baselineHeat, edgeHeat, world, planting]);
   const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
@@ -663,6 +713,12 @@ export default function App({
       return;
     }
     if (tool === "select") return;
+    if (tool === "shaderow") {
+      const edge = nearestEdge(world, p, PLANT_PICK_M);
+      if (edge) plantShade(edge.id);
+      else setMessage("Click on or next to a walking path to plant along it.");
+      return;
+    }
     if (["raise", "lower", "flatten"].includes(tool)) {
       const t = world.terrain || {
         size: world.extent,
@@ -1483,6 +1539,18 @@ export default function App({
           )}
           {mode === "studio" && tab !== "assistant" && tab !== "data" && (
             <section>
+              {impact && planting && (
+                <HeatImpact
+                  impact={impact}
+                  street={planting.street}
+                  planted={planting.planted}
+                  time={clockLabel(heatEnv.dateTime, world.timezone)}
+                  onReset={() => {
+                    setHeatBaseline(null);
+                    setPlanting(null);
+                  }}
+                />
+              )}
               <div className="section-title">
                 <Layers size={17} /> Your building blocks
               </div>
@@ -1519,8 +1587,9 @@ export default function App({
                 ))}
               </div>
               <p className="fine">
-                Choose an asset, then click the ground to place it. Drag to
-                orbit; right-drag to pan; scroll to zoom.
+                Choose an asset, then click the ground to place it. Shade trees:
+                click a path to line its whole street and see the heat drop.
+                Drag to orbit; right-drag to pan; scroll to zoom.
               </p>
               {object && (
                 <div className="inspector">
@@ -1706,7 +1775,11 @@ export default function App({
               showTrees={trees}
               showBuildings={buildings}
               heat={heatOverlay}
-              onHeatSelect={selectHeatEdge}
+              onHeatSelect={
+                mode === "explore" || tool === "shaderow"
+                  ? selectHeatEdge
+                  : undefined
+              }
             />
           )}
           {!atlas && view === "2d" && mode === "explore" && currentRoute && (
