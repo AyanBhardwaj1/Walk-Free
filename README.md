@@ -33,6 +33,9 @@ npm start
 
 - Pre-built UT Austin, UC Berkeley, University of Michigan, UCLA, Stanford and Arizona State areas (`public/areas/`, 2 km squares) open instantly. Other areas build from OpenStreetMap: the API tries four Overpass mirrors, then the browser queries Overpass directly. Regenerate hero areas with `npm run areas:build` or the **Build hero areas** GitHub workflow.
 - Heat on the ground: walking paths coloured from fully shaded to full sun for the chosen moment; tap a path or pick a place to see its feels-like temperature in sun and shade, its shade share, and an hourly chart; hottest/coolest streets and parks; side-by-side comparison. Route cards show feels-like, degrees cooler than the quickest route, and minutes in direct sun. The time-of-day slider uses the area's local time and follows forecast hours.
+- Route types: quickest, more shade, scenic, cool stops (through an air-conditioned library or student union on pre-built campuses in daytime; hours not verified), step-free (never uses mapped stairs, slopes over 8% or inaccessible paths) and lit at night (prefers OSM-lit, busier streets).
+- Walking view: starting a walk switches to a flat, north-up map that follows you with a large next-turn banner and the next stretch's heat; a map button toggles 2D/3D anytime.
+- Plant shade trees: a Design studio tool (and assistant tool) lines a street with trees and shows shade share and feels-like before and after, for the street and the whole area.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.

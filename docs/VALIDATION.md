@@ -69,3 +69,10 @@ Final automated checks for this checkpoint: 50 tests across four files, TypeScri
 - Errors: the API returns sentences for malformed JSON and validation failures (logged server-side), and the app maps network, timeout, JSON, validation and location-permission errors to guidance. A sweep of 14 screens at 1440 px and 390 px found no horizontal overflow, no raw error text and no page errors. A render-error boundary replaces blank pages.
 - Dependencies: maplibre-gl 6.16 and zod 4.6 resolve the critical and high `npm audit` findings (0 remaining in production dependencies). The city atlas still constructs and builds.
 - `npm test`: 92 tests pass; `npm run build` passes.
+
+
+## Route types, walking view, tree planting — 2026-10-29
+
+- `npm test`: 99 tests pass, adding step-free routes that never fall back to stairs, lit-street preference at night, cool-stop routing, OSM lighting/street-type/slope parsing, tree-row planting that shades and cools a street, and the assistant planting tool.
+- Chromium (UT Austin, mocked session and simulated GPS): the flat map shows the heat-coloured route and next-turn banner, starting a walk switches to it, and the toggle returns to 3D. In the studio, planting along a path at 3:30 PM raised its shade from 0% to 33% and lowered feels-like by 2 °F; the ordinary tree tool still places single trees.
+- Cool-stop hours and building access are not verified; routes offer them only between 8 AM and 8 PM and say to check hours. Night routes depend on how completely OSM maps `lit`.
