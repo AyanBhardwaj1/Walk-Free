@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowUpRight, Eye, EyeOff, Trees } from "lucide-react";
 import { accountRequest, AccountError, type Account } from "../lib/account";
 import { Brand } from "./LandingPage";
+import { friendlyError } from "../lib/errors";
 
 export default function AuthPage({
   mode,
@@ -105,11 +106,7 @@ export default function AuthPage({
         return;
       }
       setError(true);
-      setMessage(
-        e instanceof Error
-          ? e.message
-          : "Something went wrong. Please try again.",
-      );
+      setMessage(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -126,7 +123,7 @@ export default function AuthPage({
       setMessage("A new code has been requested. Check your inbox.");
     } catch (e) {
       setError(true);
-      setMessage(e instanceof Error ? e.message : "Could not send a new code.");
+      setMessage(friendlyError(e, "Could not send a new code."));
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,5 @@
 import express from "express";
+import { ZodError } from "zod";
 import { resolve } from "node:path";
 import { getWorld, getWeather } from "./data.js";
 import { cities, searchCities } from "./cities.js";
@@ -31,7 +32,13 @@ app.use("/api/auth", authRouter);
 app.get("/api/health", (_q, r) =>
   r.json({
     ok: true,
+    // Configuration flags only, never values, so deploys are easy to check.
     aiConfigured: Boolean(aiConfig()),
+    aiUsageDatabase: Boolean(
+      process.env.WALK_FREE_DATABASE_URL || process.env.DATABASE_URL,
+    ),
+    accountsConfigured: Boolean(process.env.WALK_FREE_AUTH_URL),
+    appUrlConfigured: Boolean(process.env.WALK_FREE_APP_URL),
   }),
 );
 app.get("/api/cities", (q, r) => {
@@ -82,15 +89,41 @@ app.get("/{*path}", (_q, r) => r.sendFile(resolve("dist/index.html")));
 app.use(
   (
     e: unknown,
-    _q: express.Request,
+    q: express.Request,
     r: express.Response,
     _n: express.NextFunction,
   ) => {
-    r.status(e instanceof ServiceError ? e.status : 500).json({
-      error: e instanceof Error ? e.message : "Unexpected service error",
-      ...(e instanceof ServiceError
-        ? { code: e.code, details: e.details }
-        : {}),
+    // People see a sentence; details stay in the server log.
+    if (e instanceof ServiceError) {
+      r.status(e.status).json({
+        error: e.message,
+        code: e.code,
+        details: e.details,
+      });
+      return;
+    }
+    if (e instanceof ZodError) {
+      r.status(400).json({
+        error: "Some of the request didn't look right. Please try again.",
+        code: "INVALID_REQUEST",
+      });
+      return;
+    }
+    const status =
+      typeof (e as { status?: unknown })?.status === "number"
+        ? (e as { status: number }).status
+        : 500;
+    if (status >= 400 && status < 500) {
+      r.status(status).json({
+        error: "The request couldn't be read. Please try again.",
+        code: "BAD_REQUEST",
+      });
+      return;
+    }
+    console.error(`[api] ${q.method} ${q.path}`, e);
+    r.status(500).json({
+      error: "Something went wrong on our side. Please try again.",
+      code: "INTERNAL",
     });
   },
 );

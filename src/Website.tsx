@@ -3,6 +3,7 @@ import LandingPage, { Brand } from "./components/LandingPage";
 import AuthPage from "./components/AuthPage";
 import { accountRequest, type Account } from "./lib/account";
 import "./public.css";
+import { friendlyError } from "./lib/errors";
 
 const Workspace = lazy(() => import("./App"));
 
@@ -119,11 +120,7 @@ export default function Website() {
       setUser(null);
       window.location.assign("/login");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Could not sign out. Please try again.",
-      );
+      setError(friendlyError(e, "Could not sign out. Please try again."));
     }
   }
   const signedIn = (account: Account) => {

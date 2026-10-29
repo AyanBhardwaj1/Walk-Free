@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { World } from "../../shared/types";
 import { TrainFront, ArrowUpRight } from "lucide-react";
+import { friendlyError } from "../lib/errors";
 interface Walk {
   distance: number;
   minutes: number;
@@ -43,11 +44,11 @@ export default function JourneyPanel({ world }: { world: World }) {
           "/api/journey/berkeley?departure=" +
           encodeURIComponent(new Date(departure).toISOString()),
       );
-      const d = await r.json();
-      if (!r.ok) throw Error(d.error);
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d) throw Error(d?.error || "Trip planning is unavailable.");
       setResult(d);
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyError(e, "Trip planning is unavailable right now."));
     } finally {
       setBusy(false);
     }

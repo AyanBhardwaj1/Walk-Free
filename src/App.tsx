@@ -75,9 +75,13 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { loadWeather } from "./lib/weather-source";
+import { describeConditions, liveConditions } from "./lib/live-weather";
+import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
 import type { Account } from "./lib/account";
+import { ZodError } from "zod";
 const Atlas = lazy(() => import("./components/Atlas"));
 const initial: Environment = {
   dateTime: "2026-07-15T20:00:00Z",
@@ -88,6 +92,7 @@ const initial: Environment = {
   weatherMode: "scenario",
 };
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const LIVE_REFRESH_MS = 10 * 60 * 1000;
 async function api(url: string, body?: unknown) {
   const r = await fetch(
     API_BASE + url,
@@ -381,7 +386,7 @@ export default function App({
               hour: "numeric",
               minute: "2-digit",
             }),
-            weather: `${Math.round((t.env.temperatureC * 9) / 5 + 32)}°F, ${Math.round(t.env.humidity)}% humidity, ${Math.round(t.env.cloudCover)}% cloud, ${t.env.windMps} m/s wind (${t.env.weatherMode === "forecast" ? "NWS forecast" : "scenario"})`,
+            weather: `${Math.round((t.env.temperatureC * 9) / 5 + 32)}°F, ${Math.round(t.env.humidity)}% humidity, ${Math.round(t.env.cloudCover)}% cloud, ${t.env.windMps} m/s wind (${t.env.weatherMode === "forecast" ? "live weather" : "scenario"})`,
             route: quick
               ? `${pref} route, ${Math.round(quick.durationMinutes)} min`
               : undefined,
@@ -404,7 +409,7 @@ export default function App({
       setChat(messages);
       if (speakReplies) speak(reply);
     } catch (e) {
-      setChatError((e as Error).message);
+      setChatError(friendlyError(e));
     } finally {
       setChatStatus(null);
     }
@@ -455,6 +460,16 @@ export default function App({
       active = false;
     };
   }, [projectKey]);
+  // Keep live weather fresh while the tab is visible.
+  useEffect(() => {
+    if (env.weatherMode !== "forecast" || atlas) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible")
+        void weather(world.origin, true, buildRequest.current);
+    }, LIVE_REFRESH_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [env.weatherMode, world.origin, atlas]);
   useEffect(() => {
     if (!hydrated) return;
     const timer = setTimeout(() => {
@@ -581,7 +596,9 @@ export default function App({
       return true;
     } catch (e) {
       if (request === buildRequest.current)
-        setMessage(String(e instanceof Error ? e.message : e));
+        setMessage(
+          friendlyError(e, "This area could not be built. Try again shortly."),
+        );
       return false;
     } finally {
       if (request === buildRequest.current) setBusy("");
@@ -635,7 +652,7 @@ export default function App({
           "Hypothetical passage added. Enable indoor planning to include it in route comparisons.",
         );
       } catch (e) {
-        setMessage((e as Error).message);
+        setMessage(friendlyError(e, "That passage could not be added here."));
       }
       setRoadStart(null);
       return;
@@ -694,35 +711,23 @@ export default function App({
     quiet = false,
     request?: number,
   ) {
-    if (!quiet) setBusy("Fetching the forecast…");
+    if (!quiet) setBusy("Getting live weather…");
     try {
-      const f = await api(`/api/weather?lat=${origin.lat}&lon=${origin.lon}`);
-      // A forecast that arrives after another area was built is discarded.
+      const f = await loadWeather(origin, {
+        fetch: window.fetch.bind(window),
+        apiBase: API_BASE,
+      });
+      // Weather that arrives after another area was built is discarded.
       if (request !== undefined && request !== buildRequest.current) return;
       setForecast(f);
-      if (quiet) {
-        // Keep whatever time the person (or assistant) chose meanwhile.
-        setEnv((env) => ({
-          ...weatherAt(env, env.dateTime, f),
-          weatherMode: "forecast",
-        }));
-        return;
-      }
-      const h = f.hours[0];
-      setEnv((env) => ({
-        ...env,
-        dateTime: h.time,
-        temperatureC: h.temperatureC,
-        humidity: h.humidity ?? 50,
-        windMps: h.windMps,
-        cloudCover: h.cloudCover ?? 50,
-        weatherMode: "forecast",
-      }));
+      // Quiet refreshes keep the time the person (or assistant) chose;
+      // asking for live weather jumps to now.
+      setEnv((env) => liveConditions(env, f, quiet ? env.dateTime : undefined));
       if (!quiet)
-        flash("NWS forecast loaded. Shade remains a geometry-based estimate.");
+        flash(`Live weather on · ${f.source}. Updates every 10 minutes.`);
     } catch (e) {
-      // After a build, a missing forecast just leaves the scenario in place.
-      if (!quiet) setMessage((e as Error).message);
+      // Background refreshes fail quietly and keep the last weather.
+      if (!quiet) setMessage(friendlyError(e));
     } finally {
       if (!quiet) setBusy("");
     }
@@ -757,8 +762,10 @@ export default function App({
       setProposal(result);
       return `Preview ready: ${result.summary} The person can apply or discard it in the Design studio.`;
     } catch (e) {
-      setMessage((e as Error).message);
-      return `Could not draft a design: ${(e as Error).message}`;
+      setMessage(
+        friendlyError(e, "The design could not be drafted. Try again."),
+      );
+      return `Could not draft a design: ${friendlyError(e)}`;
     } finally {
       setBusy("");
     }
@@ -1272,7 +1279,7 @@ export default function App({
                 day: "numeric",
                 hour: "numeric",
                 minute: "2-digit",
-              })} · ${env.weatherMode === "forecast" ? "NWS forecast" : "your weather scenario"}`}
+              })} · ${env.weatherMode === "forecast" ? "live weather" : "your weather scenario"}`}
               showMap={heatMap}
               onShowMap={setHeatMap}
               onSelect={(p) => selectHeatPlace(p.id)}
@@ -1337,7 +1344,10 @@ export default function App({
                 </small>
               </div>
               <button className="secondary" onClick={() => void weather()}>
-                Load local forecast <ArrowUpRight size={16} />
+                {env.weatherMode === "forecast"
+                  ? "Refresh live weather"
+                  : "Use live weather"}{" "}
+                <ArrowUpRight size={16} />
               </button>
               {forecast && (
                 <label>
@@ -1688,10 +1698,21 @@ export default function App({
                 {Math.round((env.temperatureC * 9) / 5 + 32)}°<small>F</small>
               </strong>
               <div>
-                {env.weatherMode === "scenario"
-                  ? "Your scenario"
-                  : "NWS forecast"}
-                <small>{env.windMps} m/s wind</small>
+                {env.weatherMode === "scenario" ? (
+                  "Your scenario"
+                ) : (
+                  <span className="live-badge">Live weather</span>
+                )}
+                <small>
+                  {env.weatherMode === "forecast" && forecast
+                    ? `${describeConditions(env, forecast)} · updated ${new Date(
+                        forecast.fetchedAt,
+                      ).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}`
+                    : `${Math.round(env.windMps * 2.237)} mph wind`}
+                </small>
               </div>
             </div>
           )}
@@ -1837,7 +1858,11 @@ export default function App({
             edit(w);
             setSelected(null);
           } catch (err) {
-            setMessage((err as Error).message);
+            setMessage(
+              err instanceof SyntaxError || err instanceof ZodError
+                ? "That file isn't a valid Walk-Free scene."
+                : friendlyError(err, "That file couldn't be opened."),
+            );
           }
           e.target.value = "";
         }}

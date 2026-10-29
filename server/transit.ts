@@ -1,6 +1,6 @@
 import { unzipSync, strFromU8 } from "fflate";
 import { requestBytes, ServiceError } from "./network.js";
-import { getWorld, getWeather, localPoint } from "./data.js";
+import { getWorld, getNwsWeather, localPoint } from "./data.js";
 import { route } from "../src/lib/routing.js";
 import type { World, Point, Environment } from "../shared/types.js";
 type Row = Record<string, string>;
@@ -278,9 +278,10 @@ export async function berkeleyJourney(iso: string) {
       "San Francisco walking leg",
       arrival.toISOString(),
     );
-    const forecast = await getWeather(+target.stop_lat, +target.stop_lon).catch(
-      () => null,
-    );
+    const forecast = await getNwsWeather(
+      +target.stop_lat,
+      +target.stop_lon,
+    ).catch(() => null);
     const hour = forecast?.hours.find(
       (h) => Math.abs(Date.parse(h.time) - arrival.getTime()) < 3600000,
     );

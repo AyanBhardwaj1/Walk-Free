@@ -30,7 +30,11 @@ export async function startTracking(
       },
       (location, error) => {
         if (error) {
-          onError(error.message);
+          onError(
+            error.code === "NOT_AUTHORIZED"
+              ? locationError(1)
+              : "Location is unavailable right now. Try again outdoors.",
+          );
           return;
         }
         if (location)
@@ -57,7 +61,7 @@ export async function startTracking(
         timestamp: p.timestamp,
       });
     },
-    (e) => onError(e.message),
+    (e) => onError(locationError(e.code)),
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
   );
   return () => navigator.geolocation.clearWatch(id);
@@ -73,4 +77,13 @@ export function speak(text: string) {
 export function stopSpeech() {
   if (nativeNavigation) void TextToSpeech.stop();
   else if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+/** Browser geolocation error codes as sentences people can act on. */
+export function locationError(code: number) {
+  return code === 1
+    ? "Location permission is off. Allow location for this site in your browser settings to use your location."
+    : code === 3
+      ? "Finding your location took too long. Try again with a clearer view of the sky."
+      : "Your location is unavailable right now. Try again in a moment.";
 }
