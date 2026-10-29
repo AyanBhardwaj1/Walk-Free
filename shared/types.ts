@@ -17,6 +17,8 @@ export interface SceneObject {
   source: SourceKind;
   sourceId?: string;
   heightMethod: "mapped" | "levels" | "estimated" | "designed";
+  /** Other names: OSM ref, short_name, alt_name and similar. */
+  aliases?: string[];
 }
 export interface SceneRoad {
   id: string;

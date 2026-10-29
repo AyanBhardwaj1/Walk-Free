@@ -31,6 +31,7 @@ export const worldSchema = z.object({
           .regex(/^#[0-9a-fA-F]{6}$/)
           .optional(),
         footprint: z.array(point).min(3).max(5000).optional(),
+        aliases: z.array(z.string().max(200)).max(12).optional(),
         source: z.enum(["osm", "user", "ai", "study"]),
         sourceId: z.string().optional(),
         heightMethod: z.enum(["mapped", "levels", "estimated", "designed"]),

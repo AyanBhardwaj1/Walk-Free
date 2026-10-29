@@ -91,6 +91,21 @@ function footAllowed(tags: Record<string, string>): boolean {
   if (tags.locked === "yes" || tags.construction || tags.proposed) return false;
   return true;
 }
+const ALIAS_TAGS = [
+  "ref",
+  "short_name",
+  "alt_name",
+  "official_name",
+  "old_name",
+  "loc_name",
+];
+/** Other names a building is known by, from OSM tags. */
+export function buildingAliases(tags: Record<string, string>) {
+  const names = ALIAS_TAGS.flatMap((k) => tags[k]?.split(";") ?? [])
+    .map((n) => n.trim())
+    .filter((n) => n && n.length <= 120 && n !== tags.name);
+  return [...new Set(names)].slice(0, 8);
+}
 const LIT = new Set(["yes", "24/7", "automatic", "limited", "interval"]);
 /** OSM `lit`: true or false when mapped, undefined when unknown. */
 export function litValue(lit?: string): boolean | undefined {
@@ -264,18 +279,20 @@ export function parseOsmWorld(
       (r) => r.members?.filter((m) => m.type === "way").map((m) => m.ref) ?? [],
     ),
   );
-  // Preserve simple closed relation outlines. Courtyards need a hole-aware schema and are deliberately omitted.
+  const waysById = new Map(
+    elements.filter((e) => e.type === "way").map((e) => [e.id, e]),
+  );
+  // Keep each relation's closed outer outlines. Courtyards (inner rings) are
+  // drawn solid because the scene schema has no holes.
   for (const relation of buildingRelations) {
-    if (relation.members?.some((m) => m.role === "inner")) {
+    if (relation.members?.some((m) => m.role === "inner"))
       omittedComplexBuildings++;
-      continue;
-    }
     const outers =
       relation.members?.filter(
         (m) => m.type === "way" && (m.role === "outer" || m.role === ""),
       ) ?? [];
     for (const member of outers) {
-      const way = elements.find((e) => e.type === "way" && e.id === member.ref);
+      const way = waysById.get(member.ref);
       const geometry = member.geometry ?? way?.geometry;
       if (!geometry?.length) continue;
       polygonWays.push({
@@ -313,6 +330,9 @@ export function parseOsmWorld(
               ? "tower"
               : "building",
         name: tags.name ?? tags["addr:housename"] ?? "Building",
+        ...(buildingAliases(tags).length
+          ? { aliases: buildingAliases(tags) }
+          : {}),
         position,
         width,
         depth,
@@ -487,7 +507,7 @@ export function parseOsmWorld(
   ];
   if (omittedComplexBuildings)
     notes.push(
-      `${omittedComplexBuildings} courtyard building relation(s) omitted because their holes cannot be represented by this scene schema.`,
+      `${omittedComplexBuildings} courtyard building(s) are drawn without their courtyards, so shade inside those courtyards is overestimated.`,
     );
   if (omittedIndoor)
     notes.push(

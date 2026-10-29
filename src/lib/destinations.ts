@@ -1,3 +1,4 @@
+import { BUILDING_ALIASES, searchVariants } from "../../shared/aliases.js";
 import type {
   GraphNode,
   Point,
@@ -110,14 +111,17 @@ export function destinationCatalog(world: World): Destination[] {
     if (!grid.has(cell)) grid.set(cell, []);
     grid.get(cell)!.push(n);
   }
-  const nearby = new Map<string, { name: string; distance: number }[]>();
+  const nearby = new Map<
+    string,
+    { name: string; aliases: string[]; distance: number }[]
+  >();
   for (const o of world.objects) {
     if (o.kind === "tree" || !meaningfulName(o.name) || !o.name.trim())
       continue;
     const x = Math.floor(o.position[0] / 80),
       z = Math.floor(o.position[1] / 80);
     let best: GraphNode | undefined,
-      distance = 80;
+      distance = BUILDING_LINK_M;
     for (let dx = -1; dx <= 1; dx++)
       for (let dz = -1; dz <= 1; dz++) {
         for (const n of grid.get(`${x + dx},${z + dz}`) || []) {
@@ -133,7 +137,11 @@ export function destinationCatalog(world: World): Destination[] {
       }
     if (best) {
       if (!nearby.has(best.id)) nearby.set(best.id, []);
-      nearby.get(best.id)!.push({ name: o.name, distance });
+      nearby.get(best.id)!.push({
+        name: o.name,
+        aliases: [...(o.aliases ?? []), ...(BUILDING_ALIASES[o.name] ?? [])],
+        distance,
+      });
     }
   }
   return world.graph.nodes
@@ -151,7 +159,11 @@ export function destinationCatalog(world: World): Destination[] {
         id: n.id,
         label,
         detail,
-        search: [label, detail, ...places.map((p) => p.name)]
+        search: [
+          label,
+          detail,
+          ...places.flatMap((p) => [p.name, ...p.aliases]),
+        ]
           .join(" ")
           .toLowerCase(),
       };
@@ -162,16 +174,49 @@ export function destinationCatalog(world: World): Destination[] {
     );
 }
 
+/** A building's centre may sit this far from its nearest mapped path. */
+const BUILDING_LINK_M = 120;
+
+const words = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9& ]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+/**
+ * Catalog entries ranked for a query: every word (or a synonym, such as
+ * hall/dormitory) must appear; exact and leading label matches rank first.
+ */
+export function rankDestinations(catalog: Destination[], query: string) {
+  const terms = words(query);
+  if (!terms.length) return [];
+  const phrase = terms.join(" ");
+  return catalog
+    .flatMap((d) => {
+      if (
+        !terms.every((t) => searchVariants(t).some((v) => d.search.includes(v)))
+      )
+        return [];
+      const label = d.label.toLowerCase();
+      const score =
+        (label === phrase ? 4 : 0) +
+        (label.startsWith(phrase) || label.endsWith(phrase) ? 2 : 0) +
+        (label.includes(phrase) ? 1 : 0) +
+        (d.search.includes(phrase) ? 1 : 0);
+      return [{ d, score }];
+    })
+    .sort((a, b) => b.score - a.score || a.d.label.length - b.d.label.length)
+    .map((m) => m.d);
+}
+
 export function searchDestinations(
   catalog: Destination[],
   query: string,
   selected: string,
   limit = 60,
 ) {
-  const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const matches = catalog.filter((n) =>
-    terms.every((term) => n.search.includes(term)),
-  );
+  const matches = query.trim() ? rankDestinations(catalog, query) : catalog;
   const shown = matches.slice(0, limit);
   const current = catalog.find((n) => n.id === selected);
   if (current && !shown.some((n) => n.id === selected)) shown.unshift(current);

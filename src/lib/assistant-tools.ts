@@ -5,7 +5,7 @@ import type {
   WeatherForecast,
   World,
 } from "../../shared/types.js";
-import type { Destination } from "./destinations.js";
+import { rankDestinations, type Destination } from "./destinations.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
@@ -75,21 +75,11 @@ const words = (s: string) =>
     .split(/\s+/)
     .filter((w) => w.length > 1);
 
-/** Best catalog matches: every word first, then the most words in common. */
+/** Best catalog matches, with the same synonyms and aliases as search. */
 export function matchDestinations(catalog: Destination[], query: string) {
-  const terms = words(query);
-  if (!terms.length) return [];
-  const label = query.toLowerCase().trim();
-  return catalog
-    .map((d) => {
-      const hits = terms.filter((t) => d.search.includes(t)).length;
-      const exact = d.label.toLowerCase() === label ? 2 : 0;
-      const starts = d.label.toLowerCase().startsWith(label) ? 1 : 0;
-      return { d, score: hits / terms.length + exact + starts };
-    })
-    .filter((m) => m.score >= 0.5)
-    .sort((a, b) => b.score - a.score || a.d.label.length - b.d.label.length)
-    .map((m) => m.d);
+  // Drop filler words people say aloud ("the library", "to GDC").
+  const cleaned = query.replace(/\b(the|to|from|at|near)\b/gi, " ");
+  return rankDestinations(catalog, cleaned);
 }
 
 function matchPlace(places: PlaceHeat[], query: string) {
