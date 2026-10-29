@@ -53,7 +53,7 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lat: 37.4275,
     lon: -122.1697,
     radius: 1000,
-    walk: { from: "Hoover Tower", to: "Green Library" },
+    walk: { from: "Memorial Church", to: "Tresidder Memorial Union" },
   },
   {
     slug: "asu",
