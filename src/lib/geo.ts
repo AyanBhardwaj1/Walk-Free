@@ -1,4 +1,4 @@
-import type { Point, Terrain } from "../../shared/types.js";
+import type { Point, Terrain, World } from "../../shared/types.js";
 export function terrainHeight(p: Point, t?: Terrain) {
   if (!t) return 0;
   const x = Math.max(
@@ -61,4 +61,30 @@ export function brushTerrain(
             );
     }),
   };
+}
+
+/** The walking edge closest to a point, within `max` meters. */
+export function nearestEdge(w: World, p: Point, max: number) {
+  let best: World["graph"]["edges"][number] | null = null,
+    distance = max;
+  for (const e of w.graph.edges) {
+    for (let i = 1; i < e.points.length; i++) {
+      const [a, b] = [e.points[i - 1], e.points[i]];
+      const dx = b[0] - a[0],
+        dz = b[1] - a[1];
+      const t = Math.max(
+        0,
+        Math.min(
+          1,
+          ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz || 1),
+        ),
+      );
+      const d = Math.hypot(p[0] - (a[0] + dx * t), p[1] - (a[1] + dz * t));
+      if (d < distance) {
+        best = e;
+        distance = d;
+      }
+    }
+  }
+  return best;
 }

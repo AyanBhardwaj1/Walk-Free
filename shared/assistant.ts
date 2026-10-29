@@ -33,7 +33,16 @@ export const ASSISTANT_TOOLS = [
           to: { type: "string", description: "Destination place name." },
           preference: {
             type: "string",
-            enum: ["quickest", "shade", "scenic", "indoors"],
+            enum: [
+              "quickest",
+              "shade",
+              "scenic",
+              "indoors",
+              "stepfree",
+              "night",
+            ],
+            description:
+              "indoors routes through an air-conditioned building (cool stop); stepfree avoids stairs and steep slopes; night prefers lit streets.",
           },
           leave_at_hour: {
             type: "number",
@@ -95,6 +104,19 @@ export const ASSISTANT_TOOLS = [
         type: "object",
         properties: { place: { type: "string" } },
         required: ["place"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "plant_shade_trees",
+      description:
+        "Plant a row of shade trees along both sides of a named street or path and return its shade and feels-like before and after, at the time shown. Prefer this over propose_design for adding street trees.",
+      parameters: {
+        type: "object",
+        properties: { street: { type: "string" } },
+        required: ["street"],
       },
     },
   },

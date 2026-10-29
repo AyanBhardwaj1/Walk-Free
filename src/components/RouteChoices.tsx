@@ -11,8 +11,23 @@ const labels: Record<RoutePreference, string> = {
   quickest: "Quickest",
   shade: "More shade",
   scenic: "Scenic",
-  indoors: "Stay inside",
+  indoors: "Cool stops",
+  stepfree: "Step-free",
+  night: "Lit at night",
 };
+/** How much of the route has lighting mapped, and how much of that is lit. */
+const lighting = (route: RouteResult) => {
+  let mapped = 0,
+    lit = 0;
+  for (const e of route.edges) {
+    if (e.lit === undefined) continue;
+    mapped += e.distance;
+    if (e.lit) lit += e.distance;
+  }
+  return { mapped: mapped / route.distance, lit: lit / route.distance };
+};
+/** Below this, say the route favours busier streets instead of a lit share. */
+const WELL_MAPPED = 0.5;
 export default function RouteChoices({
   choices,
   selected,
@@ -75,7 +90,30 @@ export default function RouteChoices({
                   {Math.round(route.shadeFraction * 100)}% shade ·{" "}
                   {Math.round(heat!.sunMinutes)} min in sun
                 </span>
-                <span>{Math.round(route.indoorFraction * 100)}% indoors</span>
+                {preference === "indoors" &&
+                  (route.coolStop ? (
+                    <span className="route-extra">
+                      Cool off in {route.coolStop} · check hours
+                    </span>
+                  ) : (
+                    <small>No open cool stop on the way</small>
+                  ))}
+                {preference === "night" &&
+                  (() => {
+                    const l = lighting(route);
+                    return (
+                      <span className="route-extra">
+                        {l.mapped >= WELL_MAPPED
+                          ? `${Math.round(l.lit * 100)}% on lit streets`
+                          : `Favours busier streets · lighting mapped on ${Math.round(l.mapped * 100)}%`}
+                      </span>
+                    );
+                  })()}
+                {preference === "stepfree" && (
+                  <span className="route-extra">
+                    Avoids mapped stairs and steep slopes
+                  </span>
+                )}
                 {same && <small>Same path as quickest</small>}
                 {route.warnings.length > 0 && (
                   <small>Detour budget applied</small>
@@ -85,7 +123,11 @@ export default function RouteChoices({
                 )}
               </>
             ) : (
-              <span>No connected route</span>
+              <span>
+                {preference === "stepfree"
+                  ? "No step-free route found"
+                  : "No connected route"}
+              </span>
             )}
           </button>
         );

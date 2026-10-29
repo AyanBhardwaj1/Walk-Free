@@ -405,3 +405,22 @@ export function relativeHeatColor(reading: HeatReading) {
   return mix(RAMP[i], RAMP[i + 1], t - i);
 }
 export const HEAT_RAMP = RAMP;
+
+/** Length-weighted shade share and feels-like over walking paths. */
+export function areaHeat(
+  w: World,
+  edges: Map<string, HeatReading>,
+  only?: Set<string>,
+) {
+  let length = 0,
+    shade = 0,
+    feels = 0;
+  for (const e of w.graph.edges) {
+    const reading = edges.get(e.id);
+    if (!reading || (only && !only.has(e.id))) continue;
+    length += e.distance;
+    shade += reading.shade * e.distance;
+    feels += reading.feelsLikeC * e.distance;
+  }
+  return length ? { shade: shade / length, feelsLikeC: feels / length } : null;
+}

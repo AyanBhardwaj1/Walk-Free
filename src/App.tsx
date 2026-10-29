@@ -33,6 +33,9 @@ import {
   Check,
   X,
   Thermometer,
+  Map as MapIcon,
+  Box,
+  Trees,
 } from "lucide-react";
 import type {
   World,
@@ -51,6 +54,7 @@ import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
+import HeatImpact from "./components/HeatImpact";
 import AssistantPanel from "./components/AssistantPanel";
 import { converse, type ChatMessage } from "./lib/assistant-client";
 import type { ToolHost } from "./lib/assistant-tools";
@@ -64,6 +68,8 @@ import {
   placeHeat,
   relativeHeatColor,
   weatherAt,
+  areaHeat,
+  clockLabel,
 } from "./lib/heat";
 import { prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
@@ -75,11 +81,16 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { openCoolStops } from "./lib/cool-stops";
+import { plantShadeRow } from "./lib/planting";
+import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { describeConditions, liveConditions } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
+import WalkMap2D from "./components/WalkMap2D";
+import { toF } from "./lib/heat";
 import type { Account } from "./lib/account";
 import { ZodError } from "zod";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -93,6 +104,8 @@ const initial: Environment = {
 };
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
+const NEXT_STRETCH_M = 150;
+const PLANT_PICK_M = 30;
 async function api(url: string, body?: unknown) {
   const r = await fetch(
     API_BASE + url,
@@ -115,6 +128,7 @@ async function api(url: string, body?: unknown) {
 const tools = [
   ["select", "Select", MousePointer2],
   ["tree", "Tree", TreePine],
+  ["shaderow", "Shade trees", Trees],
   ["building", "Building", Building2],
   ["skyscraper", "High-rise", Building2],
   ["tower", "Tower", Landmark],
@@ -180,6 +194,10 @@ export default function App({
   const location = useWalkLocation();
   const tracking = location.mode === "walking";
   const locating = location.mode === "locating";
+  // Walking defaults to the flat map: easier to read and lighter on battery.
+  useEffect(() => {
+    if (tracking) setView("2d");
+  }, [tracking]);
   const [voice, setVoice] = useState(true);
   const [showPaths, setShowPaths] = useState(true);
   const [heatMap, setHeatMap] = useState(true);
@@ -187,6 +205,14 @@ export default function App({
   const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [view, setView] = useState<"3d" | "2d">("3d");
+  // The scene before the first tree in this comparison, and the last row.
+  const [heatBaseline, setHeatBaseline] = useState<World | null>(null);
+  const [planting, setPlanting] = useState<{
+    street: string;
+    edgeIds: string[];
+    planted: number;
+  } | null>(null);
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [speakReplies, setSpeakReplies] = useState(false);
@@ -222,14 +248,14 @@ export default function App({
         allowHypothetical: tracking ? false : hypothetical,
         maxDetour: detour,
         environment: env,
+        coolStops: openCoolStops(routeWorld, env),
       }),
     [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
   );
   const currentRoute = routeChoices[pref];
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
-  const heatActive =
-    mode === "explore" && !atlas && (heatMap || tab === "heat");
+  const heatActive = !atlas && (heatMap || tab === "heat");
   const edgeHeat = useMemo(
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
     [heatActive, world, heatEnv],
@@ -287,6 +313,22 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
   const currentHour = localHour(env.dateTime, world.timezone);
+  /** Heat of the next ~150 m of the route, for the walking banner. */
+  const nextStretch = useMemo(() => {
+    if (!currentRoute || !edgeHeat) return null;
+    let length = 0,
+      feels = 0,
+      shade = 0;
+    for (const e of currentRoute.edges) {
+      const reading = edgeHeat.get(e.id);
+      if (!reading) continue;
+      length += e.distance;
+      feels += reading.feelsLikeC * e.distance;
+      shade += reading.shade * e.distance;
+      if (length >= NEXT_STRETCH_M) break;
+    }
+    return length ? { feelsC: feels / length, shade: shade / length } : null;
+  }, [currentRoute, edgeHeat]);
   function setLocalHour(hour: number) {
     setEnv((previous) => {
       const dateTime = atLocalHour(previous.dateTime, world.timezone, hour);
@@ -306,9 +348,45 @@ export default function App({
     setComparePlaceId(null);
   }
   function selectHeatEdge(edgeId: string) {
+    if (mode === "studio") {
+      if (tool === "shaderow") plantShade(edgeId);
+      return;
+    }
     const place = places.find((p) => p.edgeIds.includes(edgeId));
     selectHeatPlace(place ? place.id : `edge:${edgeId}`);
   }
+  function plantShade(edgeId: string) {
+    const result = plantShadeRow(world, edgeId);
+    if (!result) {
+      setMessage("There's no room for more trees along this path.");
+      return;
+    }
+    if (!heatBaseline) setHeatBaseline(world);
+    edit(result.world);
+    setHeatMap(true);
+    setPlanting({
+      street: result.street,
+      edgeIds: result.edgeIds,
+      planted: (planting?.planted ?? 0) + result.planted,
+    });
+    flash(`Planted ${result.planted} shade trees along ${result.street}.`);
+  }
+  const baselineHeat = useMemo(
+    () =>
+      heatBaseline && edgeHeat ? edgeHeatMap(heatBaseline, heatEnv) : null,
+    [heatBaseline, heatEnv, edgeHeat],
+  );
+  const impact = useMemo(() => {
+    if (!heatBaseline || !baselineHeat || !edgeHeat || !planting) return null;
+    const street = new Set(planting.edgeIds);
+    return {
+      street: [
+        areaHeat(heatBaseline, baselineHeat, street),
+        areaHeat(world, edgeHeat, street),
+      ],
+      area: [areaHeat(heatBaseline, baselineHeat), areaHeat(world, edgeHeat)],
+    };
+  }, [heatBaseline, baselineHeat, edgeHeat, world, planting]);
   const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
   const object = world.objects.find((o) => o.id === selected);
@@ -357,6 +435,20 @@ export default function App({
       return built
         ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
         : `Could not build ${city.name}; the map providers may be busy.`;
+    },
+    applyPlanting(result, before) {
+      setHeatBaseline((current) => current ?? before);
+      edit(result.world);
+      setHeatMap(true);
+      setPlanting((current) => ({
+        street: result.street,
+        edgeIds: result.edgeIds,
+        planted: (current?.planted ?? 0) + result.planted,
+      }));
+      // Stay in the conversation; the studio holds the before/after card.
+      flash(
+        `Planted ${result.planted} shade trees along ${result.street}. See Heat impact in Design studio.`,
+      );
     },
     async proposeDesign(request) {
       setMode("studio");
@@ -635,6 +727,12 @@ export default function App({
       return;
     }
     if (tool === "select") return;
+    if (tool === "shaderow") {
+      const edge = nearestEdge(world, p, PLANT_PICK_M);
+      if (edge) plantShade(edge.id);
+      else setMessage("Click on or next to a walking path to plant along it.");
+      return;
+    }
     if (["raise", "lower", "flatten"].includes(tool)) {
       const t = world.terrain || {
         size: world.extent,
@@ -1455,6 +1553,18 @@ export default function App({
           )}
           {mode === "studio" && tab !== "assistant" && tab !== "data" && (
             <section>
+              {impact && planting && (
+                <HeatImpact
+                  impact={impact}
+                  street={planting.street}
+                  planted={planting.planted}
+                  time={clockLabel(heatEnv.dateTime, world.timezone)}
+                  onReset={() => {
+                    setHeatBaseline(null);
+                    setPlanting(null);
+                  }}
+                />
+              )}
               <div className="section-title">
                 <Layers size={17} /> Your building blocks
               </div>
@@ -1491,8 +1601,9 @@ export default function App({
                 ))}
               </div>
               <p className="fine">
-                Choose an asset, then click the ground to place it. Drag to
-                orbit; right-drag to pan; scroll to zoom.
+                Choose an asset, then click the ground to place it. Shade trees:
+                click a path to line its whole street and see the heat drop.
+                Drag to orbit; right-drag to pan; scroll to zoom.
               </p>
               {object && (
                 <div className="inspector">
@@ -1651,6 +1762,16 @@ export default function App({
                 }
               />
             </Suspense>
+          ) : view === "2d" && mode === "explore" ? (
+            <WalkMap2D
+              world={routeWorld}
+              route={currentRoute}
+              you={userPosition ?? undefined}
+              accuracy={location.fix?.accuracy}
+              start={startNode?.point}
+              end={endNode?.point}
+              edgeColors={heatOverlay?.colors}
+            />
           ) : (
             <WorldCanvas
               key={world.id}
@@ -1668,8 +1789,26 @@ export default function App({
               showTrees={trees}
               showBuildings={buildings}
               heat={heatOverlay}
-              onHeatSelect={selectHeatEdge}
+              onHeatSelect={
+                mode === "explore" || tool === "shaderow"
+                  ? selectHeatEdge
+                  : undefined
+              }
             />
+          )}
+          {!atlas && view === "2d" && mode === "explore" && currentRoute && (
+            <div className="walk-banner" role="status" aria-live="polite">
+              <strong>
+                {currentRoute.directions[0]?.text ?? "Follow the route"}
+              </strong>
+              <span>
+                {tracking ? "" : "Preview · "}
+                {Math.max(1, Math.round(currentRoute.durationMinutes))} min ·{" "}
+                {(currentRoute.distance / 1000).toFixed(2)} km left
+                {nextStretch &&
+                  ` · next stretch ~${Math.round(toF(nextStretch.feelsC))}°F, ${Math.round(nextStretch.shade * 100)}% shade`}
+              </span>
+            </div>
           )}
           {picking && (
             <div className="pick-banner" role="status">
@@ -1680,7 +1819,12 @@ export default function App({
               <button onClick={() => setPicking(null)}>Cancel</button>
             </div>
           )}
-          <div className="map-heading">
+          <div
+            className="map-heading"
+            hidden={
+              !atlas && view === "2d" && mode === "explore" && !!currentRoute
+            }
+          >
             <div className="eyebrow">
               {world.provenance.live
                 ? "MAPPED NEIGHBORHOOD"
@@ -1746,6 +1890,23 @@ export default function App({
                 >
                   <TreePine size={19} />
                 </button>
+                {mode === "explore" && (
+                  <button
+                    title={
+                      view === "3d"
+                        ? "Switch to flat walking map"
+                        : "Switch to 3D view"
+                    }
+                    aria-label={
+                      view === "3d"
+                        ? "Switch to flat walking map"
+                        : "Switch to 3D view"
+                    }
+                    onClick={() => setView(view === "3d" ? "2d" : "3d")}
+                  >
+                    {view === "3d" ? <MapIcon size={19} /> : <Box size={19} />}
+                  </button>
+                )}
                 <button
                   title="Toggle heat map"
                   aria-label="Toggle heat map"

@@ -14,7 +14,24 @@ export const routePreferences: RoutePreference[] = [
   "shade",
   "scenic",
   "indoors",
+  "stepfree",
+  "night",
 ];
+
+/** After dark: lit and busier streets cost less than dark or unknown paths. */
+export function nightMultiplier(e: GraphEdge) {
+  if (e.lit === true) return e.roadClass === "path" ? 1.15 : 1;
+  if (e.lit === false) return 2.6;
+  return e.roadClass === "major"
+    ? 1.2
+    : e.roadClass === "street"
+      ? 1.4
+      : e.roadClass === "service"
+        ? 1.9
+        : 2.2;
+}
+const stepFree = (e: GraphEdge) => !e.stairs && e.accessible;
+const MAX_COOL_STOP_CANDIDATES = 4;
 
 /** A binary heap avoids scanning all reached nodes at every routing step. */
 class MinQueue {
@@ -101,8 +118,8 @@ export function nearestWalkNode(
 
 function planner(
   w: World,
-  start: string,
-  end: string,
+  from: string,
+  to: string,
   o: Omit<RouteOptions, "preference">,
 ) {
   const adjacency = new Map<string, GraphEdge[]>();
@@ -123,14 +140,12 @@ function planner(
     adjacency.get(e.from)!.push(e);
     if (e.bidirectional) {
       if (!adjacency.has(e.to)) adjacency.set(e.to, []);
-      adjacency
-        .get(e.to)!
-        .push({
-          ...e,
-          from: e.to,
-          to: e.from,
-          points: [...e.points].reverse(),
-        });
+      adjacency.get(e.to)!.push({
+        ...e,
+        from: e.to,
+        to: e.from,
+        points: [...e.points].reverse(),
+      });
     }
   }
   function edgeShade(e: GraphEdge) {
@@ -148,7 +163,11 @@ function planner(
     }
     return shade.get(e.id)!;
   }
-  function solve(pref: RoutePreference): GraphEdge[] | null {
+  function solve(
+    pref: RoutePreference,
+    start = from,
+    end = to,
+  ): GraphEdge[] | null {
     if (start === end || !nodeIds.has(start) || !nodeIds.has(end)) return null;
     const d = new Map([[start, 0]]),
       prev = new Map<string, GraphEdge>();
@@ -158,6 +177,7 @@ function planner(
       if (item.cost !== d.get(item.id)) continue;
       if (item.id === end) break;
       for (const e of adjacency.get(item.id) || []) {
+        if (pref === "stepfree" && !stepFree(e)) continue;
         const multiplier =
           pref === "shade"
             ? 1 + (1 - edgeShade(e)) * 2
@@ -167,7 +187,9 @@ function planner(
                 : 1
               : pref === "scenic"
                 ? 1 + (1 - e.scenic) * 2
-                : 1;
+                : pref === "night"
+                  ? nightMultiplier(e)
+                  : 1;
         const cost = item.cost + e.distance * multiplier;
         if (cost < (d.get(e.to) ?? Infinity)) {
           d.set(e.to, cost);
@@ -189,15 +211,58 @@ function planner(
   const quick = solve("quickest");
   const length = (edges: GraphEdge[]) =>
     edges.reduce((sum, e) => sum + e.distance, 0);
+  const nodePoint = new Map(w.graph.nodes.map((n) => [n.id, n.point]));
+  /** Shaded legs via the most convenient open cool stop, if any. */
+  function viaCoolStop() {
+    const a = nodePoint.get(from),
+      b = nodePoint.get(to);
+    if (!a || !b || !o.coolStops?.length) return null;
+    const detour = (p: Point) =>
+      Math.hypot(p[0] - a[0], p[1] - a[1]) +
+      Math.hypot(p[0] - b[0], p[1] - b[1]);
+    let best: { edges: GraphEdge[]; stop: string } | null = null;
+    for (const stop of [...o.coolStops]
+      .filter((c) => nodePoint.has(c.nodeId))
+      .sort(
+        (x, y) =>
+          detour(nodePoint.get(x.nodeId)!) - detour(nodePoint.get(y.nodeId)!),
+      )
+      .slice(0, MAX_COOL_STOP_CANDIDATES)) {
+      const first =
+        stop.nodeId === from ? [] : solve("shade", from, stop.nodeId);
+      const second = stop.nodeId === to ? [] : solve("shade", stop.nodeId, to);
+      if (!first || !second) continue;
+      const edges = [...first, ...second];
+      if (edges.length && (!best || length(edges) < length(best.edges)))
+        best = { edges, stop: stop.name };
+    }
+    return best;
+  }
   return (preference: RoutePreference): RouteResult | null => {
     if (!quick) return null;
-    let edges = preference === "quickest" ? quick : solve(preference) || quick;
     const warnings: string[] = [];
-    if (length(edges) > length(quick) * o.maxDetour) {
-      edges = quick;
-      warnings.push(
-        "Preferred alternative exceeded your detour budget; showing the quickest connected route.",
-      );
+    let coolStop: string | undefined;
+    let edges: GraphEdge[] | null;
+    if (preference === "quickest") edges = quick;
+    else if (preference === "indoors") {
+      const via = viaCoolStop();
+      edges = via?.edges ?? solve(preference) ?? quick;
+      coolStop = via?.stop;
+    } else edges = solve(preference);
+    // Never fall back to a route with steps when step-free was asked for.
+    if (preference === "stepfree") {
+      if (!edges) return null;
+      if (length(edges) > length(quick) * o.maxDetour)
+        warnings.push("Longer than your detour budget to stay step-free.");
+    } else {
+      edges ??= quick;
+      if (length(edges) > length(quick) * o.maxDetour) {
+        edges = quick;
+        coolStop = undefined;
+        warnings.push(
+          "Preferred alternative exceeded your detour budget; showing the quickest connected route.",
+        );
+      }
     }
     const distance = length(edges);
     return {
@@ -215,6 +280,7 @@ function planner(
       hypothetical: edges.some((e) => e.indoor === "hypothetical"),
       directions: walkingDirections(edges),
       warnings,
+      ...(coolStop ? { coolStop } : {}),
     };
   };
 }

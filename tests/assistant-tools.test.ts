@@ -95,6 +95,7 @@ function host(overrides: Partial<ToolHost> = {}): ToolHost {
     highlightPlace: vi.fn(),
     buildArea: vi.fn(async () => "built"),
     proposeDesign: vi.fn(async () => "preview"),
+    applyPlanting: vi.fn(),
     ...overrides,
   };
 }
@@ -172,6 +173,30 @@ describe("assistant tools", () => {
     expect(place.name).toBe("Speedway");
     expect(h.highlightPlace).toHaveBeenCalledWith("street:Speedway");
     expect(place.hottest_hour.hour).toBeGreaterThanOrEqual(11);
+  });
+});
+
+describe("assistant planting", () => {
+  it("plants along a named street and reports before and after", async () => {
+    const h = host();
+    const result = (await runTool(
+      h,
+      "plant_shade_trees",
+      JSON.stringify({ street: "speedway" }),
+    )) as { street: string; trees_planted: number; shaded_percent: number[] };
+    expect(result.street).toBe("Speedway");
+    expect(result.trees_planted).toBeGreaterThan(10);
+    expect(result.shaded_percent[1]).toBeGreaterThanOrEqual(
+      result.shaded_percent[0],
+    );
+    expect(h.applyPlanting).toHaveBeenCalledOnce();
+    expect(
+      await runTool(
+        h,
+        "plant_shade_trees",
+        JSON.stringify({ street: "Nowhere Lane" }),
+      ),
+    ).toHaveProperty("error");
   });
 });
 
