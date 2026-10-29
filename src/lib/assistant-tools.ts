@@ -8,12 +8,15 @@ import type {
 import type { Destination } from "./destinations.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
+import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
   clockLabel,
   dailyProfile,
   placeHeat,
   routeHeat,
+  areaHeat,
+  edgeHeatMap,
   toF,
   type PlaceHeat,
 } from "./heat.js";
@@ -35,6 +38,7 @@ export interface ToolHost {
   setDateTime(iso: string): void;
   highlightPlace(id: string): void;
   buildArea(query: string): Promise<string>;
+  applyPlanting(result: PlantingResult, before: World): void;
   proposeDesign(request: string): Promise<string>;
 }
 
@@ -61,6 +65,7 @@ const schemas = {
   set_time: z.object({ hour }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
   propose_design: z.object({ request: z.string().min(1).max(1000) }),
+  plant_shade_trees: z.object({ street: z.string().min(1).max(120) }),
 };
 
 const words = (s: string) =>
@@ -251,6 +256,39 @@ export async function runTool(
     }
     case "build_area":
       return { result: await host.buildArea(a.place) };
+    case "plant_shade_trees": {
+      const place = matchPlace(
+        placeHeat(host.world, host.env).filter((p) => p.kind === "street"),
+        a.street,
+      );
+      if (!place) return { error: `No street or path matching "${a.street}".` };
+      const result = plantShadeRow(host.world, place.edgeIds[0]);
+      if (!result)
+        return { error: `${place.name} already has trees all along it.` };
+      const ids = new Set(result.edgeIds);
+      const before = areaHeat(
+        host.world,
+        edgeHeatMap(host.world, host.env),
+        ids,
+      )!;
+      const after = areaHeat(
+        result.world,
+        edgeHeatMap(result.world, host.env),
+        ids,
+      )!;
+      host.applyPlanting(result, host.world);
+      return {
+        street: result.street,
+        trees_planted: result.planted,
+        at: clockLabel(host.env.dateTime, host.world.timezone),
+        shaded_percent: [
+          Math.round(before.shade * 100),
+          Math.round(after.shade * 100),
+        ],
+        feels_like_f: [deg(before.feelsLikeC), deg(after.feelsLikeC)],
+        note: "Shown in the Design studio; the person can undo it.",
+      };
+    }
     case "propose_design":
       return { result: await host.proposeDesign(a.request) };
   }

@@ -436,6 +436,20 @@ export default function App({
         ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
         : `Could not build ${city.name}; the map providers may be busy.`;
     },
+    applyPlanting(result, before) {
+      setHeatBaseline((current) => current ?? before);
+      edit(result.world);
+      setHeatMap(true);
+      setPlanting((current) => ({
+        street: result.street,
+        edgeIds: result.edgeIds,
+        planted: (current?.planted ?? 0) + result.planted,
+      }));
+      // Stay in the conversation; the studio holds the before/after card.
+      flash(
+        `Planted ${result.planted} shade trees along ${result.street}. See Heat impact in Design studio.`,
+      );
+    },
     async proposeDesign(request) {
       setMode("studio");
       setTab("assistant");

@@ -110,6 +110,19 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "plant_shade_trees",
+      description:
+        "Plant a row of shade trees along both sides of a named street or path and return its shade and feels-like before and after, at the time shown. Prefer this over propose_design for adding street trees.",
+      parameters: {
+        type: "object",
+        properties: { street: { type: "string" } },
+        required: ["street"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "propose_design",
       description:
         "Draft a design change to the 3D scene, such as planting trees along a street or adding a building. The person previews it and decides whether to apply it.",

@@ -10,6 +10,7 @@ const toolLabels: Record<string, string> = {
   set_time: "Moved the time of day",
   build_area: "Built an area",
   propose_design: "Drafted a design change",
+  plant_shade_trees: "Planted shade trees",
 };
 export const toolActivity = (name: string) =>
   toolLabels[name] ?? "Worked on it";
