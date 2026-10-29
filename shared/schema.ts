@@ -78,6 +78,8 @@ export const worldSchema = z.object({
           stairs: z.boolean(),
           accessible: z.boolean(),
           bidirectional: z.boolean(),
+          lit: z.boolean().optional(),
+          roadClass: z.enum(["major", "street", "service", "path"]).optional(),
         }),
       )
       .max(200000),

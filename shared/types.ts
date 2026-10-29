@@ -50,6 +50,10 @@ export interface GraphEdge {
   stairs: boolean;
   accessible: boolean;
   bidirectional: boolean;
+  /** Street lighting from OSM `lit`; absent when unmapped. */
+  lit?: boolean;
+  /** Broad street type, used to prefer busier, lit streets after dark. */
+  roadClass?: "major" | "street" | "service" | "path";
 }
 export interface WalkGraph {
   nodes: GraphNode[];

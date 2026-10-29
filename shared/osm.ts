@@ -91,6 +91,30 @@ function footAllowed(tags: Record<string, string>): boolean {
   if (tags.locked === "yes" || tags.construction || tags.proposed) return false;
   return true;
 }
+const LIT = new Set(["yes", "24/7", "automatic", "limited", "interval"]);
+/** OSM `lit`: true or false when mapped, undefined when unknown. */
+export function litValue(lit?: string): boolean | undefined {
+  if (!lit) return undefined;
+  if (LIT.has(lit) || /^\d/.test(lit)) return true;
+  return lit === "no" ? false : undefined;
+}
+/** Wheelchair guidance treats slopes over about 8% as not step-free. */
+const MAX_STEP_FREE_INCLINE = 8;
+export function steepIncline(incline?: string) {
+  const percent = incline?.match(/^-?(\d+(?:\.\d+)?)\s*%$/);
+  return percent ? Number(percent[1]) > MAX_STEP_FREE_INCLINE : false;
+}
+export function roadClass(
+  highway: string,
+): "major" | "street" | "service" | "path" {
+  if (/^(primary|secondary|tertiary)(_link)?$/.test(highway)) return "major";
+  if (
+    ["residential", "unclassified", "living_street", "road"].includes(highway)
+  )
+    return "street";
+  if (highway === "service") return "service";
+  return "path";
+}
 export function isWalkable(tags: Record<string, string>): boolean {
   return Boolean(
     tags.highway &&
@@ -438,8 +462,13 @@ export function parseOsmWorld(
         accessible:
           tags.wheelchair !== "no" &&
           tags.highway !== "steps" &&
-          !["sand", "mud"].includes(tags.surface ?? ""),
+          !["sand", "mud"].includes(tags.surface ?? "") &&
+          !steepIncline(tags.incline),
         bidirectional,
+        ...(litValue(tags.lit) !== undefined
+          ? { lit: litValue(tags.lit) }
+          : {}),
+        roadClass: roadClass(tags.highway),
       });
     }
   }
