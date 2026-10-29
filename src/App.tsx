@@ -545,7 +545,13 @@ export default function App({
           name: [c.name, c.state].filter(Boolean).join(", "),
           radius,
         },
-        { fetch: window.fetch.bind(window), apiBase: API_BASE },
+        {
+          fetch: window.fetch.bind(window),
+          apiBase: API_BASE,
+          onStage: (stage) =>
+            request === buildRequest.current &&
+            setBusy(`Building ${c.name} · ${stage}`),
+        },
       );
       if (request !== buildRequest.current) return false;
       const w = worldSchema.parse(loaded);

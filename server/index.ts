@@ -10,6 +10,7 @@ import { aiConfig } from "./ai.js";
 import { berkeleyJourney } from "./transit.js";
 import { authRouter, authenticate } from "./auth.js";
 export const app = express();
+app.disable("x-powered-by");
 app.use((q, r, next) => {
   if (
     ["capacitor://localhost", "http://localhost", "https://localhost"].includes(
