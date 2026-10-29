@@ -81,6 +81,7 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
 import { openCoolStops } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
@@ -106,13 +107,17 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
-async function api(url: string, body?: unknown) {
+async function api(
+  url: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   const r = await fetch(
     API_BASE + url,
     body
       ? {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...headers },
           body: JSON.stringify(body),
         }
       : undefined,
@@ -215,6 +220,7 @@ export default function App({
   } | null>(null);
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
+  const [ownKey, setOwnKey] = useState(() => loadOwnKey(account.id));
   const [speakReplies, setSpeakReplies] = useState(false);
   const userPosition = useMemo(
     () =>
@@ -486,7 +492,7 @@ export default function App({
           };
         },
         () => toolHost.current,
-        (url, body) => api(url, body),
+        (url, body) => api(url, body, ownKeyHeaders(ownKey)),
         (name) =>
           setChatStatus(
             {
@@ -849,14 +855,18 @@ export default function App({
     setBusy("Sketching your proposal…");
     const snapshot = JSON.stringify(world);
     try {
-      const result = await api("/api/agent/propose", {
-        prompt: request,
-        extent: world.extent,
-        scene: world.objects.slice(0, 300),
-        roads: world.roads
-          .slice(0, 60)
-          .map((r) => ({ name: r.name, points: r.points.slice(0, 200) })),
-      });
+      const result = await api(
+        "/api/agent/propose",
+        {
+          prompt: request,
+          extent: world.extent,
+          scene: world.objects.slice(0, 300),
+          roads: world.roads
+            .slice(0, 60)
+            .map((r) => ({ name: r.name, points: r.points.slice(0, 200) })),
+        },
+        ownKeyHeaders(ownKey),
+      );
       if (JSON.stringify(worldRef.current) !== snapshot) {
         setMessage(
           "The scene changed while the assistant was working. Request a fresh proposal.",
@@ -1364,6 +1374,12 @@ export default function App({
               onSend={(text) => void sendChat(text)}
               onReset={() => {
                 setChat([]);
+                setChatError("");
+              }}
+              ownKey={ownKey}
+              onOwnKey={(value) => {
+                setOwnKey(value);
+                saveOwnKey(account.id, value);
                 setChatError("");
               }}
             />

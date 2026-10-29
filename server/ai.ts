@@ -10,6 +10,8 @@ export interface AiConfig {
   baseUrl: string;
   key: string;
   model: string;
+  /** True when the person supplied their own key. */
+  own?: boolean;
 }
 export function aiConfig(): AiConfig | null {
   const key =
@@ -26,6 +28,53 @@ export function aiConfig(): AiConfig | null {
       process.env.WALK_FREE_AI_MODEL ||
       process.env.WALK_FREE_OPENAI_MODEL ||
       "gpt-5-mini",
+  };
+}
+
+/**
+ * Providers a person may use with their own key. A fixed list keeps the
+ * server from being pointed at arbitrary (or internal) addresses.
+ */
+export const USER_AI_PROVIDERS = {
+  openai: "https://api.openai.com/v1",
+  meta: "https://api.llama.com/compat/v1",
+  fireworks: "https://api.fireworks.ai/inference/v1",
+  baseten: "https://inference.baseten.co/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  together: "https://api.together.xyz/v1",
+} as const;
+export type UserAiProvider = keyof typeof USER_AI_PROVIDERS;
+const KEY_PATTERN = /^[\x21-\x7e]{8,400}$/;
+const MODEL_PATTERN = /^[\w.\-/:@]{1,120}$/;
+
+/**
+ * A person's own key from request headers, used for this request only:
+ * never stored or logged. Returns null when no key was sent.
+ */
+export function userAiConfig(
+  headers: Record<string, unknown>,
+): AiConfig | null {
+  const key = headers["x-walk-free-ai-key"];
+  if (typeof key !== "string" || !key) return null;
+  const provider = String(headers["x-walk-free-ai-provider"] ?? "openai");
+  const model = String(headers["x-walk-free-ai-model"] ?? "");
+  if (!(provider in USER_AI_PROVIDERS))
+    throw new ServiceError(
+      "AI_PROVIDER",
+      "That AI provider isn't supported.",
+      400,
+    );
+  if (!KEY_PATTERN.test(key) || !MODEL_PATTERN.test(model))
+    throw new ServiceError(
+      "AI_KEY_FORMAT",
+      "Check your AI key and model name in AI settings.",
+      400,
+    );
+  return {
+    key,
+    model,
+    baseUrl: USER_AI_PROVIDERS[provider as UserAiProvider],
+    own: true,
   };
 }
 
@@ -91,6 +140,38 @@ export async function chatCompletion(
         ? { reasoning_effort: "low" }
         : {}),
     }),
+  }).catch((error: unknown) => {
+    // Turn provider HTTP errors into guidance about the key or model.
+    const status = Number(
+      (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
+    );
+    if (
+      status === 401 ||
+      status === 403 ||
+      (error as ServiceError)?.code === "NETWORK_BLOCKED"
+    )
+      throw new ServiceError(
+        "AI_KEY_REJECTED",
+        config.own
+          ? "The AI provider rejected your key. Check it in AI settings."
+          : "The assistant's AI key was rejected. Please tell the site owner.",
+        400,
+      );
+    if (status === 404 || status === 400)
+      throw new ServiceError(
+        "AI_MODEL",
+        config.own
+          ? "The AI provider didn't accept that model name. Check it in AI settings."
+          : "The assistant's AI model is unavailable right now.",
+        400,
+      );
+    if (status === 429)
+      throw new ServiceError(
+        "AI_BUSY",
+        "The AI provider is rate-limiting requests. Wait a moment and try again.",
+        429,
+      );
+    throw error;
   });
   const message = result.choices?.[0]?.message;
   if (!message)
