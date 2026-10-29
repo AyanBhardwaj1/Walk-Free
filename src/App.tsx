@@ -75,7 +75,7 @@ import {
   areaHeat,
   clockLabel,
 } from "./lib/heat";
-import { prebuiltAreaFor } from "../shared/areas";
+import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
 import PlaceField from "./components/PlaceField";
 import OmniSearch from "./components/OmniSearch";
@@ -156,9 +156,12 @@ const tools = [
 export default function App({
   account,
   onSignOut,
+  guest = false,
 }: {
   account: Account;
   onSignOut: () => Promise<void>;
+  /** Demo without an account: no server API, no assistant. */
+  guest?: boolean;
 }) {
   const projectKey = `walk-free-project:${account.id}`;
   const [legacyProject, setLegacyProject] = useState(() => {
@@ -579,6 +582,28 @@ export default function App({
       active = false;
     };
   }, [projectKey]);
+  // Landing-page campus links open that campus directly (/demo?area=ut-austin).
+  const openedArea = useRef(false);
+  useEffect(() => {
+    if (openedArea.current) return;
+    openedArea.current = true;
+    const slug = new URLSearchParams(window.location.search).get("area");
+    const area = PREBUILT_AREAS.find((a) => a.slug === slug);
+    if (area)
+      void loadCity(
+        {
+          id: area.slug,
+          name: area.name.replace(/, [A-Z]{2}$/, ""),
+          state: area.name.match(/, ([A-Z]{2})$/)?.[1] ?? "",
+          lat: area.lat,
+          lon: area.lon,
+          timezone: "",
+        },
+        true,
+        area.radius,
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Keep live weather fresh while the tab is visible.
   useEffect(() => {
     if (env.weatherMode !== "forecast" || atlas) return;
@@ -667,6 +692,7 @@ export default function App({
         {
           fetch: window.fetch.bind(window),
           apiBase: API_BASE,
+          skipServer: guest,
           onStage: (stage) =>
             request === buildRequest.current &&
             setBusy(`Building ${c.name} · ${stage}`),
@@ -1033,10 +1059,19 @@ export default function App({
           </button>
         </nav>
         <div className="header-right">
-          <div className="account-controls">
-            <span title={account.email}>{account.name || account.email}</span>
-            <button onClick={onSignOut}>Sign out</button>
-          </div>
+          {guest ? (
+            <div className="account-controls">
+              <a href="/login">Log in</a>
+              <a className="account-cta" href="/signup">
+                Create free account
+              </a>
+            </div>
+          ) : (
+            <div className="account-controls">
+              <span title={account.email}>{account.name || account.email}</span>
+              <button onClick={onSignOut}>Sign out</button>
+            </div>
+          )}
           <button
             className="icon-button"
             aria-label="Export project"
@@ -1399,7 +1434,21 @@ export default function App({
               </p>
             </section>
           )}
-          {!atlas && mode === "explore" && tab === "ask" && (
+          {!atlas && mode === "explore" && tab === "ask" && guest && (
+            <section className="guest-lock">
+              <div className="section-title">
+                <Sparkles size={17} /> Ask Walk-Free
+              </div>
+              <p>
+                Plan routes in plain words, ask why a street is hot, or plant
+                trees by asking. Create a free account to use the assistant.
+              </p>
+              <a className="primary" href="/signup">
+                Create free account <ArrowUpRight size={16} />
+              </a>
+            </section>
+          )}
+          {!atlas && mode === "explore" && tab === "ask" && !guest && (
             <AssistantPanel
               messages={chat}
               status={chatStatus}

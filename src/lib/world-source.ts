@@ -23,6 +23,8 @@ export interface WorldSourceDeps {
   fetch: typeof fetch;
   apiBase: string;
   timeoutMs?: number;
+  /** Guests have no session, so go straight to the browser fallback. */
+  skipServer?: boolean;
   /** Progress text for the loading screen. */
   onStage?: (stage: string) => void;
 }
@@ -148,7 +150,7 @@ export async function loadWorld(
   const prebuilt = await fromPrebuilt(request, deps);
   if (prebuilt) return { world: prebuilt, source: "prebuilt" };
   deps.onStage?.("Downloading OpenStreetMap data…");
-  const server = await fromServer(request, deps);
+  const server = deps.skipServer ? null : await fromServer(request, deps);
   if (server) return { world: server, source: "server" };
   deps.onStage?.("Map servers are busy · trying directly from your browser…");
   return { world: await fromBrowser(request, deps), source: "browser" };

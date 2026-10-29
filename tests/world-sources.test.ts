@@ -131,6 +131,21 @@ describe("client world sources", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("lets guests build straight from the browser without the API", async () => {
+    const fetch = vi.fn(async (_url: RequestInfo | URL) =>
+      json(osm(41.3, -90.3)),
+    );
+    const result = await loadWorld(far, {
+      fetch,
+      apiBase: "",
+      skipServer: true,
+    });
+    expect(result.source).toBe("browser");
+    expect(fetch.mock.calls.some((c) => String(c[0]).startsWith("/api/"))).toBe(
+      false,
+    );
+  });
+
   it("explains when every provider fails", async () => {
     const fetch = vi.fn(async () => new Response("down", { status: 503 }));
     await expect(loadWorld(far, { fetch, apiBase: "" })).rejects.toThrow(
