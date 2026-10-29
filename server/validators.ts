@@ -45,14 +45,14 @@ export function boundedRadius(value: unknown): number {
   if (typeof value !== "string" || value.trim() === "")
     throw new ServiceError(
       "INVALID_INPUT",
-      "Area radius must be between 200 and 1,000 meters.",
+      "Area radius must be between 200 and 1,500 meters.",
       400,
     );
   const radius = Number(value);
-  if (!Number.isFinite(radius) || radius < 200 || radius > 1000)
+  if (!Number.isFinite(radius) || radius < 200 || radius > 1500)
     throw new ServiceError(
       "INVALID_INPUT",
-      "Area radius must be between 200 and 1,000 meters.",
+      "Area radius must be between 200 and 1,500 meters.",
       400,
     );
   return radius;

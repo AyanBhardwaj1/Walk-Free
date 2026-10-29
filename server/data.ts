@@ -18,6 +18,9 @@ import {
   type OpenMeteoResponse,
 } from "../shared/weather.js";
 import {
+  MAX_TILED_ELEMENTS,
+  areaTiles,
+  mergeOsm,
   OVERPASS_ENDPOINTS,
   overpassQuery,
   overpassRetryable,
@@ -162,16 +165,31 @@ export async function getWorld(
       );
     activeMapRequests++;
     try {
-      const payload = await fetchOverpass(
-        overpassQuery(
-          lat,
-          lon,
-          radius,
-          Math.ceil(limits.mirrorTimeoutMs / 1000),
+      // Large districts load as tiles in parallel, each within the budget.
+      const tiles = areaTiles(lat, lon, radius);
+      const payload = mergeOsm(
+        await Promise.all(
+          tiles.map((t) =>
+            fetchOverpass(
+              overpassQuery(
+                t.lat,
+                t.lon,
+                t.radius,
+                Math.ceil(limits.mirrorTimeoutMs / 1000),
+              ),
+              limits,
+            ),
+          ),
         ),
-        limits,
       );
-      return parseOsmWorld(payload, origin, name, radius);
+      return parseOsmWorld(
+        payload,
+        origin,
+        name,
+        radius,
+        new Date(),
+        tiles.length > 1 ? MAX_TILED_ELEMENTS : undefined,
+      );
     } finally {
       activeMapRequests--;
     }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import Select from "./Select";
 export default function Atlas({
   lat,
   lon,
@@ -76,18 +77,28 @@ export default function Atlas({
       <div className="atlas-map" ref={host} />
       <div className="atlas-build">
         <p>Explore the city. Choose a neighborhood.</p>
-        <label>
-          AREA TO BUILD
-          <select
-            aria-label="Area to build"
-            value={radius}
-            onChange={(e) => setRadius(+e.target.value)}
-          >
-            <option value={400}>Local blocks · 0.8 km across</option>
-            <option value={800}>Neighborhood · 1.6 km across</option>
-            <option value={1000}>Campus / wider area · 2 km across</option>
-          </select>
-        </label>
+        <div className="field">
+          <span className="field-label">AREA TO BUILD</span>
+          <Select
+            label="Area to build"
+            value={String(radius)}
+            options={[
+              {
+                value: "400",
+                label: "Local blocks",
+                detail: "0.8 km across · fastest",
+              },
+              { value: "800", label: "Neighborhood", detail: "1.6 km across" },
+              { value: "1000", label: "Campus", detail: "2 km across" },
+              {
+                value: "1500",
+                label: "City district",
+                detail: "3 km across · built in tiles, slower",
+              },
+            ]}
+            onChange={(v) => setRadius(+v)}
+          />
+        </div>
         <button
           className="primary"
           onClick={() => {

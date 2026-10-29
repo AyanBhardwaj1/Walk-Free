@@ -37,7 +37,7 @@ export const worldSchema = z.object({
         heightMethod: z.enum(["mapped", "levels", "estimated", "designed"]),
       }),
     )
-    .max(20000),
+    .max(60000),
   roads: z
     .array(
       z.object({
@@ -49,7 +49,7 @@ export const worldSchema = z.object({
         source: z.enum(["osm", "user", "ai", "study"]),
       }),
     )
-    .max(20000),
+    .max(60000),
   landscapes: z
     .array(
       z.object({

@@ -1,6 +1,9 @@
 import { prebuiltAreaFor } from "../../shared/areas.js";
 import { ServiceError } from "../../shared/errors.js";
 import {
+  MAX_TILED_ELEMENTS,
+  areaTiles,
+  mergeOsm,
   OVERPASS_ENDPOINTS,
   overpassQuery,
   overpassRetryable,
@@ -78,10 +81,9 @@ async function fromServer(request: AreaRequest, deps: WorldSourceDeps) {
   return null;
 }
 
-async function fromBrowser(request: AreaRequest, deps: WorldSourceDeps) {
-  const body = new URLSearchParams({
-    data: overpassQuery(request.lat, request.lon, request.radius),
-  });
+/** One Overpass query from the browser, trying each mirror in turn. */
+async function browserQuery(query: string, deps: WorldSourceDeps) {
+  const body = new URLSearchParams({ data: query });
   let failure: unknown;
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
@@ -101,12 +103,7 @@ async function fromBrowser(request: AreaRequest, deps: WorldSourceDeps) {
           "INVALID_UPSTREAM_DATA",
           "Map provider returned invalid data.",
         );
-      return parseOsmWorld(
-        payload,
-        worldOrigin(request.lat, request.lon),
-        request.name,
-        request.radius,
-      );
+      return payload;
     } catch (error) {
       if (!overpassRetryable(error)) throw error;
       failure = error;
@@ -117,6 +114,25 @@ async function fromBrowser(request: AreaRequest, deps: WorldSourceDeps) {
     "Every map provider is busy right now. Wait a minute and try again, or choose a smaller area.",
     503,
     failure instanceof Error ? failure.message : undefined,
+  );
+}
+
+async function fromBrowser(request: AreaRequest, deps: WorldSourceDeps) {
+  const tiles = areaTiles(request.lat, request.lon, request.radius);
+  const payload = mergeOsm(
+    await Promise.all(
+      tiles.map((t) =>
+        browserQuery(overpassQuery(t.lat, t.lon, t.radius), deps),
+      ),
+    ),
+  );
+  return parseOsmWorld(
+    payload,
+    worldOrigin(request.lat, request.lon),
+    request.name,
+    request.radius,
+    new Date(),
+    tiles.length > 1 ? MAX_TILED_ELEMENTS : undefined,
   );
 }
 

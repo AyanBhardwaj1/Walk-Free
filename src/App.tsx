@@ -36,6 +36,10 @@ import {
   Map as MapIcon,
   Box,
   Trees,
+  ArrowUpDown,
+  LocateFixed,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import type {
   World,
@@ -73,13 +77,16 @@ import {
 } from "./lib/heat";
 import { prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
-import EndpointPicker from "./components/EndpointPicker";
+import PlaceField from "./components/PlaceField";
+import OmniSearch from "./components/OmniSearch";
+import Select from "./components/Select";
+import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { snapWalkPosition, hasArrived } from "./lib/walk-location";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
-import { brushTerrain, toLocal } from "./lib/geo";
+import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
 import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
 import { openCoolStops } from "./lib/cool-stops";
@@ -107,6 +114,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
+const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
+const SHEET_DRAG_PX = 30;
 async function api(
   url: string,
   body?: unknown,
@@ -211,6 +220,10 @@ export default function App({
   const [comparing, setComparing] = useState(false);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [view, setView] = useState<"3d" | "2d">("3d");
+  const [panelOpen, setPanelOpen] = useState(true);
+  // Phone bottom sheet: a peek at the map, half, or nearly full screen.
+  const [sheet, setSheet] = useState<0 | 1 | 2>(1);
+  const sheetDrag = useRef<number | null>(null);
   // The scene before the first tree in this comparison, and the last row.
   const [heatBaseline, setHeatBaseline] = useState<World | null>(null);
   const [planting, setPlanting] = useState<{
@@ -395,6 +408,14 @@ export default function App({
   }, [heatBaseline, baselineHeat, edgeHeat, world, planting]);
   const startNode = routeWorld.graph.nodes.find((n) => n.id === routeStart);
   const endNode = world.graph.nodes.find((n) => n.id === end);
+  // Off-map or disconnected walks hand off to Google Maps.
+  const googleWalk =
+    world.provenance.live && startNode && endNode && startNode !== endNode
+      ? googleMapsWalk(
+          toLatLon(startNode.point, routeWorld.origin),
+          toLatLon(endNode.point, world.origin),
+        )
+      : null;
   const object = world.objects.find((o) => o.id === selected);
   const catalog = useMemo(() => destinationCatalog(world), [world]);
   const endpointCatalog =
@@ -1025,8 +1046,36 @@ export default function App({
           </button>
         </div>
       </header>
-      <main>
-        <aside>
+      <main
+        style={
+          { "--sheet-height": SHEET_HEIGHTS[sheet] } as React.CSSProperties
+        }
+      >
+        <aside className={panelOpen ? "" : "collapsed"}>
+          <button
+            className="sheet-handle"
+            aria-label={sheet === 2 ? "Show more map" : "Show more controls"}
+            onPointerDown={(e) => {
+              sheetDrag.current = e.clientY;
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerUp={(e) => {
+              const start = sheetDrag.current;
+              sheetDrag.current = null;
+              const dy = start === null ? 0 : e.clientY - start;
+              setSheet((level) =>
+                Math.abs(dy) < SHEET_DRAG_PX
+                  ? level === 2
+                    ? 1
+                    : ((level + 1) as 1 | 2)
+                  : dy < 0
+                    ? (Math.min(2, level + 1) as 0 | 1 | 2)
+                    : (Math.max(0, level - 1) as 0 | 1 | 2),
+              );
+            }}
+          >
+            <span />
+          </button>
           {legacyProject && (
             <button
               className="legacy-export"
@@ -1036,54 +1085,41 @@ export default function App({
               Export earlier scene
             </button>
           )}
-          <div className="eyebrow">CITIES, AT HUMAN PACE</div>
-          <h1>
-            {mode === "explore" ? (
-              <>
-                Take the
-                <br />
-                <em>better way.</em>
-              </>
-            ) : (
-              <>
-                Make room
-                <br />
-                <em>for better.</em>
-              </>
-            )}
-          </h1>
-          <p className="intro">
-            {mode === "explore"
-              ? "Less heat. More green. A little more discovery between here and there."
-              : "Shape a place worth walking through. See how every change feels on the ground."}
-          </p>
+          <div className="panel-head">
+            <div>
+              <small>{mode === "explore" ? "Exploring" : "Designing"}</small>
+              <h1 className="panel-title">
+                {atlas ? atlas.name : world.name.split(" · ")[0]}
+              </h1>
+            </div>
+            <button
+              className="icon-button panel-toggle"
+              aria-label="Hide panel"
+              onClick={() => setPanelOpen(false)}
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          </div>
           {(tracking || locating) && (
             <button className="secondary" onClick={navigation}>
               {tracking ? "End active navigation" : "Cancel location lookup"}{" "}
               <X size={16} />
             </button>
           )}
-          <div className="search">
-            <Search size={17} />
-            <input
-              aria-label="Search US cities"
-              placeholder="Find your city…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <span>US</span>
-          </div>
-          {cities.length > 0 && (
-            <div className="search-results">
-              {cities.map((c) => (
-                <button key={c.id} onClick={() => loadCity(c)}>
-                  <MapPin size={15} />
-                  {c.name}
-                  <small>{c.state}</small>
-                </button>
-              ))}
-            </div>
-          )}
+          <OmniSearch
+            catalog={catalog}
+            areaName={world.name}
+            onPlace={(id) => {
+              setMode("explore");
+              setTab("route");
+              setEnd(id);
+              setPicking(null);
+              flash("Destination set. Choose where you're starting from.");
+            }}
+            onCity={(c) =>
+              void loadCity(c, !!prebuiltAreaFor(c.lat, c.lon, 1000), 1000)
+            }
+          />
           {!atlas && (
             <div className="tabs">
               {(mode === "explore"
@@ -1111,88 +1147,24 @@ export default function App({
                 <div className="section-title">
                   <Route size={17} /> Your next walk
                 </div>
-                <p className="route-area">
-                  Walking in <strong>{world.name}</strong>
-                </p>
-                <p className="fine">
-                  {catalog.length.toLocaleString()} mapped path points. Nearby
-                  building names select a path outside the building; entry is
-                  not verified.
-                </p>
-                {world.provenance.live && (
-                  <button
-                    className="endpoint-pick"
-                    onClick={() =>
-                      loadCity({
-                        id: world.id,
-                        name: world.name,
-                        state: "",
-                        lat: world.origin.lat,
-                        lon: world.origin.lon,
-                        timezone: world.timezone,
-                      })
-                    }
-                  >
-                    Change built area · {(world.extent / 1000).toFixed(1)} km
-                    across
-                  </button>
-                )}
-                <EndpointPicker
-                  key={world.id + "-from"}
-                  label="From"
-                  catalog={endpointCatalog}
-                  value={routeStart}
-                  disabled={tracking || locating}
-                  onChange={(id) => {
-                    location.reset();
-                    setStart(id);
-                    setPicking(null);
-                  }}
-                />
-                <button
-                  className="endpoint-pick"
-                  aria-pressed={picking === "start"}
-                  disabled={tracking || locating || !world.graph.edges.length}
-                  onClick={() => pickEndpoint("start")}
-                >
-                  <MapPin size={14} />
-                  Pick start on map
-                </button>
-                {world.provenance.live && (
-                  <button
-                    className="endpoint-pick use-location"
-                    disabled={tracking || locating || !catalog.length}
-                    onClick={() => {
+                <div className="planner">
+                  <PlaceField
+                    key={world.id + "-from"}
+                    label="From"
+                    catalog={endpointCatalog}
+                    value={routeStart}
+                    areaName={world.name}
+                    disabled={tracking || locating}
+                    onChange={(id) => {
+                      location.reset();
+                      setStart(id);
                       setPicking(null);
-                      location.begin(false);
                     }}
-                  >
-                    Use my location
-                  </button>
-                )}
-                <EndpointPicker
-                  key={world.id + "-to"}
-                  label="To"
-                  catalog={catalog}
-                  value={end}
-                  disabled={tracking || locating}
-                  onChange={(id) => {
-                    setEnd(id);
-                    setPicking(null);
-                  }}
-                />
-                <div className="endpoint-actions">
+                  />
                   <button
-                    className="endpoint-pick"
-                    aria-pressed={picking === "end"}
-                    disabled={tracking || locating || !world.graph.edges.length}
-                    onClick={() => pickEndpoint("end")}
-                  >
-                    <MapPin size={14} />
-                    Pick destination on map
-                  </button>
-                  <button
-                    className="endpoint-pick"
+                    className="planner-swap"
+                    aria-label="Swap start and destination"
+                    title="Swap"
                     disabled={
                       tracking ||
                       locating ||
@@ -1206,8 +1178,50 @@ export default function App({
                       setPicking(null);
                     }}
                   >
-                    Swap
+                    <ArrowUpDown size={15} />
                   </button>
+                  <PlaceField
+                    key={world.id + "-to"}
+                    label="To"
+                    catalog={catalog}
+                    value={end}
+                    areaName={world.name}
+                    disabled={tracking || locating}
+                    onChange={(id) => {
+                      setEnd(id);
+                      setPicking(null);
+                    }}
+                  />
+                </div>
+                <div className="chip-row">
+                  <button
+                    className="chip"
+                    aria-pressed={picking === "start"}
+                    disabled={tracking || locating || !world.graph.edges.length}
+                    onClick={() => pickEndpoint("start")}
+                  >
+                    <MapPin size={13} /> Start on map
+                  </button>
+                  <button
+                    className="chip"
+                    aria-pressed={picking === "end"}
+                    disabled={tracking || locating || !world.graph.edges.length}
+                    onClick={() => pickEndpoint("end")}
+                  >
+                    <MapPin size={13} /> End on map
+                  </button>
+                  {world.provenance.live && (
+                    <button
+                      className="chip"
+                      disabled={tracking || locating || !catalog.length}
+                      onClick={() => {
+                        setPicking(null);
+                        location.begin(false);
+                      }}
+                    >
+                      <LocateFixed size={13} /> My location
+                    </button>
+                  )}
                 </div>
                 {(location.status || gpsRouteStatus) && (
                   <p className="location-status" role="status">
@@ -1334,6 +1348,16 @@ export default function App({
                         </p>
                       ))}
                     </details>
+                    {googleWalk && (
+                      <a
+                        className="google-link"
+                        href={googleWalk}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Compare in Google Maps <ArrowUpRight size={13} />
+                      </a>
+                    )}
                   </>
                 ) : (
                   <p className="fine">
@@ -1342,6 +1366,17 @@ export default function App({
                       : routeStart === end
                         ? "Start and destination are the same. Choose a different endpoint."
                         : "No connected walk with these settings. Try different endpoints or route options."}
+                    {googleWalk && (
+                      <a
+                        className="google-link"
+                        href={googleWalk}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Get walking directions in Google Maps{" "}
+                        <ArrowUpRight size={13} />
+                      </a>
+                    )}
                   </p>
                 )}
               </section>
@@ -1470,33 +1505,37 @@ export default function App({
                 <ArrowUpRight size={16} />
               </button>
               {forecast && (
-                <label>
-                  FORECAST HOUR
-                  <select
-                    onChange={(e) => {
-                      const h = forecast.hours[+e.target.value];
-                      setEnv({
-                        ...env,
-                        dateTime: h.time,
-                        temperatureC: h.temperatureC,
-                        humidity: h.humidity ?? 50,
-                        windMps: h.windMps,
-                        cloudCover: h.cloudCover ?? 50,
-                        weatherMode: "forecast",
-                      });
-                    }}
-                  >
-                    {forecast.hours.map((h, i) => (
-                      <option value={i} key={h.time}>
-                        {new Date(h.time).toLocaleString()} ·{" "}
-                        {Math.round(h.temperatureC)}°C
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="field">
+                  <span className="field-label">FORECAST HOUR</span>
+                  <Select
+                    label="Forecast hour"
+                    value={String(
+                      forecast.hours.findIndex((h) => h.time === env.dateTime),
+                    )}
+                    placeholder="Choose an hour"
+                    options={forecast.hours.map((h, i) => ({
+                      value: String(i),
+                      label: new Date(h.time).toLocaleString("en-US", {
+                        timeZone: world.timezone,
+                        weekday: "short",
+                        hour: "numeric",
+                      }),
+                      detail: `${Math.round(toF(h.temperatureC))}°F · ${h.description || "forecast"}`,
+                    }))}
+                    onChange={(value) =>
+                      setEnv((previous) => ({
+                        ...liveConditions(
+                          previous,
+                          forecast,
+                          forecast.hours[+value].time,
+                        ),
+                      }))
+                    }
+                  />
+                </div>
               )}
               <label>
-                SCENARIO AIR TEMPERATURE · {env.temperatureC}°C
+                SCENARIO AIR TEMPERATURE · {Math.round(toF(env.temperatureC))}°F
                 <input
                   type="range"
                   min="-10"
@@ -1835,10 +1874,20 @@ export default function App({
               <button onClick={() => setPicking(null)}>Cancel</button>
             </div>
           )}
+          {!panelOpen && (
+            <button
+              className="panel-open"
+              onClick={() => setPanelOpen(true)}
+              aria-label="Show panel"
+            >
+              <PanelLeftOpen size={18} /> Search & routes
+            </button>
+          )}
           <div
             className="map-heading"
             hidden={
-              !atlas && view === "2d" && mode === "explore" && !!currentRoute
+              panelOpen ||
+              (!atlas && view === "2d" && mode === "explore" && !!currentRoute)
             }
           >
             <div className="eyebrow">
@@ -1940,6 +1989,7 @@ export default function App({
                   <Building2 size={19} />
                 </button>
                 <button
+                  className="desktop-only"
                   title="Import scene"
                   aria-label="Import scene"
                   onClick={() => upload.current?.click()}
@@ -1947,6 +1997,7 @@ export default function App({
                   <Upload size={19} />
                 </button>
                 <button
+                  className="desktop-only"
                   title="Export scene"
                   aria-label="Export scene"
                   onClick={exportWorld}

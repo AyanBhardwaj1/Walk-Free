@@ -576,3 +576,36 @@ export function overpassQuery(
   // barriers, crossings, names) affect routing, so skip the untagged bulk.
   return `[out:json][timeout:${timeoutSeconds}];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox});)->.area;.area out body geom;way.area["highway"];node(w)(if:count_tags()>0);out body;`;
 }
+
+/** Areas wider than this are fetched as four tiles to stay under limits. */
+export const MAX_SINGLE_QUERY_RADIUS = 1000;
+/** Largest area anyone may build: a 3 km city district. */
+export const MAX_AREA_RADIUS = 1500;
+/** Elements a tiled district may contain. */
+export const MAX_TILED_ELEMENTS = 600_000;
+
+/** Query centres and radius that together cover a square area. */
+export function areaTiles(lat: number, lon: number, radius: number) {
+  if (radius <= MAX_SINGLE_QUERY_RADIUS) return [{ lat, lon, radius }];
+  const half = radius / 2;
+  const dLat = half / (RAD * EARTH_RADIUS),
+    dLon = dLat / Math.cos(lat * RAD);
+  return [
+    [1, -1],
+    [1, 1],
+    [-1, -1],
+    [-1, 1],
+  ].map(([sy, sx]) => ({
+    lat: lat + sy * dLat,
+    lon: lon + sx * dLon,
+    radius: half,
+  }));
+}
+
+/** Merges tile responses, keeping each OSM element once. */
+export function mergeOsm(responses: OsmResponse[]): OsmResponse {
+  const elements = new Map<string, OsmElement>();
+  for (const r of responses)
+    for (const e of r.elements) elements.set(`${e.type}:${e.id}`, e);
+  return { elements: [...elements.values()] };
+}
