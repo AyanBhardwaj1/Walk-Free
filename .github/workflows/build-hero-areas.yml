@@ -23,7 +23,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run areas:build -- ${{ inputs.areas }}
+      - name: Build areas
+        # Passed through env, never interpolated into the script itself.
+        env:
+          AREAS: ${{ inputs.areas }}
+        run: npm run areas:build -- $AREAS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
