@@ -246,11 +246,11 @@ describe("bring your own AI key", () => {
     "x-walk-free-ai-provider": "meta",
     "x-walk-free-ai-model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
   };
-  it("uses the person's key and provider, without the shared caps", async () => {
+  it("uses the person's key and provider, counting it apart from the shared caps", async () => {
     vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "");
     vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "1");
     const charged = vi.fn();
-    setUsageStore({ record: async () => (charged(), "daily") });
+    setUsageStore({ record: async (id: string) => (charged(id), "ok") });
     requestJson.mockResolvedValue({
       choices: [{ message: { content: "Hi" } }],
     });
@@ -264,7 +264,8 @@ describe("bring your own AI key", () => {
     expect(url).toBe("https://api.llama.com/compat/v1/chat/completions");
     expect(options.headers.Authorization).toBe("Bearer sk-user-own-key-123");
     expect(JSON.parse(options.body).model).toBe(own["x-walk-free-ai-model"]);
-    expect(charged).not.toHaveBeenCalled();
+    // Counted under the separate own-key allowance, not the shared one.
+    expect(charged).toHaveBeenCalledWith("own:walker-1");
   });
 
   it("refuses providers outside the list and malformed keys", async () => {
@@ -298,5 +299,33 @@ describe("bring your own AI key", () => {
     expect(result.body.error).toBe(
       "The AI provider rejected your key. Check it in AI settings.",
     );
+  });
+});
+
+describe("own-key limits and matching", () => {
+  it("caps own-key calls per day without touching the site's monthly budget", async () => {
+    vi.stubEnv("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", "2");
+    vi.stubEnv("WALK_FREE_AI_MONTHLY_LIMIT", "1");
+    setUsageStore(memoryUsage());
+    const now = new Date("2026-10-28T12:00:00Z");
+    await chargeAiCall("a", now, true);
+    await chargeAiCall("a", now, true);
+    await expect(chargeAiCall("a", now, true)).rejects.toMatchObject({
+      code: "AI_DAILY_LIMIT",
+    });
+    // The site's shared allowance is still untouched.
+    await chargeAiCall("b", now);
+  });
+
+  it("rejects prototype names as providers", async () => {
+    const { userAiConfig } = await import("../server/ai");
+    for (const provider of ["constructor", "__proto__", "toString"])
+      expect(() =>
+        userAiConfig({
+          "x-walk-free-ai-key": "sk-user-own-key-123",
+          "x-walk-free-ai-provider": provider,
+          "x-walk-free-ai-model": "m",
+        }),
+      ).toThrow(/isn't supported/);
   });
 });

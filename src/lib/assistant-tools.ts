@@ -6,6 +6,7 @@ import type {
   World,
 } from "../../shared/types.js";
 import { rankDestinations, type Destination } from "./destinations.js";
+import { searchVariants } from "../../shared/aliases.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
@@ -79,7 +80,16 @@ const words = (s: string) =>
 export function matchDestinations(catalog: Destination[], query: string) {
   // Drop filler words people say aloud ("the library", "to GDC").
   const cleaned = query.replace(/\b(the|to|from|at|near)\b/gi, " ");
-  return rankDestinations(catalog, cleaned);
+  const strict = rankDestinations(catalog, cleaned);
+  if (strict.length) return strict;
+  // Spoken or model-written names add words the map lacks ("PCL at UT
+  // Austin", "Gregory Gym entrance"): keep the words the map knows.
+  const known = words(cleaned).filter((w) =>
+    searchVariants(w).some((v) => catalog.some((d) => d.search.includes(v))),
+  );
+  return known.length && known.length < words(cleaned).length
+    ? rankDestinations(catalog, known.join(" "))
+    : [];
 }
 
 function matchPlace(places: PlaceHeat[], query: string) {

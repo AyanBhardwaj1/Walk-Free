@@ -141,7 +141,13 @@ export default function Website() {
   if (path === "/privacy") return <PrivacyPage />;
   if (path === "/") return <LandingPage signedIn={Boolean(user)} />;
   // Guest demo: the map without an account; signed-in people get their own.
-  if (path === "/demo" && !loading && !user)
+  if (path === "/demo" && loading)
+    return (
+      <div className="public-site public-loading" role="status">
+        Opening the demo…
+      </div>
+    );
+  if (path === "/demo" && !user)
     return (
       <Suspense
         fallback={

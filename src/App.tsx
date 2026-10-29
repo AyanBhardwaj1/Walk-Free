@@ -116,6 +116,7 @@ const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
 const SHEET_DRAG_PX = 30;
+const SERVER_MAX_RADIUS = 800;
 async function api(
   url: string,
   body?: unknown,
@@ -585,9 +586,21 @@ export default function App({
   // Landing-page campus links open that campus directly (/demo?area=ut-austin).
   const openedArea = useRef(false);
   useEffect(() => {
-    if (openedArea.current) return;
+    // Wait for the saved scene, so building pushes it onto undo history.
+    if (!hydrated || openedArea.current) return;
     openedArea.current = true;
-    const slug = new URLSearchParams(window.location.search).get("area");
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("area");
+    if (slug) {
+      // Use the link once; reloading shouldn't replace the scene again.
+      params.delete("area");
+      const rest = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (rest ? `?${rest}` : ""),
+      );
+    }
     const area = PREBUILT_AREAS.find((a) => a.slug === slug);
     if (area)
       void loadCity(
@@ -603,7 +616,7 @@ export default function App({
         area.radius,
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrated]);
   // Keep live weather fresh while the tab is visible.
   useEffect(() => {
     if (env.weatherMode !== "forecast" || atlas) return;
@@ -692,7 +705,9 @@ export default function App({
         {
           fetch: window.fetch.bind(window),
           apiBase: API_BASE,
-          skipServer: guest,
+          // Guests have no session; areas wider than a campus exceed Vercel's
+          // 4.5 MB response limit, so both build straight from the browser.
+          skipServer: guest || radius > SERVER_MAX_RADIUS,
           onStage: (stage) =>
             request === buildRequest.current &&
             setBusy(`Building ${c.name} · ${stage}`),
@@ -1069,7 +1084,15 @@ export default function App({
           ) : (
             <div className="account-controls">
               <span title={account.email}>{account.name || account.email}</span>
-              <button onClick={onSignOut}>Sign out</button>
+              <button
+                onClick={() => {
+                  // Don't leave a personal AI key behind on a shared computer.
+                  saveOwnKey(account.id, null);
+                  void onSignOut();
+                }}
+              >
+                Sign out
+              </button>
             </div>
           )}
           <button
@@ -1770,7 +1793,21 @@ export default function App({
               )}
             </section>
           )}
-          {mode === "studio" && tab === "assistant" && (
+          {mode === "studio" && tab === "assistant" && guest && (
+            <section className="guest-lock">
+              <div className="section-title">
+                <Sparkles size={17} /> A second imagination
+              </div>
+              <p>
+                Describe a place and the assistant drafts it for you to preview.
+                Create a free account to use it.
+              </p>
+              <a className="primary" href="/signup">
+                Create free account <ArrowUpRight size={16} />
+              </a>
+            </section>
+          )}
+          {mode === "studio" && tab === "assistant" && !guest && (
             <section>
               <div className="section-title">
                 <Sparkles size={17} /> A second imagination

@@ -58,7 +58,7 @@ export function userAiConfig(
   if (typeof key !== "string" || !key) return null;
   const provider = String(headers["x-walk-free-ai-provider"] ?? "openai");
   const model = String(headers["x-walk-free-ai-model"] ?? "");
-  if (!(provider in USER_AI_PROVIDERS))
+  if (!Object.hasOwn(USER_AI_PROVIDERS, provider))
     throw new ServiceError(
       "AI_PROVIDER",
       "That AI provider isn't supported.",
@@ -190,7 +190,9 @@ export async function chatCompletion(
 export interface UsageLimits {
   dailyPerUser: number;
   monthlyTotal: number;
+  ownKeyDaily: number;
 }
+const OWN_PREFIX = "own:";
 export function usageLimits(): UsageLimits {
   const read = (name: string, fallback: number) => {
     const value = Number(process.env[name]);
@@ -200,6 +202,8 @@ export function usageLimits(): UsageLimits {
     // Each question uses one to four model calls (tools need extra rounds).
     dailyPerUser: read("WALK_FREE_AI_DAILY_LIMIT", 80),
     monthlyTotal: read("WALK_FREE_AI_MONTHLY_LIMIT", 4000),
+    // Own-key calls cost the site only server time, so allow many more.
+    ownKeyDaily: read("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", 500),
   };
 }
 
@@ -233,7 +237,7 @@ export function postgresUsage(url: string): UsageStore {
         });
       await ready;
       const [total] = (await sql.query(
-        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date)",
+        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date) and user_id not like 'own:%'",
         [day],
       )) as { calls: number }[];
       if (total.calls >= limits.monthlyTotal) return "monthly";
@@ -254,7 +258,12 @@ export function memoryUsage(): UsageStore {
     async record(userId, day, limits) {
       let month = 0;
       for (const [k, v] of counts)
-        if (k.split(":")[1].slice(0, 7) === day.slice(0, 7)) month += v;
+        if (
+          !k.startsWith(OWN_PREFIX) &&
+          k.slice(k.lastIndexOf(":") + 1, k.lastIndexOf(":") + 8) ===
+            day.slice(0, 7)
+        )
+          month += v;
       if (month >= limits.monthlyTotal) return "monthly";
       const key = `${userId}:${day}`;
       const today = counts.get(key) ?? 0;
@@ -283,12 +292,32 @@ export function setUsageStore(next: UsageStore | null) {
   store = next;
 }
 
-/** Counts one model call against the user's daily and the site's monthly cap. */
-export async function chargeAiCall(userId: string, now = new Date()) {
+/**
+ * Counts one model call against the user's daily and the site's monthly cap.
+ * Calls with a person's own key count separately (`own:` ids, excluded from
+ * the site's monthly total) under a generous daily limit, so they can't tie
+ * up the server without bound.
+ */
+export async function chargeAiCall(
+  userId: string,
+  now = new Date(),
+  own = false,
+) {
   const day = now.toISOString().slice(0, 10);
+  const limits = usageLimits();
   let result: UsageResult;
   try {
-    result = await usageStore().record(userId, day, usageLimits());
+    result = await usageStore().record(
+      own ? `${OWN_PREFIX}${userId}` : userId,
+      day,
+      own
+        ? {
+            dailyPerUser: limits.ownKeyDaily,
+            monthlyTotal: Number.MAX_SAFE_INTEGER,
+            ownKeyDaily: limits.ownKeyDaily,
+          }
+        : limits,
+    );
   } catch (error) {
     if (error instanceof ServiceError) throw error;
     throw new ServiceError(
@@ -306,7 +335,9 @@ export async function chargeAiCall(userId: string, now = new Date()) {
   if (result === "daily")
     throw new ServiceError(
       "AI_DAILY_LIMIT",
-      "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
+      own
+        ? "You've reached today's limit for assistant requests. It resets at midnight UTC."
+        : "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
       429,
     );
 }
