@@ -116,13 +116,16 @@ export interface Environment {
   cloudCover: number;
   weatherMode: "forecast" | "scenario";
 }
-export type RoutePreference = "quickest" | "shade" | "scenic" | "indoors";
+export type RoutePreference =
+  "quickest" | "shade" | "scenic" | "indoors" | "stepfree" | "night";
 export interface RouteOptions {
   preference: RoutePreference;
   avoidStairs: boolean;
   allowHypothetical: boolean;
   maxDetour: number;
   environment: Environment;
+  /** Air-conditioned buildings (by nearest path node) the walk may pass through. */
+  coolStops?: { nodeId: string; name: string }[];
 }
 export interface RouteResult {
   id: string;
@@ -136,6 +139,8 @@ export interface RouteResult {
   hypothetical: boolean;
   directions: { text: string; distance: number; point: Point }[];
   warnings: string[];
+  /** Name of the cool stop the route passes through, when there is one. */
+  coolStop?: string;
 }
 export type EditorTool =
   "select" | ObjectKind | "road" | "footway" | "raise" | "lower" | "flatten";

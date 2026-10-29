@@ -75,6 +75,7 @@ import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLocal } from "./lib/geo";
 import { loadWorld } from "./lib/world-source";
+import { openCoolStops } from "./lib/cool-stops";
 import { loadWeather } from "./lib/weather-source";
 import { describeConditions, liveConditions } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
@@ -222,6 +223,7 @@ export default function App({
         allowHypothetical: tracking ? false : hypothetical,
         maxDetour: detour,
         environment: env,
+        coolStops: openCoolStops(routeWorld, env),
       }),
     [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
   );

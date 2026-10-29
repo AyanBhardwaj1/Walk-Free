@@ -7,6 +7,7 @@ import type {
 } from "../../shared/types.js";
 import type { Destination } from "./destinations.js";
 import { compareRoutes, routePreferences } from "./routing.js";
+import { openCoolStops } from "./cool-stops.js";
 import {
   atLocalHour,
   clockLabel,
@@ -43,7 +44,9 @@ const schemas = {
   plan_route: z.object({
     from: z.string().min(1).max(120),
     to: z.string().min(1).max(120),
-    preference: z.enum(["quickest", "shade", "scenic", "indoors"]).optional(),
+    preference: z
+      .enum(["quickest", "shade", "scenic", "indoors", "stepfree", "night"])
+      .optional(),
     leave_at_hour: hour.optional(),
     avoid_stairs: z.boolean().optional(),
   }),
@@ -166,6 +169,7 @@ export async function runTool(
         allowHypothetical: false,
         maxDetour: 1.8,
         environment: env,
+        coolStops: openCoolStops(host.world, env),
       });
       if (!options.quickest)
         return { error: "Those places are not connected by mapped paths." };
@@ -194,6 +198,9 @@ export async function runTool(
               meters: Math.round(r.distance),
               shaded_percent: Math.round(r.shadeFraction * 100),
               minutes_in_sun: Math.round(heat.sunMinutes),
+              ...(r.coolStop
+                ? { cool_stop: r.coolStop, cool_stop_hours: "not verified" }
+                : {}),
               feels_like_f: deg(heat.feelsLikeC),
             },
           ];

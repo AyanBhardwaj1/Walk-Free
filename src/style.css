@@ -1360,3 +1360,7 @@ footer {
   color: #5b6650;
   margin-top: 5px;
 }
+.route-extra {
+  display: block;
+  color: #3f5938;
+}

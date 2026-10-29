@@ -33,7 +33,16 @@ export const ASSISTANT_TOOLS = [
           to: { type: "string", description: "Destination place name." },
           preference: {
             type: "string",
-            enum: ["quickest", "shade", "scenic", "indoors"],
+            enum: [
+              "quickest",
+              "shade",
+              "scenic",
+              "indoors",
+              "stepfree",
+              "night",
+            ],
+            description:
+              "indoors routes through an air-conditioned building (cool stop); stepfree avoids stairs and steep slopes; night prefers lit streets.",
           },
           leave_at_hour: {
             type: "number",

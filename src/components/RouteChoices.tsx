@@ -11,7 +11,17 @@ const labels: Record<RoutePreference, string> = {
   quickest: "Quickest",
   shade: "More shade",
   scenic: "Scenic",
-  indoors: "Stay inside",
+  indoors: "Cool stops",
+  stepfree: "Step-free",
+  night: "Lit at night",
+};
+const litShare = (route: RouteResult) => {
+  const mapped = route.edges.filter((e) => e.lit !== undefined);
+  if (!mapped.length) return null;
+  return (
+    route.edges.reduce((s, e) => s + (e.lit ? e.distance : 0), 0) /
+    route.distance
+  );
 };
 export default function RouteChoices({
   choices,
@@ -75,7 +85,27 @@ export default function RouteChoices({
                   {Math.round(route.shadeFraction * 100)}% shade ·{" "}
                   {Math.round(heat!.sunMinutes)} min in sun
                 </span>
-                <span>{Math.round(route.indoorFraction * 100)}% indoors</span>
+                {preference === "indoors" &&
+                  (route.coolStop ? (
+                    <span className="route-extra">
+                      Cool off in {route.coolStop} · check hours
+                    </span>
+                  ) : (
+                    <small>No open cool stop on the way</small>
+                  ))}
+                {preference === "night" &&
+                  (litShare(route) === null ? (
+                    <small>Street lighting isn't mapped here</small>
+                  ) : (
+                    <span className="route-extra">
+                      {Math.round(litShare(route)! * 100)}% on lit streets
+                    </span>
+                  ))}
+                {preference === "stepfree" && (
+                  <span className="route-extra">
+                    Avoids mapped stairs and steep slopes
+                  </span>
+                )}
                 {same && <small>Same path as quickest</small>}
                 {route.warnings.length > 0 && (
                   <small>Detour budget applied</small>
@@ -85,7 +115,11 @@ export default function RouteChoices({
                 )}
               </>
             ) : (
-              <span>No connected route</span>
+              <span>
+                {preference === "stepfree"
+                  ? "No step-free route found"
+                  : "No connected route"}
+              </span>
             )}
           </button>
         );
