@@ -4,6 +4,11 @@ name: Build hero areas
 # OpenStreetMap and commits it to the branch the workflow ran on.
 on:
   workflow_dispatch:
+    inputs:
+      areas:
+        description: "Space-separated area slugs to build (blank builds all)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -18,7 +23,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run areas:build
+      - run: npm run areas:build -- ${{ inputs.areas }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

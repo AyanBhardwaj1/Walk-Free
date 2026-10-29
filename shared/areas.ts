@@ -31,6 +31,38 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     radius: 1000,
     walk: { from: "Sproul Hall", to: "Moffitt Undergraduate Library" },
   },
+  {
+    slug: "umich",
+    name: "University of Michigan, MI",
+    lat: 42.278,
+    lon: -83.7382,
+    radius: 1000,
+    walk: { from: "Michigan Union", to: "Hatcher Graduate Library" },
+  },
+  {
+    slug: "ucla",
+    name: "UCLA, CA",
+    lat: 34.0689,
+    lon: -118.4452,
+    radius: 1000,
+    walk: { from: "Royce Hall", to: "Pauley Pavilion" },
+  },
+  {
+    slug: "stanford",
+    name: "Stanford University, CA",
+    lat: 37.4275,
+    lon: -122.1697,
+    radius: 1000,
+    walk: { from: "Hoover Tower", to: "Green Library" },
+  },
+  {
+    slug: "asu",
+    name: "Arizona State University, AZ",
+    lat: 33.4242,
+    lon: -111.9281,
+    radius: 1000,
+    walk: { from: "Hayden Library", to: "Memorial Union" },
+  },
 ];
 
 /** How far a chosen center may drift from a hero center and still use it. */
