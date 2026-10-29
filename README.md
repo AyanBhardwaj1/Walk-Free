@@ -31,7 +31,7 @@ npm start
 
 ## Implemented
 
-- Pre-built UT Austin and UC Berkeley areas (`public/areas/`, 2 km squares) open instantly. Other areas build from OpenStreetMap: the API tries four Overpass mirrors, then the browser queries Overpass directly. Regenerate hero areas with `npm run areas:build` or the **Build hero areas** GitHub workflow.
+- Pre-built UT Austin, UC Berkeley, University of Michigan, UCLA, Stanford and Arizona State areas (`public/areas/`, 2 km squares) open instantly. Other areas build from OpenStreetMap: the API tries four Overpass mirrors, then the browser queries Overpass directly. Regenerate hero areas with `npm run areas:build` or the **Build hero areas** GitHub workflow.
 - Heat on the ground: walking paths coloured from fully shaded to full sun for the chosen moment; tap a path or pick a place to see its feels-like temperature in sun and shade, its shade share, and an hourly chart; hottest/coolest streets and parks; side-by-side comparison. Route cards show feels-like, degrees cooler than the quickest route, and minutes in direct sun. The time-of-day slider uses the area's local time and follows forecast hours.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
@@ -58,7 +58,8 @@ Required outbound hosts:
 
 - `overpass-api.de`: bounded OSM area queries, cached for 24 hours. `WALK_FREE_OVERPASS_URL` can select an alternate instance such as `https://overpass.kumi.systems/api/interpreter`.
 - `tiles.openfreemap.org`: streamed city atlas and map assets.
-- `api.weather.gov`: hourly forecasts and grid visibility where supplied.
+- `api.open-meteo.com`: live weather (primary; open data, CC BY 4.0, no key), refreshed every 10 minutes in the app. The browser contacts it directly if the API cannot.
+- `api.weather.gov`: backup hourly forecasts for US locations.
 - `www.bart.gov` (and its canonical redirects): official static GTFS schedules.
 - `api.openai.com`: optional assistant.
 
