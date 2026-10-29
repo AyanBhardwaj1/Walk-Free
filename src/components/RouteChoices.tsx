@@ -15,14 +15,19 @@ const labels: Record<RoutePreference, string> = {
   stepfree: "Step-free",
   night: "Lit at night",
 };
-const litShare = (route: RouteResult) => {
-  const mapped = route.edges.filter((e) => e.lit !== undefined);
-  if (!mapped.length) return null;
-  return (
-    route.edges.reduce((s, e) => s + (e.lit ? e.distance : 0), 0) /
-    route.distance
-  );
+/** How much of the route has lighting mapped, and how much of that is lit. */
+const lighting = (route: RouteResult) => {
+  let mapped = 0,
+    lit = 0;
+  for (const e of route.edges) {
+    if (e.lit === undefined) continue;
+    mapped += e.distance;
+    if (e.lit) lit += e.distance;
+  }
+  return { mapped: mapped / route.distance, lit: lit / route.distance };
 };
+/** Below this, say the route favours busier streets instead of a lit share. */
+const WELL_MAPPED = 0.5;
 export default function RouteChoices({
   choices,
   selected,
@@ -94,13 +99,16 @@ export default function RouteChoices({
                     <small>No open cool stop on the way</small>
                   ))}
                 {preference === "night" &&
-                  (litShare(route) === null ? (
-                    <small>Street lighting isn't mapped here</small>
-                  ) : (
-                    <span className="route-extra">
-                      {Math.round(litShare(route)! * 100)}% on lit streets
-                    </span>
-                  ))}
+                  (() => {
+                    const l = lighting(route);
+                    return (
+                      <span className="route-extra">
+                        {l.mapped >= WELL_MAPPED
+                          ? `${Math.round(l.lit * 100)}% on lit streets`
+                          : `Favours busier streets · lighting mapped on ${Math.round(l.mapped * 100)}%`}
+                      </span>
+                    );
+                  })()}
                 {preference === "stepfree" && (
                   <span className="route-extra">
                     Avoids mapped stairs and steep slopes
