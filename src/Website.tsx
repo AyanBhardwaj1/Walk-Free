@@ -41,8 +41,10 @@ function PrivacyPage() {
           Location access is optional and starts only when you choose a location
           feature. GPS fixes are used in your browser for navigation and are not
           saved as a walking history on our server. Map and weather requests
-          send the selected area’s coordinates to the relevant data providers.
-          Map tiles are requested from OpenFreeMap.
+          send the selected area’s coordinates to the relevant data providers:
+          OpenStreetMap (Overpass) for map data, Open-Meteo and the National
+          Weather Service for weather, and OpenFreeMap for map tiles. If our
+          server can’t reach a provider, your browser may contact it directly.
         </p>
         <h2>Projects on this device</h2>
         <p>
@@ -52,12 +54,14 @@ function PrivacyPage() {
           project before clearing browser data. Browser storage is not
           encrypted, so use a trusted device.
         </p>
-        <h2>The optional design assistant</h2>
+        <h2>The assistant</h2>
         <p>
-          If enabled, the assistant sends your prompt and a bounded description
-          of your scene to OpenAI. It does not need your email or GPS trace. The
-          hosted assistant stays disabled until shared usage limits are
-          configured.
+          When you ask the assistant something, your question, a short
+          description of the area, time and weather, and the results of the map
+          tools it uses are sent from our server to the AI provider (currently
+          OpenAI). It does not receive your email, password or GPS history. We
+          count how many assistant requests each account makes per day to keep
+          usage fair; we don’t store your questions.
         </p>
         <h2>Hosting and service data</h2>
         <p>

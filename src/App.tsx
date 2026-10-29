@@ -1594,8 +1594,8 @@ export default function App({
                 </div>
               )}
               <p className="fine">
-                OpenAI runs on the server. Your original scene stays intact
-                until you apply a proposal.
+                The AI model runs on our server. Your original scene stays
+                intact until you apply a proposal.
               </p>
             </section>
           )}
