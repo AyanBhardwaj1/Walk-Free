@@ -33,6 +33,8 @@ import {
   Check,
   X,
   Thermometer,
+  Map as MapIcon,
+  Box,
 } from "lucide-react";
 import type {
   World,
@@ -81,6 +83,8 @@ import { describeConditions, liveConditions } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
+import WalkMap2D from "./components/WalkMap2D";
+import { toF } from "./lib/heat";
 import type { Account } from "./lib/account";
 import { ZodError } from "zod";
 const Atlas = lazy(() => import("./components/Atlas"));
@@ -94,6 +98,7 @@ const initial: Environment = {
 };
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const LIVE_REFRESH_MS = 10 * 60 * 1000;
+const NEXT_STRETCH_M = 150;
 async function api(url: string, body?: unknown) {
   const r = await fetch(
     API_BASE + url,
@@ -181,6 +186,10 @@ export default function App({
   const location = useWalkLocation();
   const tracking = location.mode === "walking";
   const locating = location.mode === "locating";
+  // Walking defaults to the flat map: easier to read and lighter on battery.
+  useEffect(() => {
+    if (tracking) setView("2d");
+  }, [tracking]);
   const [voice, setVoice] = useState(true);
   const [showPaths, setShowPaths] = useState(true);
   const [heatMap, setHeatMap] = useState(true);
@@ -188,6 +197,7 @@ export default function App({
   const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [view, setView] = useState<"3d" | "2d">("3d");
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [speakReplies, setSpeakReplies] = useState(false);
@@ -289,6 +299,22 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
   const currentHour = localHour(env.dateTime, world.timezone);
+  /** Heat of the next ~150 m of the route, for the walking banner. */
+  const nextStretch = useMemo(() => {
+    if (!currentRoute || !edgeHeat) return null;
+    let length = 0,
+      feels = 0,
+      shade = 0;
+    for (const e of currentRoute.edges) {
+      const reading = edgeHeat.get(e.id);
+      if (!reading) continue;
+      length += e.distance;
+      feels += reading.feelsLikeC * e.distance;
+      shade += reading.shade * e.distance;
+      if (length >= NEXT_STRETCH_M) break;
+    }
+    return length ? { feelsC: feels / length, shade: shade / length } : null;
+  }, [currentRoute, edgeHeat]);
   function setLocalHour(hour: number) {
     setEnv((previous) => {
       const dateTime = atLocalHour(previous.dateTime, world.timezone, hour);
@@ -1653,6 +1679,16 @@ export default function App({
                 }
               />
             </Suspense>
+          ) : view === "2d" && mode === "explore" ? (
+            <WalkMap2D
+              world={routeWorld}
+              route={currentRoute}
+              you={userPosition ?? undefined}
+              accuracy={location.fix?.accuracy}
+              start={startNode?.point}
+              end={endNode?.point}
+              edgeColors={heatOverlay?.colors}
+            />
           ) : (
             <WorldCanvas
               key={world.id}
@@ -1673,6 +1709,20 @@ export default function App({
               onHeatSelect={selectHeatEdge}
             />
           )}
+          {!atlas && view === "2d" && mode === "explore" && currentRoute && (
+            <div className="walk-banner" role="status" aria-live="polite">
+              <strong>
+                {currentRoute.directions[0]?.text ?? "Follow the route"}
+              </strong>
+              <span>
+                {tracking ? "" : "Preview · "}
+                {Math.max(1, Math.round(currentRoute.durationMinutes))} min ·{" "}
+                {(currentRoute.distance / 1000).toFixed(2)} km left
+                {nextStretch &&
+                  ` · next stretch ~${Math.round(toF(nextStretch.feelsC))}°F, ${Math.round(nextStretch.shade * 100)}% shade`}
+              </span>
+            </div>
+          )}
           {picking && (
             <div className="pick-banner" role="status">
               <span>
@@ -1682,7 +1732,12 @@ export default function App({
               <button onClick={() => setPicking(null)}>Cancel</button>
             </div>
           )}
-          <div className="map-heading">
+          <div
+            className="map-heading"
+            hidden={
+              !atlas && view === "2d" && mode === "explore" && !!currentRoute
+            }
+          >
             <div className="eyebrow">
               {world.provenance.live
                 ? "MAPPED NEIGHBORHOOD"
@@ -1748,6 +1803,23 @@ export default function App({
                 >
                   <TreePine size={19} />
                 </button>
+                {mode === "explore" && (
+                  <button
+                    title={
+                      view === "3d"
+                        ? "Switch to flat walking map"
+                        : "Switch to 3D view"
+                    }
+                    aria-label={
+                      view === "3d"
+                        ? "Switch to flat walking map"
+                        : "Switch to 3D view"
+                    }
+                    onClick={() => setView(view === "3d" ? "2d" : "3d")}
+                  >
+                    {view === "3d" ? <MapIcon size={19} /> : <Box size={19} />}
+                  </button>
+                )}
                 <button
                   title="Toggle heat map"
                   aria-label="Toggle heat map"
