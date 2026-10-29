@@ -91,6 +91,21 @@ function footAllowed(tags: Record<string, string>): boolean {
   if (tags.locked === "yes" || tags.construction || tags.proposed) return false;
   return true;
 }
+const ALIAS_TAGS = [
+  "ref",
+  "short_name",
+  "alt_name",
+  "official_name",
+  "old_name",
+  "loc_name",
+];
+/** Other names a building is known by, from OSM tags. */
+export function buildingAliases(tags: Record<string, string>) {
+  const names = ALIAS_TAGS.flatMap((k) => tags[k]?.split(";") ?? [])
+    .map((n) => n.trim())
+    .filter((n) => n && n.length <= 120 && n !== tags.name);
+  return [...new Set(names)].slice(0, 8);
+}
 const LIT = new Set(["yes", "24/7", "automatic", "limited", "interval"]);
 /** OSM `lit`: true or false when mapped, undefined when unknown. */
 export function litValue(lit?: string): boolean | undefined {
@@ -264,18 +279,20 @@ export function parseOsmWorld(
       (r) => r.members?.filter((m) => m.type === "way").map((m) => m.ref) ?? [],
     ),
   );
-  // Preserve simple closed relation outlines. Courtyards need a hole-aware schema and are deliberately omitted.
+  const waysById = new Map(
+    elements.filter((e) => e.type === "way").map((e) => [e.id, e]),
+  );
+  // Keep each relation's closed outer outlines. Courtyards (inner rings) are
+  // drawn solid because the scene schema has no holes.
   for (const relation of buildingRelations) {
-    if (relation.members?.some((m) => m.role === "inner")) {
+    if (relation.members?.some((m) => m.role === "inner"))
       omittedComplexBuildings++;
-      continue;
-    }
     const outers =
       relation.members?.filter(
         (m) => m.type === "way" && (m.role === "outer" || m.role === ""),
       ) ?? [];
     for (const member of outers) {
-      const way = elements.find((e) => e.type === "way" && e.id === member.ref);
+      const way = waysById.get(member.ref);
       const geometry = member.geometry ?? way?.geometry;
       if (!geometry?.length) continue;
       polygonWays.push({
@@ -313,6 +330,9 @@ export function parseOsmWorld(
               ? "tower"
               : "building",
         name: tags.name ?? tags["addr:housename"] ?? "Building",
+        ...(buildingAliases(tags).length
+          ? { aliases: buildingAliases(tags) }
+          : {}),
         position,
         width,
         depth,
@@ -487,7 +507,7 @@ export function parseOsmWorld(
   ];
   if (omittedComplexBuildings)
     notes.push(
-      `${omittedComplexBuildings} courtyard building relation(s) omitted because their holes cannot be represented by this scene schema.`,
+      `${omittedComplexBuildings} courtyard building(s) are drawn without their courtyards, so shade inside those courtyards is overestimated.`,
     );
   if (omittedIndoor)
     notes.push(
@@ -555,4 +575,37 @@ export function overpassQuery(
   // Ways carry their own geometry; of their nodes, only tagged ones (gates,
   // barriers, crossings, names) affect routing, so skip the untagged bulk.
   return `[out:json][timeout:${timeoutSeconds}];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox});)->.area;.area out body geom;way.area["highway"];node(w)(if:count_tags()>0);out body;`;
+}
+
+/** Areas wider than this are fetched as four tiles to stay under limits. */
+export const MAX_SINGLE_QUERY_RADIUS = 1000;
+/** Largest area anyone may build: a 3 km city district. */
+export const MAX_AREA_RADIUS = 1500;
+/** Elements a tiled district may contain. */
+export const MAX_TILED_ELEMENTS = 600_000;
+
+/** Query centres and radius that together cover a square area. */
+export function areaTiles(lat: number, lon: number, radius: number) {
+  if (radius <= MAX_SINGLE_QUERY_RADIUS) return [{ lat, lon, radius }];
+  const half = radius / 2;
+  const dLat = half / (RAD * EARTH_RADIUS),
+    dLon = dLat / Math.cos(lat * RAD);
+  return [
+    [1, -1],
+    [1, 1],
+    [-1, -1],
+    [-1, 1],
+  ].map(([sy, sx]) => ({
+    lat: lat + sy * dLat,
+    lon: lon + sx * dLon,
+    radius: half,
+  }));
+}
+
+/** Merges tile responses, keeping each OSM element once. */
+export function mergeOsm(responses: OsmResponse[]): OsmResponse {
+  const elements = new Map<string, OsmElement>();
+  for (const r of responses)
+    for (const e of r.elements) elements.set(`${e.type}:${e.id}`, e);
+  return { elements: [...elements.values()] };
 }

@@ -82,6 +82,13 @@ function PrivacyPage() {
   );
 }
 
+const GUEST: Account = {
+  id: "guest",
+  name: "Guest",
+  email: "",
+  emailVerified: false,
+};
+
 export default function Website() {
   const [user, setUser] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,6 +140,31 @@ export default function Website() {
   };
   if (path === "/privacy") return <PrivacyPage />;
   if (path === "/") return <LandingPage signedIn={Boolean(user)} />;
+  // Guest demo: the map without an account; signed-in people get their own.
+  if (path === "/demo" && loading)
+    return (
+      <div className="public-site public-loading" role="status">
+        Opening the demo…
+      </div>
+    );
+  if (path === "/demo" && !user)
+    return (
+      <Suspense
+        fallback={
+          <div className="public-site public-loading">Loading the map…</div>
+        }
+      >
+        <Workspace
+          account={GUEST}
+          guest
+          onSignOut={async () => window.location.assign("/signup")}
+        />
+      </Suspense>
+    );
+  if (path === "/demo" && user) {
+    window.location.replace(`/app${window.location.search}`);
+    return null;
+  }
   if (workspace && loading)
     return (
       <div className="public-site public-loading" role="status">

@@ -1,12 +1,21 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUpRight,
   Footprints,
-  Leaf,
+  KeyRound,
+  Map as MapIcon,
   MapPin,
+  MessageCircle,
+  Moon,
+  Navigation,
   Route,
+  Sparkles,
   Sun,
+  Thermometer,
   Trees,
+  Accessibility,
+  Snowflake,
 } from "lucide-react";
 
 export function Brand() {
@@ -20,399 +29,714 @@ export function Brand() {
   );
 }
 
-function MapIllustration() {
+/* ---------- data precomputed from the real campus maps ---------- */
+
+interface CampusStat {
+  slug: string;
+  name: string;
+  air_f: number;
+  buildings: number;
+  paths_km: number;
+  shaded_percent: number;
+  hottest: { name: string; feels_f: number; shaded_percent: number };
+  coolest: { name: string; feels_f: number; shaded_percent: number };
+}
+interface Preview {
+  name: string;
+  half: number;
+  hours: number[];
+  shade_f: number[];
+  sun_f: number[];
+  buildings: [number, number][][];
+  trees: [number, number][];
+  planted: [number, number][];
+  paths: {
+    points: [number, number][];
+    speedway: boolean;
+    shade: number[];
+    shade_planted: number[];
+  }[];
+}
+
+function useJson<T>(url: string) {
+  const [data, setData] = useState<T | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && setData(d))
+      .catch(() => {
+        /* The page still reads well without the live numbers. */
+      });
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  return data;
+}
+
+/** Adds .in to elements with .reveal as they scroll into view. */
+function useReveal() {
+  useEffect(() => {
+    const items = document.querySelectorAll(".reveal");
+    if (!("IntersectionObserver" in window)) {
+      items.forEach((el) => el.classList.add("in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }),
+      { threshold: 0.15 },
+    );
+    items.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  });
+}
+
+const RAMP = ["#4f8a9c", "#6f9b5f", "#d9b142", "#d7772d", "#b13a2b"];
+function heatColor(shade: number) {
+  const t = (1 - shade) * (RAMP.length - 1);
+  const i = Math.min(RAMP.length - 2, Math.floor(t));
+  const mix = (a: string, b: string, k: number) => {
+    const pa = parseInt(a.slice(1), 16),
+      pb = parseInt(b.slice(1), 16);
+    const c = (s: number) =>
+      Math.round(((pa >> s) & 255) * (1 - k) + ((pb >> s) & 255) * k);
+    return `rgb(${c(16)},${c(8)},${c(0)})`;
+  };
+  return mix(RAMP[i], RAMP[i + 1], t - i);
+}
+const clock = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+
+/**
+ * Draws the preview slice on a canvas: one repaint per change instead of
+ * thousands of animated SVG elements, so the page stays smooth on phones.
+ */
+function SliceCanvas({
+  preview,
+  hourIndex,
+  planted = false,
+  theme,
+  label,
+}: {
+  preview: Preview;
+  hourIndex: number;
+  planted?: boolean;
+  theme: "dark" | "light";
+  label?: string;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c) return;
+    const size = c.clientWidth * Math.min(2, window.devicePixelRatio || 1);
+    c.width = c.height = size;
+    const g = c.getContext("2d");
+    if (!g) return;
+    const scale = size / (preview.half * 2);
+    const at = (p: [number, number]) =>
+      [(p[0] + preview.half) * scale, (p[1] + preview.half) * scale] as const;
+    g.clearRect(0, 0, size, size);
+    if (theme === "light") {
+      g.fillStyle = "#ece9dc";
+      g.fillRect(0, 0, size, size);
+    }
+    g.fillStyle = theme === "dark" ? "#2c4232" : "#d6cfbd";
+    for (const b of preview.buildings) {
+      g.beginPath();
+      b.forEach((p, i) => (i ? g.lineTo(...at(p)) : g.moveTo(...at(p))));
+      g.closePath();
+      g.fill();
+    }
+    const dot = (p: [number, number], r: number, color: string) => {
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(...at(p), r * scale, 0, Math.PI * 2);
+      g.fill();
+    };
+    if (theme === "light") {
+      for (const t of preview.trees) dot(t, 4, "#6f9b5fbb");
+      if (planted) for (const t of preview.planted) dot(t, 5, "#3f7a3a");
+    }
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    for (const p of preview.paths) {
+      g.strokeStyle = heatColor(
+        planted ? p.shade_planted[hourIndex] : p.shade[hourIndex],
+      );
+      g.lineWidth = (p.speedway ? 6.5 : 3) * scale;
+      g.beginPath();
+      p.points.forEach((q, i) => (i ? g.lineTo(...at(q)) : g.moveTo(...at(q))));
+      g.stroke();
+    }
+  }, [preview, hourIndex, planted, theme]);
   return (
-    <div
-      className="landing-map"
-      aria-label="Illustration of a shaded walking route through a neighborhood"
-    >
-      <div className="map-topline">
-        <span>
-          <span className="status-dot" /> A DIFFERENT WAY THROUGH
-        </span>
-        <span>01 / THE NEIGHBORHOOD</span>
+    <canvas
+      ref={canvas}
+      className="slice-canvas"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    />
+  );
+}
+
+/** Real UT Austin paths that warm and cool through a July day. */
+function HeroHeat({ preview }: { preview: Preview | null }) {
+  const [hourIndex, setHourIndex] = useState(9);
+  useEffect(() => {
+    if (!preview || matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    const timer = setInterval(
+      () => setHourIndex((i) => (i + 1) % preview.hours.length),
+      1400,
+    );
+    return () => clearInterval(timer);
+  }, [preview]);
+  if (!preview) return <div className="hero-heat placeholder" />;
+  return (
+    <div className="hero-heat" aria-hidden="true">
+      <div className="hero-tilt">
+        <SliceCanvas preview={preview} hourIndex={hourIndex} theme="dark" />
       </div>
-      <svg
-        viewBox="0 0 620 520"
-        role="img"
-        aria-label="An illustrative green walking route passes trees and buildings from a library to a garden"
-      >
-        <defs>
-          <pattern
-            id="map-grid"
-            width="32"
-            height="32"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M32 0H0V32"
-              fill="none"
-              stroke="#cdd2bf"
-              strokeWidth=".6"
-            />
-          </pattern>
-        </defs>
-        <rect width="620" height="520" fill="url(#map-grid)" />
-        <g transform="matrix(.85 .5 -.65 .55 450 110)">
-          <rect
-            x="-180"
-            y="15"
-            width="345"
-            height="420"
-            rx="10"
-            fill="#dce3cc"
-          />
-          <path
-            d="M-190 128H180M-190 280H180M-70 0V450M85 0V450"
-            stroke="#f8f6ec"
-            strokeWidth="30"
-          />
-          <path
-            d="M-190 128H180M-190 280H180M-70 0V450M85 0V450"
-            stroke="#bfc7af"
-            strokeWidth="1"
-            strokeDasharray="4 5"
-          />
-          {[
-            [-155, 30, 60, 65],
-            [-40, 24, 92, 75],
-            [112, 35, 38, 65],
-            [-155, 166, 60, 79],
-            [-38, 169, 90, 75],
-            [112, 170, 38, 70],
-            [-150, 315, 55, 80],
-            [112, 320, 38, 80],
-          ].map(([x, y, w, h], i) => (
-            <g key={i}>
-              <rect
-                x={x + 13}
-                y={y + 12}
-                width={w}
-                height={h}
-                fill="#b3bba3"
-                opacity=".5"
-              />
-              <path d={`M${x} ${y + h}v-24l${w} 0v24Z`} fill="#b0b79e" />
-              <rect
-                x={x}
-                y={y - 24}
-                width={w}
-                height={h}
-                fill={i % 3 === 0 ? "#ebe7d8" : "#f6f2e5"}
-                stroke="#a8b397"
-              />
-              <path
-                d={`M${x + w} ${y - 24}v${h}l13 12v-${h}Z`}
-                fill="#c9cdb8"
-              />
-            </g>
-          ))}
-          <rect
-            x="-45"
-            y="308"
-            width="100"
-            height="100"
-            rx="28"
-            fill="#b8cba3"
-          />
-          <path
-            d="M-130 128H-70V280H85V355H12"
-            fill="none"
-            stroke="#fffdf5"
-            strokeWidth="13"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M-130 128H-70V280H85V355H12"
-            fill="none"
-            stroke="#446b46"
-            strokeWidth="6"
-            strokeLinejoin="round"
-          />
-          {[
-            [-89, 165],
-            [-89, 205],
-            [-89, 243],
-            [-35, 262],
-            [5, 262],
-            [47, 262],
-            [106, 298],
-            [106, 346],
-            [-20, 330],
-            [15, 385],
-            [-8, 387],
-            [37, 324],
-          ].map(([x, y], i) => (
-            <g key={i}>
-              <ellipse
-                cx={x + 6}
-                cy={y + 6}
-                rx="15"
-                ry="10"
-                fill="#758e60"
-                opacity=".2"
-              />
-              <circle
-                cx={x}
-                cy={y - 6}
-                r="12"
-                fill={i % 2 ? "#75955f" : "#8daa73"}
-              />
-              <circle
-                cx={x - 3}
-                cy={y - 10}
-                r="7"
-                fill="#9db886"
-                opacity=".65"
-              />
-            </g>
-          ))}
-          <circle
-            cx="-130"
-            cy="128"
-            r="9"
-            fill="#f8f5e9"
-            stroke="#446b46"
-            strokeWidth="4"
-          />
-          <circle
-            cx="12"
-            cy="355"
-            r="10"
-            fill="#446b46"
-            stroke="#f8f5e9"
-            strokeWidth="4"
-          />
-        </g>
-        <g fill="#304831" fontFamily="DM Sans, sans-serif" fontSize="12">
-          <rect
-            x="125"
-            y="110"
-            width="115"
-            height="33"
-            rx="16"
-            fill="#fffdf5"
-          />
-          <text x="141" y="131">
-            A · The library
-          </text>
-          <rect
-            x="245"
-            y="333"
-            width="133"
-            height="33"
-            rx="16"
-            fill="#fffdf5"
-          />
-          <text x="261" y="354">
-            B · The gardens
-          </text>
-        </g>
-      </svg>
-      <div className="map-caption">
-        <span>
-          <Trees size={16} /> Follow a little more green.
+      <span className="hero-clock">
+        {clock(preview.hours[hourIndex])} · {preview.name}
+      </span>
+    </div>
+  );
+}
+
+/** Drag the time, plant trees: the same model the app uses, precomputed. */
+function HeatPreview({ preview }: { preview: Preview | null }) {
+  const [hourIndex, setHourIndex] = useState(9);
+  const [planted, setPlanted] = useState(false);
+  const stats = useMemo(() => {
+    if (!preview) return null;
+    const street = preview.paths.filter((p) => p.speedway);
+    const shade = (key: "shade" | "shade_planted") =>
+      street.reduce((s, p) => s + p[key][hourIndex], 0) /
+      Math.max(1, street.length);
+    const feels = (sh: number) =>
+      preview.shade_f[hourIndex] +
+      (1 - sh) * (preview.sun_f[hourIndex] - preview.shade_f[hourIndex]);
+    const before = shade("shade"),
+      after = shade("shade_planted");
+    return {
+      before,
+      after,
+      feelsBefore: feels(before),
+      feelsAfter: feels(after),
+    };
+  }, [preview, hourIndex]);
+  if (!preview || !stats)
+    return <div className="preview-card placeholder">Loading the map…</div>;
+  const shade = planted ? stats.after : stats.before;
+  const feels = planted ? stats.feelsAfter : stats.feelsBefore;
+  return (
+    <div className="preview-card">
+      <div className="preview-map">
+        <SliceCanvas
+          preview={preview}
+          hourIndex={hourIndex}
+          planted={planted}
+          theme="light"
+          label={`Map of ${preview.name} coloured by modeled heat at ${clock(preview.hours[hourIndex])}`}
+        />
+      </div>
+      <div className="preview-controls">
+        <span className="landing-eyebrow">
+          TRY IT · REAL UT AUSTIN MAP DATA
         </span>
-        <span>ILLUSTRATIVE ROUTE</span>
+        <div className="preview-readout">
+          <strong>{Math.round(feels)}°F</strong>
+          <span>
+            Speedway feels like, {Math.round(shade * 100)}% shaded at{" "}
+            {clock(preview.hours[hourIndex])}
+          </span>
+        </div>
+        <label className="preview-slider">
+          Time of day · {clock(preview.hours[hourIndex])}
+          <input
+            type="range"
+            min={0}
+            max={preview.hours.length - 1}
+            value={hourIndex}
+            onChange={(e) => setHourIndex(+e.target.value)}
+          />
+          <span className="preview-ticks">
+            <span>6 AM</span>
+            <span>Noon</span>
+            <span>8 PM</span>
+          </span>
+        </label>
+        <button
+          className={`preview-plant${planted ? " on" : ""}`}
+          aria-pressed={planted}
+          onClick={() => setPlanted(!planted)}
+        >
+          <Trees size={17} />
+          {planted
+            ? "Remove the planted trees"
+            : `Plant ${preview.planted.length} shade trees on Speedway`}
+        </button>
+        {planted && (
+          <p className="preview-gain">
+            {Math.round(stats.before * 100)}% → {Math.round(stats.after * 100)}%
+            shaded · about{" "}
+            {Math.max(0, Math.round(stats.feelsBefore - stats.feelsAfter))}°F
+            cooler to walk
+          </p>
+        )}
+        <p className="preview-note">
+          A typical July day in Austin (97°F high). Feels-like values are
+          estimates from the heat index and modeled shade of mapped buildings
+          and trees.
+        </p>
       </div>
     </div>
   );
 }
+
+const STEPS = [
+  {
+    icon: MapPin,
+    title: "Open your campus",
+    text: "Search a building, a street or a city. Six campuses open instantly; anywhere in the US builds from OpenStreetMap.",
+  },
+  {
+    icon: Thermometer,
+    title: "See the heat",
+    text: "Every path is coloured from shaded to full sun for the hour you choose, with live weather.",
+  },
+  {
+    icon: Route,
+    title: "Choose your way",
+    text: "Compare quickest, shadiest, scenic, step-free, lit-at-night and cool-stop routes side by side.",
+  },
+  {
+    icon: Navigation,
+    title: "Walk it",
+    text: "A calm 2D walking view follows you, tells you the next turn and how hot the next block is.",
+  },
+];
+
+const FEATURES = [
+  {
+    icon: Thermometer,
+    title: "A heat map you can touch",
+    text: "Tap any street to see how it feels in sun and shade, when it peaks, and compare it with another place.",
+    tone: "heat",
+  },
+  {
+    icon: Route,
+    title: "Routes for how you move",
+    text: "Step-free never uses mapped stairs or steep slopes. Night routes favour lit, busier streets. Cool stops pass through libraries and unions.",
+    tone: "routes",
+  },
+  {
+    icon: MessageCircle,
+    title: "Ask it anything about the walk",
+    text: "“Shadiest way from Andrews Hall to GDC at 3?” The assistant plans it on the map, explains the trade-off and can answer out loud.",
+    tone: "ask",
+  },
+  {
+    icon: Trees,
+    title: "Plant trees, watch the heat drop",
+    text: "Line a street with trees in the design studio and see shade and feels-like change for that street and the whole campus.",
+    tone: "trees",
+  },
+];
+
+const ROUTE_TYPES = [
+  { icon: Footprints, label: "Quickest" },
+  { icon: Sun, label: "More shade" },
+  { icon: Trees, label: "Scenic" },
+  { icon: Snowflake, label: "Cool stops" },
+  { icon: Accessibility, label: "Step-free" },
+  { icon: Moon, label: "Lit at night" },
+];
+
+const CHAT = [
+  {
+    who: "you",
+    text: "Shadiest way from Andrews Hall to GDC if I leave at 3?",
+  },
+  { who: "tool", text: "Planned a route · Ranked hot and cool places" },
+  {
+    who: "bot",
+    text: "The shaded route takes about the same time as the quickest one and keeps more of the walk under buildings and trees. I've put it on the map, along with how hot each stretch feels at 3.",
+  },
+  { who: "you", text: "Plant trees along Speedway." },
+  { who: "tool", text: "Planted shade trees" },
+  {
+    who: "bot",
+    text: "Done. Speedway's shade rises and it feels several degrees cooler at 3 PM. You can see the before and after in the Design studio, or undo it.",
+  },
+];
+
+function ChatDemo() {
+  const [shown, setShown] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const io = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || timer) return;
+      timer = setInterval(
+        () =>
+          setShown((n) => {
+            if (n >= CHAT.length) clearInterval(timer);
+            return Math.min(CHAT.length, n + 1);
+          }),
+        900,
+      );
+    });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      clearInterval(timer);
+    };
+  }, []);
+  return (
+    <div className="chat-demo" ref={root}>
+      <div className="chat-demo-head">
+        <Sparkles size={16} /> Ask Walk-Free
+        <small>Example conversation</small>
+      </div>
+      {CHAT.slice(0, shown).map((m, i) => (
+        <p key={i} className={`chat-demo-${m.who}`}>
+          {m.text}
+        </p>
+      ))}
+      {shown < CHAT.length && <span className="chat-demo-typing" />}
+    </div>
+  );
+}
+
+const FAQ = [
+  {
+    q: "How accurate are the temperatures?",
+    a: "They are estimates, not thermometer readings. Walk-Free combines live weather (Open-Meteo, with NWS as backup) with a heat index and models where mapped buildings and trees cast shade at that minute. Unmapped trees and awnings aren't counted, so real shade can be higher.",
+  },
+  {
+    q: "Which places work?",
+    a: "UT Austin, UC Berkeley, Michigan, UCLA, Stanford and Arizona State open instantly with their full campus maps. Any other US area up to 3 km across builds from OpenStreetMap; if a place isn't on our map, Walk-Free hands off to Google Maps.",
+  },
+  {
+    q: "Do I need an account?",
+    a: "No. The demo lets you open a campus, see the heat and plan routes without signing up. An account saves your scenes and unlocks the assistant.",
+  },
+  {
+    q: "Can I use my own AI key?",
+    a: "Yes. Add an OpenAI, Meta Llama API, Fireworks, Baseten, OpenRouter or Together key in the assistant's settings. It stays in your browser and is used only for your requests; it's never saved on our servers.",
+  },
+  {
+    q: "What happens to my location?",
+    a: "Location is used in your browser only while you walk and is never stored as a history on our servers.",
+  },
+  {
+    q: "Are cool stops and night routes guaranteed?",
+    a: "No. Building hours and access aren't verified, and street lighting is often missing from OpenStreetMap. The app says so on each route, and you should always use your own judgement.",
+  },
+];
 
 export default function LandingPage({
   signedIn = false,
 }: {
   signedIn?: boolean;
 }) {
+  const preview = useJson<Preview>("/landing/speedway.json");
+  const campusData = useJson<{ scenario: string; campuses: CampusStat[] }>(
+    "/landing/campuses.json",
+  );
+  const campuses = campusData?.campuses ?? [];
+  const ut = campuses.find((c) => c.slug === "ut-austin");
+  useReveal();
+  const start = signedIn ? "/app" : "/demo";
+  const totals = {
+    buildings: campuses.reduce((s, c) => s + c.buildings, 0),
+    km: campuses.reduce((s, c) => s + c.paths_km, 0),
+  };
   return (
-    <div className="public-site">
-      <header className="public-header">
+    <div className="public-site landing-v2">
+      <header className="public-header landing-header">
         <Brand />
         <nav aria-label="Main navigation">
+          <a href="#preview">See the heat</a>
           <a href="#how-it-works">How it works</a>
-          <a href="#possibilities">Explore the possibilities</a>
+          <a href="#campuses">Campuses</a>
+          <a href="#faq">FAQ</a>
         </nav>
         <div className="public-header-actions">
           <a className="quiet-link" href={signedIn ? "/app" : "/login"}>
             {signedIn ? "My workspace" : "Log in"}
           </a>
-          <a
-            className="landing-button small"
-            href={signedIn ? "/app" : "/signup"}
-          >
-            Start exploring <ArrowUpRight size={16} />
+          <a className="landing-button small" href={start}>
+            {signedIn ? "Open the map" : "Try it free"}{" "}
+            <ArrowUpRight size={16} />
           </a>
         </div>
       </header>
       <main className="landing-main">
-        <section className="landing-hero">
-          <div className="hero-copy">
-            <div className="landing-eyebrow">
-              <span /> CITIES, AT HUMAN PACE
+        <section className="cine-hero">
+          <HeroHeat preview={preview} />
+          <div className="cine-hero-copy">
+            <div className="landing-eyebrow light">
+              <span /> HEAT-AWARE WALKING FOR CAMPUSES AND CITIES
             </div>
             <h1>
-              The better way
+              The cooler way across campus
               <br />
-              isn't always
-              <br />
-              <em>the fastest.</em>
+              <em>is already there.</em>
             </h1>
             <p>
-              A shady street. A greener path. A new perspective on your campus.
-              Walk-Free helps you explore the places between where you are and
-              where you’re going.
+              Walk-Free maps where the sun hits and where the shade falls, hour
+              by hour, and finds the walk that keeps you cool, with step-free,
+              night and cool-stop routes when you need them.
             </p>
             <div className="hero-actions">
-              <a
-                className="landing-button"
-                href={signedIn ? "/app" : "/signup"}
-              >
-                Find your way <ArrowUpRight size={19} />
+              <a className="landing-button bright" href={start}>
+                {signedIn ? "Open the map" : "Try the demo, no sign-up"}{" "}
+                <ArrowUpRight size={19} />
               </a>
-              <a className="text-link" href="#how-it-works">
-                Take a closer look <ArrowDown size={16} />
+              <a className="text-link light" href="#preview">
+                See it work <ArrowDown size={16} />
               </a>
             </div>
-            <div className="hero-footnote">
-              <Footprints size={17} />
-              <span>
-                Made for walks worth taking.
-                <br />
-                <small>An evolving, open-data walking planner.</small>
-              </span>
-            </div>
+            {ut && (
+              <p className="cine-stat">
+                At 3 PM in July, {ut.hottest.name} feels like{" "}
+                <strong>{ut.hottest.feels_f}°F</strong> in full sun. Walk-Free
+                shows you the shade.
+              </p>
+            )}
           </div>
-          <MapIllustration />
         </section>
-        <div className="landing-principles">
-          <span>One place. More ways to experience it.</span>
-          <span>
-            <Route size={18} /> Connected paths
-          </span>
-          <span>
-            <Sun size={18} /> Modeled shade
-          </span>
-          <span>
-            <Leaf size={18} /> Greener choices
-          </span>
-        </div>
-        <section className="landing-how" id="how-it-works">
-          <div className="section-intro">
-            <span className="landing-eyebrow">
-              FROM THE MAP TO YOUR NEXT STEP
-            </span>
-            <h2>
-              Your surroundings,
-              <br />
-              <em>with more possibility.</em>
-            </h2>
-            <p>Start with a place you know. See it in a different light.</p>
+
+        <section
+          className="number-band reveal"
+          aria-label="Walk-Free by the numbers"
+        >
+          <div>
+            <strong>6</strong>
+            <span>campuses ready instantly</span>
           </div>
-          <ol className="landing-steps">
-            <li>
-              <span>01</span>
-              <div>
-                <h3>Make a place your own.</h3>
-                <p>
-                  Search a supported city or campus, choose an area, and build a
-                  detailed scene from mapped streets and buildings.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <h3>Choose what matters today.</h3>
-                <p>
-                  Compare walking routes for speed, estimated shade, and
-                  scenery. Adjust your departure time and avoid mapped stairs.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <h3>Take the next step.</h3>
-                <p>
-                  Follow connected paths with location updates and spoken
-                  guidance. Routes stay within the area you’ve built.
-                </p>
-              </div>
-            </li>
+          <div>
+            <strong>
+              {totals.buildings ? totals.buildings.toLocaleString() : "10,000+"}
+            </strong>
+            <span>buildings mapped</span>
+          </div>
+          <div>
+            <strong>
+              {totals.km ? `${totals.km.toLocaleString()} km` : "900+ km"}
+            </strong>
+            <span>of walkable paths</span>
+          </div>
+          <div>
+            <strong>6</strong>
+            <span>ways to choose a route</span>
+          </div>
+        </section>
+
+        <section className="landing-preview reveal" id="preview">
+          <div className="section-intro">
+            <span className="landing-eyebrow">SEE THE HEAT</span>
+            <h2>
+              Same street, different hour.
+              <br />
+              <em>Very different walk.</em>
+            </h2>
+            <p>
+              This is the real map around UT Austin's Speedway. Drag through the
+              day and watch shade move, then plant a row of trees and see how
+              much cooler the street gets.
+            </p>
+          </div>
+          <HeatPreview preview={preview} />
+        </section>
+
+        <section className="landing-how" id="how-it-works">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">HOW IT WORKS</span>
+            <h2>
+              From “where's GDC?”
+              <br />
+              <em>to a cooler walk there.</em>
+            </h2>
+          </div>
+          <ol className="step-cards">
+            {STEPS.map((s, i) => (
+              <li
+                className="reveal"
+                key={s.title}
+                style={{ transitionDelay: `${i * 90}ms` }}
+              >
+                <span className="step-number">0{i + 1}</span>
+                <s.icon size={24} />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
           </ol>
         </section>
-        <section className="landing-studio" id="possibilities">
-          <div className="studio-symbol" aria-hidden="true">
-            <Trees size={74} strokeWidth={1} />
-            <div className="studio-grid" />
-            <span>SPACE FOR A BETTER IDEA.</span>
-          </div>
-          <div>
-            <span className="landing-eyebrow">
-              A WALKING PLANNER. A PLACE TO IMAGINE.
-            </span>
+
+        <section className="feature-tour">
+          {FEATURES.map((f, i) => (
+            <div
+              className={`feature-row reveal ${i % 2 ? "flip" : ""}`}
+              key={f.title}
+            >
+              <div
+                className={`feature-visual tone-${f.tone}`}
+                aria-hidden="true"
+              >
+                <f.icon size={46} strokeWidth={1.2} />
+                {f.tone === "routes" && (
+                  <div className="feature-chips">
+                    {ROUTE_TYPES.map((r) => (
+                      <span key={r.label}>
+                        <r.icon size={14} /> {r.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {f.tone === "heat" && <div className="feature-ramp" />}
+              </div>
+              <div className="feature-copy">
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="campus-gallery" id="campuses">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">CAMPUSES</span>
             <h2>
-              What if this street
+              Six campuses,
               <br />
-              had <em>more trees?</em>
+              <em>every building and path.</em>
+            </h2>
+            {campusData && (
+              <p className="fine-note">
+                {campusData.scenario}. Model estimates.
+              </p>
+            )}
+          </div>
+          <div className="campus-cards">
+            {campuses.map((c, i) => (
+              <a
+                className="campus-card reveal"
+                key={c.slug}
+                href={`/demo?area=${c.slug}`}
+                style={{ transitionDelay: `${i * 70}ms` }}
+              >
+                <div className="campus-card-head">
+                  <h3>{c.name}</h3>
+                  <span>{c.air_f}°F July high</span>
+                </div>
+                <dl>
+                  <div className="hot">
+                    <dt>Hottest walk at 3 PM</dt>
+                    <dd>
+                      {c.hottest.name} · <strong>{c.hottest.feels_f}°F</strong>
+                    </dd>
+                  </div>
+                  <div className="cool">
+                    <dt>Shadiest street</dt>
+                    <dd>
+                      {c.coolest.name} · <strong>{c.coolest.feels_f}°F</strong>,{" "}
+                      {c.coolest.shaded_percent}% shade
+                    </dd>
+                  </div>
+                </dl>
+                <p>
+                  {c.buildings.toLocaleString()} buildings · {c.paths_km} km of
+                  paths
+                </p>
+                <span className="campus-open">
+                  Open {c.name} <ArrowUpRight size={15} />
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-ask reveal" id="assistant">
+          <div className="section-intro">
+            <span className="landing-eyebrow">ASK WALK-FREE</span>
+            <h2>
+              Plans the walk,
+              <br />
+              <em>not just a reply.</em>
             </h2>
             <p>
-              In the design studio, place trees, reshape buildings, and explore
-              how shadows change throughout the day. Try ideas in a fictional
-              study or an area you’ve built.
+              The assistant uses the same map, weather and heat model you see.
+              It plans routes, moves the time, highlights streets and plants
+              trees, then explains in a sentence or two, out loud if you like.
             </p>
-            <a className="text-link" href={signedIn ? "/app" : "/signup"}>
-              Explore and design <ArrowUpRight size={18} />
-            </a>
-            <small>
-              Designs are experiments. They don’t change real-world access or
-              create verified walking routes.
-            </small>
+            <p className="ask-key">
+              <KeyRound size={16} /> Bring your own AI key (OpenAI, Meta Llama
+              API and others). It stays in your browser.
+            </p>
+          </div>
+          <ChatDemo />
+        </section>
+
+        <section className="landing-faq" id="faq">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">QUESTIONS</span>
+            <h2>
+              Honest answers,
+              <br />
+              <em>including the limits.</em>
+            </h2>
+          </div>
+          <div className="faq-list">
+            {FAQ.map((f) => (
+              <details className="reveal" key={f.q}>
+                <summary>{f.q}</summary>
+                <p>{f.a}</p>
+              </details>
+            ))}
           </div>
         </section>
-        <section className="landing-details">
-          <div>
-            <MapPin size={23} />
-            <h3>Grounded in open maps.</h3>
-            <p>
-              Built with OpenStreetMap data. Coverage varies by place; missing
-              entrances and indoor corridors are never assumed.
-            </p>
-          </div>
-          <div>
-            <Sun size={23} />
-            <h3>A little context goes a long way.</h3>
-            <p>
-              Shade is modeled from geometry and the sun. It’s a planning aid,
-              not a measurement of temperature or a guarantee of comfort.
-            </p>
-          </div>
-          <div>
-            <Footprints size={23} />
-            <h3>Growing one step at a time.</h3>
-            <p>
-              Walk-Free is in development. Live map availability and outdoor
-              guidance are still being tested; always check your surroundings.
-            </p>
-          </div>
-        </section>
-        <section className="landing-end">
-          <span className="landing-eyebrow">YOUR NEXT WALK STARTS HERE</span>
+
+        <section className="cine-end">
+          <MapIcon size={30} strokeWidth={1.3} />
           <h2>
-            Get to know
+            Your next walk
             <br />
-            <em>the way between.</em>
+            <em>can be cooler.</em>
           </h2>
-          <a className="landing-button" href={signedIn ? "/app" : "/signup"}>
-            Start exploring <ArrowUpRight size={18} />
-          </a>
+          <div className="hero-actions">
+            <a className="landing-button bright" href={start}>
+              {signedIn ? "Open the map" : "Try the demo"}{" "}
+              <ArrowUpRight size={18} />
+            </a>
+            {!signedIn && (
+              <a className="text-link light" href="/signup">
+                Create a free account
+              </a>
+            )}
+          </div>
         </section>
       </main>
       <footer className="public-footer">
         <Brand />
         <p>Explore thoughtfully. Walk freely.</p>
         <a href="/privacy">Privacy & data</a>
-        <span>© {new Date().getFullYear()} Walk-Free</span>
+        <span>
+          Map data © OpenStreetMap contributors · Weather by Open-Meteo.com
+        </span>
       </footer>
     </div>
   );

@@ -20,7 +20,11 @@ afterEach(() => {
   setUsageStore(null);
 });
 
-async function post(path: string, body: unknown) {
+async function post(
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   const app = express();
   app.use(express.json());
   app.use((_q, r, next) => {
@@ -46,7 +50,7 @@ async function post(path: string, body: unknown) {
     const { port } = server.address() as AddressInfo;
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     });
     return { status: response.status, body: await response.json() };
@@ -233,5 +237,95 @@ describe("assistant history", () => {
     expect(kept[0]).toEqual({ role: "user", content: "q2" });
     expect(kept.length).toBeLessThanOrEqual(24);
     expect(recentTurns(turn(9), 2)[0]).toEqual({ role: "user", content: "q9" });
+  });
+});
+
+describe("bring your own AI key", () => {
+  const own = {
+    "x-walk-free-ai-key": "sk-user-own-key-123",
+    "x-walk-free-ai-provider": "meta",
+    "x-walk-free-ai-model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+  };
+  it("uses the person's key and provider, counting it apart from the shared caps", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "");
+    vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "1");
+    const charged = vi.fn();
+    setUsageStore({ record: async (id: string) => (charged(id), "ok") });
+    requestJson.mockResolvedValue({
+      choices: [{ message: { content: "Hi" } }],
+    });
+    const result = await post(
+      "/api/agent/chat",
+      { messages: [{ role: "user", content: "Hi" }], context },
+      own,
+    );
+    expect(result.body.reply).toBe("Hi");
+    const [url, options] = requestJson.mock.calls[0];
+    expect(url).toBe("https://api.llama.com/compat/v1/chat/completions");
+    expect(options.headers.Authorization).toBe("Bearer sk-user-own-key-123");
+    expect(JSON.parse(options.body).model).toBe(own["x-walk-free-ai-model"]);
+    // Counted under the separate own-key allowance, not the shared one.
+    expect(charged).toHaveBeenCalledWith("own:walker-1");
+  });
+
+  it("refuses providers outside the list and malformed keys", async () => {
+    const body = { messages: [{ role: "user", content: "Hi" }], context };
+    const bad = await post("/api/agent/chat", body, {
+      ...own,
+      "x-walk-free-ai-provider": "http://169.254.169.254",
+    });
+    expect(bad.status).toBe(400);
+    const short = await post("/api/agent/chat", body, {
+      ...own,
+      "x-walk-free-ai-key": "x",
+    });
+    expect(short.body.error).toMatch(/AI settings/);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it("explains a rejected key instead of a raw HTTP error", async () => {
+    requestJson.mockRejectedValueOnce(
+      new ServiceError(
+        "UPSTREAM_UNAVAILABLE",
+        "The data provider returned HTTP 401. Please try again later.",
+      ),
+    );
+    const result = await post(
+      "/api/agent/chat",
+      { messages: [{ role: "user", content: "Hi" }], context },
+      own,
+    );
+    expect(result.status).toBe(400);
+    expect(result.body.error).toBe(
+      "The AI provider rejected your key. Check it in AI settings.",
+    );
+  });
+});
+
+describe("own-key limits and matching", () => {
+  it("caps own-key calls per day without touching the site's monthly budget", async () => {
+    vi.stubEnv("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", "2");
+    vi.stubEnv("WALK_FREE_AI_MONTHLY_LIMIT", "1");
+    setUsageStore(memoryUsage());
+    const now = new Date("2026-10-28T12:00:00Z");
+    await chargeAiCall("a", now, true);
+    await chargeAiCall("a", now, true);
+    await expect(chargeAiCall("a", now, true)).rejects.toMatchObject({
+      code: "AI_DAILY_LIMIT",
+    });
+    // The site's shared allowance is still untouched.
+    await chargeAiCall("b", now);
+  });
+
+  it("rejects prototype names as providers", async () => {
+    const { userAiConfig } = await import("../server/ai");
+    for (const provider of ["constructor", "__proto__", "toString"])
+      expect(() =>
+        userAiConfig({
+          "x-walk-free-ai-key": "sk-user-own-key-123",
+          "x-walk-free-ai-provider": provider,
+          "x-walk-free-ai-model": "m",
+        }),
+      ).toThrow(/isn't supported/);
   });
 });

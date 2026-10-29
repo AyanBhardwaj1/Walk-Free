@@ -106,6 +106,11 @@ describe("assistant tools", () => {
     expect(matchDestinations(catalog, "library")[0].id).toBe("c");
     expect(matchDestinations(catalog, "speedway gate")[0].id).toBe("a");
     expect(matchDestinations(catalog, "zzz")).toEqual([]);
+    // Extra words the map doesn't know still find the place.
+    expect(matchDestinations(catalog, "Speedway Gate at UT Austin")[0].id).toBe(
+      "a",
+    );
+    expect(matchDestinations(catalog, "library entrance")[0].id).toBe("c");
   });
 
   it("plans and shows a route at the requested local hour", async () => {

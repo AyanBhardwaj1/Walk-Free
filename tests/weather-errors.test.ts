@@ -91,16 +91,22 @@ describe("live weather", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("does not bypass a login error and explains a total outage", async () => {
-    const denied = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ error: "Please log in to continue." }), {
-          status: 401,
-        }),
+  it("falls back for guests without a session and explains a total outage", async () => {
+    const guest = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).startsWith("/api/")
+        ? new Response(
+            JSON.stringify({ error: "Please log in to continue." }),
+            {
+              status: 401,
+            },
+          )
+        : new Response(JSON.stringify(sample)),
     );
-    await expect(
-      loadWeather({ lat: 1, lon: 1 }, { fetch: denied, apiBase: "" }),
-    ).rejects.toThrow("Please log in to continue.");
+    const f = await loadWeather(
+      { lat: 1, lon: 1 },
+      { fetch: guest, apiBase: "" },
+    );
+    expect(f.source).toMatch(/Open-Meteo/);
     const down = vi.fn(async () => new Response("down", { status: 503 }));
     await expect(
       loadWeather({ lat: 1, lon: 1 }, { fetch: down, apiBase: "" }),

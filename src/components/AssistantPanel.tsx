@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Send, Sparkles, Volume2, VolumeX } from "lucide-react";
 import type { ChatMessage } from "../lib/assistant-client";
+import type { OwnAiKey } from "../lib/ai-key";
+import AiSettings from "./AiSettings";
 
 const toolLabels: Record<string, string> = {
   find_places: "Searched the map",
@@ -47,6 +49,8 @@ export default function AssistantPanel({
   onSpeakReplies,
   onSend,
   onReset,
+  ownKey,
+  onOwnKey,
 }: {
   messages: ChatMessage[];
   status: string | null;
@@ -55,6 +59,8 @@ export default function AssistantPanel({
   onSpeakReplies: (on: boolean) => void;
   onSend: (text: string) => void;
   onReset: () => void;
+  ownKey: OwnAiKey | null;
+  onOwnKey: (value: OwnAiKey | null) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [listening, setListening] = useState(false);
@@ -150,6 +156,7 @@ export default function AssistantPanel({
         {error && (
           <p className="chat-error" role="alert">
             {error}
+            {!ownKey && " You can also add your own AI key below."}
           </p>
         )}
         <div ref={end} />
@@ -196,6 +203,7 @@ export default function AssistantPanel({
           Start a new conversation
         </button>
       )}
+      <AiSettings value={ownKey} onChange={onOwnKey} />
       <p className="fine">
         Answers use this area's map, the weather shown, and modeled shade. Heat
         numbers are estimates, not measurements.

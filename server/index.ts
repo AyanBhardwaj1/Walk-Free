@@ -19,7 +19,10 @@ app.use((q, r, next) => {
   ) {
     r.setHeader("Access-Control-Allow-Origin", q.headers.origin!);
     r.setHeader("Vary", "Origin");
-    r.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    r.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, X-Walk-Free-AI-Key, X-Walk-Free-AI-Provider, X-Walk-Free-AI-Model",
+    );
     r.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   }
   if (q.method === "OPTIONS") {

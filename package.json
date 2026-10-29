@@ -13,7 +13,8 @@
     "start": "node --env-file-if-exists=.env --import tsx server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "areas:build": "node --import tsx scripts/prebuild-areas.ts"
+    "areas:build": "node --import tsx scripts/prebuild-areas.ts",
+    "landing:data": "node --import tsx scripts/landing-data.ts"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.3.1",

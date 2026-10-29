@@ -36,6 +36,10 @@ npm start
 - Route types: quickest, more shade, scenic, cool stops (through an air-conditioned library or student union on pre-built campuses in daytime; hours not verified), step-free (never uses mapped stairs, slopes over 8% or inaccessible paths) and lit at night (prefers OSM-lit, busier streets).
 - Walking view: starting a walk switches to a flat, north-up map that follows you with a large next-turn banner and the next stretch's heat; a map button toggles 2D/3D anytime.
 - Plant shade trees: a Design studio tool (and assistant tool) lines a street with trees and shows shade share and feels-like before and after, for the street and the whole area.
+- Search: one search bar finds buildings, streets and cities; From/To fields search as you type. Matching understands campus codes and nicknames (GDC, PCL, SAC, RRH, UGLi, YRL…), OSM ref/short/alt names and synonyms (hall/dormitory, library/lib). Places off the map, and walks without a mapped connection, hand off to Google Maps.
+- Layout: full-screen map with a collapsible floating panel on desktop and a draggable bottom sheet on phones; custom dropdowns throughout.
+- Guest demo at `/demo` (and `/demo?area=ut-austin`): campuses, heat and routes without an account; the assistant needs sign-in or the person's own AI key.
+- Bring your own AI key: the Ask tab's AI settings accept an OpenAI, Meta Llama API, Fireworks, Baseten, OpenRouter or Together key, stored only in that browser and used per request without the shared caps.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.

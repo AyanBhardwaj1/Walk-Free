@@ -10,6 +10,8 @@ export interface AiConfig {
   baseUrl: string;
   key: string;
   model: string;
+  /** True when the person supplied their own key. */
+  own?: boolean;
 }
 export function aiConfig(): AiConfig | null {
   const key =
@@ -26,6 +28,53 @@ export function aiConfig(): AiConfig | null {
       process.env.WALK_FREE_AI_MODEL ||
       process.env.WALK_FREE_OPENAI_MODEL ||
       "gpt-5-mini",
+  };
+}
+
+/**
+ * Providers a person may use with their own key. A fixed list keeps the
+ * server from being pointed at arbitrary (or internal) addresses.
+ */
+export const USER_AI_PROVIDERS = {
+  openai: "https://api.openai.com/v1",
+  meta: "https://api.llama.com/compat/v1",
+  fireworks: "https://api.fireworks.ai/inference/v1",
+  baseten: "https://inference.baseten.co/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  together: "https://api.together.xyz/v1",
+} as const;
+export type UserAiProvider = keyof typeof USER_AI_PROVIDERS;
+const KEY_PATTERN = /^[\x21-\x7e]{8,400}$/;
+const MODEL_PATTERN = /^[\w.\-/:@]{1,120}$/;
+
+/**
+ * A person's own key from request headers, used for this request only:
+ * never stored or logged. Returns null when no key was sent.
+ */
+export function userAiConfig(
+  headers: Record<string, unknown>,
+): AiConfig | null {
+  const key = headers["x-walk-free-ai-key"];
+  if (typeof key !== "string" || !key) return null;
+  const provider = String(headers["x-walk-free-ai-provider"] ?? "openai");
+  const model = String(headers["x-walk-free-ai-model"] ?? "");
+  if (!Object.hasOwn(USER_AI_PROVIDERS, provider))
+    throw new ServiceError(
+      "AI_PROVIDER",
+      "That AI provider isn't supported.",
+      400,
+    );
+  if (!KEY_PATTERN.test(key) || !MODEL_PATTERN.test(model))
+    throw new ServiceError(
+      "AI_KEY_FORMAT",
+      "Check your AI key and model name in AI settings.",
+      400,
+    );
+  return {
+    key,
+    model,
+    baseUrl: USER_AI_PROVIDERS[provider as UserAiProvider],
+    own: true,
   };
 }
 
@@ -91,6 +140,38 @@ export async function chatCompletion(
         ? { reasoning_effort: "low" }
         : {}),
     }),
+  }).catch((error: unknown) => {
+    // Turn provider HTTP errors into guidance about the key or model.
+    const status = Number(
+      (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
+    );
+    if (
+      status === 401 ||
+      status === 403 ||
+      (error as ServiceError)?.code === "NETWORK_BLOCKED"
+    )
+      throw new ServiceError(
+        "AI_KEY_REJECTED",
+        config.own
+          ? "The AI provider rejected your key. Check it in AI settings."
+          : "The assistant's AI key was rejected. Please tell the site owner.",
+        400,
+      );
+    if (status === 404 || status === 400)
+      throw new ServiceError(
+        "AI_MODEL",
+        config.own
+          ? "The AI provider didn't accept that model name. Check it in AI settings."
+          : "The assistant's AI model is unavailable right now.",
+        400,
+      );
+    if (status === 429)
+      throw new ServiceError(
+        "AI_BUSY",
+        "The AI provider is rate-limiting requests. Wait a moment and try again.",
+        429,
+      );
+    throw error;
   });
   const message = result.choices?.[0]?.message;
   if (!message)
@@ -109,7 +190,9 @@ export async function chatCompletion(
 export interface UsageLimits {
   dailyPerUser: number;
   monthlyTotal: number;
+  ownKeyDaily: number;
 }
+const OWN_PREFIX = "own:";
 export function usageLimits(): UsageLimits {
   const read = (name: string, fallback: number) => {
     const value = Number(process.env[name]);
@@ -119,6 +202,8 @@ export function usageLimits(): UsageLimits {
     // Each question uses one to four model calls (tools need extra rounds).
     dailyPerUser: read("WALK_FREE_AI_DAILY_LIMIT", 80),
     monthlyTotal: read("WALK_FREE_AI_MONTHLY_LIMIT", 4000),
+    // Own-key calls cost the site only server time, so allow many more.
+    ownKeyDaily: read("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", 500),
   };
 }
 
@@ -152,7 +237,7 @@ export function postgresUsage(url: string): UsageStore {
         });
       await ready;
       const [total] = (await sql.query(
-        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date)",
+        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date) and user_id not like 'own:%'",
         [day],
       )) as { calls: number }[];
       if (total.calls >= limits.monthlyTotal) return "monthly";
@@ -173,7 +258,12 @@ export function memoryUsage(): UsageStore {
     async record(userId, day, limits) {
       let month = 0;
       for (const [k, v] of counts)
-        if (k.split(":")[1].slice(0, 7) === day.slice(0, 7)) month += v;
+        if (
+          !k.startsWith(OWN_PREFIX) &&
+          k.slice(k.lastIndexOf(":") + 1, k.lastIndexOf(":") + 8) ===
+            day.slice(0, 7)
+        )
+          month += v;
       if (month >= limits.monthlyTotal) return "monthly";
       const key = `${userId}:${day}`;
       const today = counts.get(key) ?? 0;
@@ -202,12 +292,32 @@ export function setUsageStore(next: UsageStore | null) {
   store = next;
 }
 
-/** Counts one model call against the user's daily and the site's monthly cap. */
-export async function chargeAiCall(userId: string, now = new Date()) {
+/**
+ * Counts one model call against the user's daily and the site's monthly cap.
+ * Calls with a person's own key count separately (`own:` ids, excluded from
+ * the site's monthly total) under a generous daily limit, so they can't tie
+ * up the server without bound.
+ */
+export async function chargeAiCall(
+  userId: string,
+  now = new Date(),
+  own = false,
+) {
   const day = now.toISOString().slice(0, 10);
+  const limits = usageLimits();
   let result: UsageResult;
   try {
-    result = await usageStore().record(userId, day, usageLimits());
+    result = await usageStore().record(
+      own ? `${OWN_PREFIX}${userId}` : userId,
+      day,
+      own
+        ? {
+            dailyPerUser: limits.ownKeyDaily,
+            monthlyTotal: Number.MAX_SAFE_INTEGER,
+            ownKeyDaily: limits.ownKeyDaily,
+          }
+        : limits,
+    );
   } catch (error) {
     if (error instanceof ServiceError) throw error;
     throw new ServiceError(
@@ -225,7 +335,9 @@ export async function chargeAiCall(userId: string, now = new Date()) {
   if (result === "daily")
     throw new ServiceError(
       "AI_DAILY_LIMIT",
-      "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
+      own
+        ? "You've reached today's limit for assistant requests. It resets at midnight UTC."
+        : "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
       429,
     );
 }

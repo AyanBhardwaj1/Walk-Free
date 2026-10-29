@@ -10,7 +10,9 @@ export interface WeatherDeps {
   fetch: typeof fetch;
   apiBase: string;
 }
-const FINAL_STATUSES = new Set([400, 401, 403]);
+// Weather is public data, so a missing session (401) falls back to the
+// browser instead of failing.
+const FINAL_STATUSES = new Set([400, 403]);
 
 /**
  * Live weather from the API (Open-Meteo, then NWS), or straight from
