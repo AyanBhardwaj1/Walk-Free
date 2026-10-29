@@ -662,3 +662,29 @@
     display: none;
   }
 }
+
+.crash-screen {
+  max-width: 520px;
+  margin: 18vh auto;
+  padding: 0 24px;
+  font-family: "DM Sans", Arial, sans-serif;
+  color: #313b30;
+}
+.crash-screen h1 {
+  font:
+    32px "Playfair Display",
+    Georgia,
+    serif;
+}
+.crash-screen p {
+  line-height: 1.7;
+  color: #5d6853;
+}
+.crash-screen .primary {
+  margin-top: 18px;
+  padding: 13px 18px;
+  background: #3f5938;
+  color: #fffdf2;
+  border: 0;
+  cursor: pointer;
+}

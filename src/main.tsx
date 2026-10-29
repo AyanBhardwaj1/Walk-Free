@@ -6,9 +6,12 @@ import "@fontsource/playfair-display/400-italic.css";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import Website from "./Website";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./style.css";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Website />
+    <ErrorBoundary>
+      <Website />
+    </ErrorBoundary>
   </React.StrictMode>,
 );

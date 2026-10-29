@@ -182,7 +182,7 @@ authRouter.post("/{*path}", async (q, r) => {
     return;
   }
   try {
-    const body = { ...parsed.data };
+    const body = { ...(parsed.data as Record<string, unknown>) };
     // Reset links always return to this application, never an arbitrary URL.
     if (q.path === "/request-password-reset")
       body.redirectTo = `${q.headers.origin}/reset-password`;

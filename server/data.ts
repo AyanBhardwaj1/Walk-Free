@@ -13,6 +13,11 @@ import { randomUUID } from "node:crypto";
 import type { World, WeatherForecast, WeatherHour } from "../shared/types.js";
 import { requestJson, ServiceError } from "./network.js";
 import {
+  openMeteoUrl,
+  parseOpenMeteo,
+  type OpenMeteoResponse,
+} from "../shared/weather.js";
+import {
   OVERPASS_ENDPOINTS,
   overpassQuery,
   overpassRetryable,
@@ -37,6 +42,7 @@ const pending = new Map<string, Promise<unknown>>();
 let activeMapRequests = 0;
 const MAX_MAP_REQUESTS = 2;
 const MAP_BUDGET_MS = 55_000;
+const LIVE_WEATHER_TTL_MS = 10 * 60 * 1000;
 const MIRROR_TIMEOUT_MS = 30_000;
 async function cached<T>(
   key: string,
@@ -314,7 +320,37 @@ export function parseNwsForecast(
       "NOAA / National Weather Service · https://www.weather.gov/disclaimer",
   };
 }
+/**
+ * Live weather: Open-Meteo first (open data, worldwide, refreshed every
+ * ~15 minutes), then the National Weather Service for US locations.
+ */
 export async function getWeather(
+  lat: number,
+  lon: number,
+): Promise<WeatherForecast> {
+  return cached(
+    `weather-v3-${lat.toFixed(4)}-${lon.toFixed(4)}`,
+    LIVE_WEATHER_TTL_MS,
+    async () => {
+      try {
+        return parseOpenMeteo(
+          await requestJson<OpenMeteoResponse>(openMeteoUrl(lat, lon), {
+            timeoutMs: 10_000,
+            maxBytes: 1_000_000,
+          }),
+        );
+      } catch (openMeteoError) {
+        try {
+          return await getNwsWeather(lat, lon);
+        } catch {
+          throw openMeteoError;
+        }
+      }
+    },
+  );
+}
+
+export async function getNwsWeather(
   lat: number,
   lon: number,
 ): Promise<WeatherForecast> {

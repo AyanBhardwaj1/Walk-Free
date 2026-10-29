@@ -101,6 +101,8 @@ export interface WeatherForecast {
   fetchedAt: string;
   hours: WeatherHour[];
   attribution: string;
+  /** Latest observed-model conditions, when the provider reports them. */
+  current?: WeatherHour;
 }
 export interface Environment {
   dateTime: string;

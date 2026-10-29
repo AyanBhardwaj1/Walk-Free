@@ -61,3 +61,11 @@ Final automated checks for this checkpoint: 50 tests across four files, TypeScri
 - Browser checks (Chromium, mocked session): UT Austin builds from the shipped file in under 2 s, opens with the UT Tower → Gregory Gymnasium walk, shows four route cards with feels-like and sun minutes, ranks real campus streets, and survives a reload from IndexedDB. The heat tab, comparison and hourly chart were checked at 1440 px and 390 px with no page errors. The assistant loop was exercised with a mocked model: tool calls ran in the browser and the shaded route appeared on the map. No real OpenAI call has been verified from this environment.
 - Rendering: the shade tester's spatial grid matched the previous implementation on 120,000 sampled points (0 differences) and ran about 28× faster. On-demand rendering raised orbit frame rate on a 4,500-object synthetic campus from about 4 to about 16 fps under software rendering; real-GPU frame rates are unmeasured.
 - Not yet verified: the deployed Vercel site with `WALK_FREE_DATABASE_URL` and the OpenAI key, a real outdoor walk with GPS, and native builds.
+
+
+## More campuses, live weather, error handling — 2026-10-29
+
+- Weather now comes from Open-Meteo with NWS as a backup; the browser falls back to Open-Meteo directly if the API fails. Live weather refreshes every 10 minutes and uses current conditions for the present hour. Verified in Chromium with mocked responses: an API crash plus a working Open-Meteo shows "Live weather · Mostly clear"; both down shows a plain message and keeps the scenario. Live Open-Meteo has not been reached from this environment.
+- Errors: the API returns sentences for malformed JSON and validation failures (logged server-side), and the app maps network, timeout, JSON, validation and location-permission errors to guidance. A sweep of 14 screens at 1440 px and 390 px found no horizontal overflow, no raw error text and no page errors. A render-error boundary replaces blank pages.
+- Dependencies: maplibre-gl 6.16 and zod 4.6 resolve the critical and high `npm audit` findings (0 remaining in production dependencies). The city atlas still constructs and builds.
+- `npm test`: 92 tests pass; `npm run build` passes.

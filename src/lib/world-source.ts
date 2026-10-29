@@ -20,6 +20,8 @@ export interface WorldSourceDeps {
   fetch: typeof fetch;
   apiBase: string;
   timeoutMs?: number;
+  /** Progress text for the loading screen. */
+  onStage?: (stage: string) => void;
 }
 
 /** Server answers the client should show rather than work around. */
@@ -129,7 +131,9 @@ export async function loadWorld(
 ): Promise<{ world: unknown; source: WorldSource }> {
   const prebuilt = await fromPrebuilt(request, deps);
   if (prebuilt) return { world: prebuilt, source: "prebuilt" };
+  deps.onStage?.("Downloading OpenStreetMap data…");
   const server = await fromServer(request, deps);
   if (server) return { world: server, source: "server" };
+  deps.onStage?.("Map servers are busy · trying directly from your browser…");
   return { world: await fromBrowser(request, deps), source: "browser" };
 }

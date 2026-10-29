@@ -1,3 +1,4 @@
+import { friendlyError } from "./errors.js";
 import type { LocationFix } from "./walk-location.js";
 export type LocationAdapter = (
   onFix: (fix: LocationFix) => void,
@@ -31,7 +32,7 @@ export class LocationSession {
       if (generation !== this.generation) cleanup();
       else this.cleanup = cleanup;
     } catch (error) {
-      fail(error instanceof Error ? error.message : String(error));
+      fail(friendlyError(error, "Your location is unavailable right now."));
     }
   }
 }
