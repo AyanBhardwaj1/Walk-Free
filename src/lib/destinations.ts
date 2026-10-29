@@ -120,10 +120,15 @@ export function destinationCatalog(world: World): Destination[] {
       continue;
     const x = Math.floor(o.position[0] / 80),
       z = Math.floor(o.position[1] / 80);
+    // Large buildings (stadiums, arenas) sit far from any path at their centre.
     let best: GraphNode | undefined,
-      distance = BUILDING_LINK_M;
-    for (let dx = -1; dx <= 1; dx++)
-      for (let dz = -1; dz <= 1; dz++) {
+      distance = Math.max(
+        BUILDING_LINK_M,
+        Math.max(o.width, o.depth) / 2 + BUILDING_EDGE_M,
+      );
+    const cells = Math.ceil(distance / 80);
+    for (let dx = -cells; dx <= cells; dx++)
+      for (let dz = -cells; dz <= cells; dz++) {
         for (const n of grid.get(`${x + dx},${z + dz}`) || []) {
           const d = Math.hypot(
             n.point[0] - o.position[0],
@@ -176,6 +181,8 @@ export function destinationCatalog(world: World): Destination[] {
 
 /** A building's centre may sit this far from its nearest mapped path. */
 const BUILDING_LINK_M = 120;
+/** Extra reach beyond a building's half-width when linking it to a path. */
+const BUILDING_EDGE_M = 40;
 
 const words = (s: string) =>
   s

@@ -76,3 +76,11 @@ Final automated checks for this checkpoint: 50 tests across four files, TypeScri
 - `npm test`: 99 tests pass, adding step-free routes that never fall back to stairs, lit-street preference at night, cool-stop routing, OSM lighting/street-type/slope parsing, tree-row planting that shades and cools a street, and the assistant planting tool.
 - Chromium (UT Austin, mocked session and simulated GPS): the flat map shows the heat-coloured route and next-turn banner, starting a walk switches to it, and the toggle returns to 3D. In the studio, planting along a path at 3:30 PM raised its shade from 0% to 33% and lowered feels-like by 2 °F; the ordinary tree tool still places single trees.
 - Cool-stop hours and building access are not verified; routes offer them only between 8 AM and 8 PM and say to check hours. Night routes depend on how completely OSM maps `lit`.
+
+
+## Campus coverage, search, own AI keys, new layout and landing — 2026-10-29
+
+- Coverage (all six campuses regenerated with courtyard buildings and OSM alternate names): every named building is searchable at UT Austin (363), Michigan (368), UCLA (257), Stanford (289) and ASU (234), and 417 of 461 at Berkeley (the rest are restricted Lawrence Berkeley Lab buildings without mapped public paths). About 95–97% are reachable on foot from each campus centre. Checked walks: Andrews Hall → GDC 8 min, Carothers → Rowling Hall 14 min, Kinsolving → PCL 14 min.
+- `npm test`: 107 tests pass, adding synonym/code search, courtyard buildings, own-key requests (provider allowlist, no shared caps, rejected-key message) and guest building/weather fallbacks.
+- Chromium: the search bar, From/To fields, Google Maps links, floating panel and phone bottom sheet were exercised at 1440 px and 390 px with no overflow or page errors; saving an own key sends it only on assistant requests and survives reload; the landing page renders at both sizes, its Speedway preview shows 0% → 39% shade and about 4 °F cooler after planting at 3 PM, and campus cards open the guest demo.
+- Landing statistics use each campus's approximate typical July high and are labelled as model estimates.
