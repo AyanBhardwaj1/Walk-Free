@@ -709,11 +709,21 @@ export default function App({
         if (!parsed.success)
           parsed = worldSchema.safeParse(repairWorld(stored));
         if (!parsed.success) {
-          // Keep the unreadable copy and don't save over it.
+          // Set the unreadable copy aside before anything can save over it.
           saveBlocked.current = true;
-          await saveProject(`${projectKey}:unreadable`, stored).catch(() => {});
+          const keptAside = await saveProject(
+            `${projectKey}:unreadable`,
+            stored,
+          ).then(
+            () => true,
+            () => false,
+          );
+          // Once it's safe, new work saves as usual (now and next time).
+          saveBlocked.current = !keptAside;
           setMessage(
-            "Your saved scene couldn't be opened, so it was kept aside and this session won't save over it. Export your work to keep a copy.",
+            keptAside
+              ? "Your saved scene couldn't be opened, so a copy was kept aside and you're starting fresh. New changes save as usual."
+              : "Your saved scene couldn't be opened, so this session won't save over it. Export your work to keep a copy.",
           );
           return;
         }

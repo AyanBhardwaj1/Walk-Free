@@ -140,9 +140,9 @@ const HEAT_INDEX_MIN_F = 68;
 /**
  * Heat index by the US National Weather Service method: Steadman's simple
  * formula, or the Rothfusz regression with its low- and high-humidity
- * adjustments once the simple value reaches 80 °F. Continuous across
- * humidity and temperature, so a one-point change can't jump a heat level.
- * Shade and light-wind conditions; null in cool air.
+ * adjustments once the simple value reaches 80 °F. No cutoffs on humidity
+ * or temperature; the method's own small steps (about 1 °C, near saturation)
+ * remain. Shade and light-wind conditions; null in cool air.
  */
 export function heatIndexC(c: number, r: number): number | null {
   const t = (c * 9) / 5 + 32;

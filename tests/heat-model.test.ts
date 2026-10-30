@@ -34,6 +34,22 @@ describe("heat index (NWS method)", () => {
       ).toBeLessThan(0.6);
   });
 
+  it("never says shade feels cooler than the air", async () => {
+    const { heatConditions } = await import("../src/lib/heat");
+    const dry = heatConditions(
+      {
+        dateTime: "2026-07-15T20:00:00Z",
+        temperatureC: 43,
+        humidity: 10,
+        windMps: 1,
+        cloudCover: 0,
+        weatherMode: "scenario",
+      },
+      { lat: 33.42, lon: -111.93 },
+    );
+    expect(dry.shadeFeelsC).toBeGreaterThanOrEqual(43);
+  });
+
   it("leaves cool air to the thermometer", () => {
     expect(heatIndexC(12, 60)).toBeNull();
   });

@@ -26,6 +26,19 @@ describe("search on real campus maps", () => {
     );
   });
 
+  it("ranks things named for the query above places merely beside them", () => {
+    for (const [query, street] of [
+      ["durant", /Durant Avenue/],
+      ["bancroft", /Bancroft Way/],
+      ["college", /College Avenue/],
+    ] as const) {
+      const top = search("uc-berkeley", query).slice(0, 6);
+      // Durant Hall is a fair answer for "durant"; Wolf House beside it isn't.
+      for (const label of top) expect(label.toLowerCase()).toContain(query);
+      expect(top.join(" ")).toMatch(street);
+    }
+  });
+
   it("lists each street once", () => {
     const top = search("ut-austin", "jester").slice(0, 5);
     expect(new Set(top).size).toBe(top.length);

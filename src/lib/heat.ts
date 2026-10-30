@@ -65,7 +65,12 @@ export function heatConditions(
 ): HeatConditions {
   const sun = sunDirection(env, origin);
   const shadeFeelsC =
-    heatIndexC(env.temperatureC, env.humidity) ?? env.temperatureC;
+    // The NWS index dips below the air temperature in very dry heat; shade
+    // never feels cooler than the air itself.
+    Math.max(
+      env.temperatureC,
+      heatIndexC(env.temperatureC, env.humidity) ?? env.temperatureC,
+    );
   const cloud = Math.min(1, Math.max(0, env.cloudCover / 100));
   // Live weather measures sunlight directly; scenarios estimate it from the
   // sun's height and the cloud cover.

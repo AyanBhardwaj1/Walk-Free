@@ -54,3 +54,25 @@ export function perAccount(max: number, what: string): RequestHandler {
     });
   };
 }
+
+/**
+ * Counts only failures (wrong password, wrong code) per key, so successful
+ * use never locks anyone out and a stranger's guesses can't either when the
+ * key includes the guesser's address.
+ */
+export function failureLimiter(max: number, windowMs: number) {
+  const failures = new Map<string, { count: number; reset: number }>();
+  return {
+    blocked(key: string, now = Date.now()) {
+      const entry = failures.get(key);
+      return !!entry && entry.reset > now && entry.count >= max;
+    },
+    fail(key: string, now = Date.now()) {
+      const entry = failures.get(key);
+      if (!entry || entry.reset <= now) {
+        if (failures.size >= MAX_TRACKED) failures.clear();
+        failures.set(key, { count: 1, reset: now + windowMs });
+      } else entry.count++;
+    },
+  };
+}

@@ -231,6 +231,45 @@ describe("HTTP auth enforcement", () => {
     });
   });
 
+  it("never locks a person out for signing in successfully", async () => {
+    vi.stubEnv("WALK_FREE_AUTH_URL", "https://auth.example/auth");
+    vi.stubEnv("VERCEL", "");
+    await withServer(async (base, request) => {
+      let ok = true;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          ok
+            ? Response.json({ user: { id: "u", emailVerified: true } })
+            : Response.json(
+                { message: "Invalid email or password" },
+                { status: 401 },
+              ),
+        ),
+      );
+      const signIn = (email: string) =>
+        request(base + "/api/auth/sign-in/email", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:5173",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password: "a-long-password" }),
+        });
+      const good = [];
+      for (let i = 0; i < 7; i++)
+        good.push((await signIn("me@example.com")).status);
+      expect(good.every((s) => s === 200)).toBe(true);
+      // Failed guesses are what count.
+      ok = false;
+      const bad = [];
+      for (let i = 0; i < 7; i++)
+        bad.push((await signIn("guess@example.com")).status);
+      expect(bad.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
+      expect(bad.slice(5)).toEqual([429, 429]);
+    });
+  });
+
   it("fails closed on account provider outages", async () => {
     vi.stubEnv("WALK_FREE_AUTH_URL", "https://auth.example/auth");
     await withServer(async (base, request) => {

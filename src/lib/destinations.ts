@@ -91,8 +91,9 @@ export interface Destination {
   /** Everything searchable about this point, folded (see `fold`). */
   search: string;
   /** Folded names that can match a query on their own: buildings, parks,
-   * their codes and aliases (place: true), and street names. */
-  keys: { text: string; place: boolean }[];
+   * their codes and aliases (place: true), and street names. `primary`
+   * marks the names the label is about. */
+  keys: { text: string; place: boolean; primary?: boolean }[];
 }
 
 /**
@@ -207,14 +208,24 @@ export function destinationCatalog(world: World): Destination[] {
         n.name ||
         (places.length ? `Path near ${places[0].name}` : road || "Mapped path");
       const detail = `${road && road !== label ? road + " · " : ""}${locationLabel(n.point)}`;
+      // The label names the node, else its nearest place, else its streets.
+      const labelPlace = !n.name && places.length ? places[0] : null;
       const keys = [
         ...places.flatMap((p) =>
-          [p.name, ...p.aliases].map((t) => ({ text: fold(t), place: true })),
+          [p.name, ...p.aliases].map((t) => ({
+            text: fold(t),
+            place: true,
+            primary: p === labelPlace,
+          })),
         ),
-        ...[...roads.get(n.id)!, ...(n.name ? [n.name] : [])].map((t) => ({
+        ...[...roads.get(n.id)!].map((t) => ({
           text: fold(t),
           place: false,
+          primary: !n.name && !labelPlace,
         })),
+        ...(n.name
+          ? [{ text: fold(n.name), place: false, primary: true }]
+          : []),
       ].filter((k) => k.text);
       return {
         id: n.id,
@@ -264,12 +275,15 @@ function rank(catalog: Destination[], terms: string[]) {
           )
         )
           return [];
-        // The best name match; buildings and parks edge out streets on a tie.
+        // The best name match; buildings and parks edge out streets on a
+        // tie, and names the label isn't about (a nearby street or building)
+        // count half, so "durant" finds Durant Avenue before a hall beside it.
         const score = Math.max(
           5,
           ...d.keys.map((k) => {
             const s = keyScore(k.text, phrase);
-            return s && k.place ? s + 10 : s;
+            const weighted = s && k.place ? s + 10 : s;
+            return k.primary === false ? weighted / 2 : weighted;
           }),
         );
         return [{ d, score }];
