@@ -36,7 +36,10 @@ export default function MergedBuildings({
     let triangles = 0;
     const color = new THREE.Color();
     for (const object of objects) {
-      const g = buildingGeometry(object).toNonIndexed();
+      // Extruded shapes are already non-indexed; converting again would only
+      // log a warning per building.
+      const extruded = buildingGeometry(object);
+      const g = extruded.index ? extruded.toNonIndexed() : extruded;
       g.rotateY((-object.rotation * Math.PI) / 180);
       g.translate(
         object.position[0],

@@ -24,12 +24,83 @@ const greens = [
   "#768c67",
 ];
 
-export default function Trees({
-  objects,
-  terrain,
-  selectedId,
-  onPointerDown,
-}: Props) {
+/**
+ * Mapped trees get a detailed crown; canopy inferred from Meta's height map
+ * (often ten thousand or more per campus) gets one low-poly crown each, so
+ * the scene stays smooth on phones.
+ */
+export default function Trees(props: Props) {
+  const mapped = useMemo(
+    () => props.objects.filter((o) => o.source !== "canopy"),
+    [props.objects],
+  );
+  const canopy = useMemo(
+    () => props.objects.filter((o) => o.source === "canopy"),
+    [props.objects],
+  );
+  return (
+    <>
+      <DetailedTrees {...props} objects={mapped} />
+      <CanopyCrowns {...props} objects={canopy} />
+    </>
+  );
+}
+
+function CanopyCrowns({ objects, terrain, selectedId, onPointerDown }: Props) {
+  const crowns = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const color = useMemo(() => new THREE.Color(), []);
+  useLayoutEffect(() => {
+    const mesh = crowns.current;
+    if (!mesh) return;
+    objects.forEach((tree, i) => {
+      const floor = terrainHeight(tree.position, terrain);
+      dummy.position.set(
+        tree.position[0],
+        floor + tree.height * 0.62,
+        tree.position[1],
+      );
+      dummy.rotation.set(0, hash(tree.id) * 0.37, 0);
+      dummy.scale.set(tree.width * 0.6, tree.height * 0.4, tree.depth * 0.6);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setColorAt(
+        i,
+        color.set(
+          tree.id === selectedId
+            ? "#b1c28b"
+            : greens[hash(tree.id) % greens.length],
+        ),
+      );
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [objects, terrain, selectedId, color, dummy]);
+  if (!objects.length) return null;
+  return (
+    <instancedMesh
+      key={`canopy-${objects.length}`}
+      ref={crowns}
+      args={[undefined, undefined, objects.length]}
+      castShadow
+      receiveShadow
+      onPointerDown={
+        onPointerDown
+          ? (event) => {
+              if (event.instanceId !== undefined)
+                onPointerDown(event, objects[event.instanceId]);
+            }
+          : undefined
+      }
+    >
+      <icosahedronGeometry args={[1, 1]} />
+      <meshStandardMaterial roughness={0.98} flatShading />
+    </instancedMesh>
+  );
+}
+
+function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
   const crowns = useRef<THREE.InstancedMesh>(null);
   const trunks = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);

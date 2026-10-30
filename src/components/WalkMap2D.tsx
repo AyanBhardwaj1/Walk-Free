@@ -29,6 +29,7 @@ export default function WalkMap2D({
   start,
   end,
   edgeColors,
+  insets,
 }: {
   world: World;
   route: RouteResult | null;
@@ -38,6 +39,8 @@ export default function WalkMap2D({
   end?: Point;
   /** Optional heat colour per edge id, used to colour the route. */
   edgeColors?: Map<string, string> | null;
+  /** Panels over the map; the route centres in the space beside them. */
+  insets?: { left: number; bottom: number; top: number };
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -75,9 +78,11 @@ export default function WalkMap2D({
     const g = c.getContext("2d");
     if (!g) return;
     const scale = ZOOMS[zoom] * dpr;
+    const shiftX = ((insets?.left ?? 0) / 2) * dpr;
+    const shiftY = (((insets?.top ?? 0) - (insets?.bottom ?? 0)) / 2) * dpr;
     const toScreen = (p: Point): [number, number] => [
-      (p[0] - center[0]) * scale + c.width / 2,
-      (p[1] - center[1]) * scale + c.height / 2,
+      (p[0] - center[0]) * scale + c.width / 2 + shiftX,
+      (p[1] - center[1]) * scale + c.height / 2 + shiftY,
     ];
     const line = (pts: Point[]) => {
       pts.forEach((p, i) => {
@@ -170,7 +175,19 @@ export default function WalkMap2D({
       g.fill();
     }
     dot(you, COLORS.you, 9);
-  }, [world, route, you, accuracy, start, end, edgeColors, center, zoom, size]);
+  }, [
+    world,
+    route,
+    you,
+    accuracy,
+    start,
+    end,
+    edgeColors,
+    center,
+    zoom,
+    size,
+    insets,
+  ]);
   return (
     <div className="walk-map">
       <canvas

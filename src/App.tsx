@@ -1982,6 +1982,7 @@ export default function App({
               start={startNode?.point}
               end={endNode?.point}
               edgeColors={heatOverlay?.colors}
+              insets={mapInsets}
             />
           ) : (
             <WorldCanvas
