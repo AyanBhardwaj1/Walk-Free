@@ -36,14 +36,19 @@ const elements = [
   node(20, 0.001, 0.0001, { amenity: "drinking_water" }),
   node(21, 0.001, 0.003, { amenity: "drinking_water" }),
   node(22, 0.0015, 0, { amenity: "drinking_water", access: "private" }),
-  node(23, 0.0005, 0.0001, { amenity: "shelter", shelter_type: "picnic_shelter" }),
+  node(23, 0.0005, 0.0001, {
+    amenity: "shelter",
+    shelter_type: "picnic_shelter",
+  }),
   node(24, 0.0005, 0, { amenity: "toilets", drinking_water: "yes" }),
 ];
 
 describe("heat-relief amenities", () => {
   it("asks Overpass for drinking water and shelters", () => {
     const q = overpassQuery(lat, lon, 300);
-    expect(q).toContain('node["amenity"~"^(drinking_water|water_point|shelter)$"]');
+    expect(q).toContain(
+      'node["amenity"~"^(drinking_water|water_point|shelter)$"]',
+    );
     expect(q).toContain('node["drinking_water"="yes"]');
   });
 

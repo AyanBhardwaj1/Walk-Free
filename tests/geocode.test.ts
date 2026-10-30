@@ -30,7 +30,13 @@ describe("city search fallback", () => {
           country: "United Kingdom",
           country_code: "GB",
         },
-        { id: 1, name: "Nowhere", latitude: 1, longitude: 1, timezone: "Mars/Base" },
+        {
+          id: 1,
+          name: "Nowhere",
+          latitude: 1,
+          longitude: 1,
+          timezone: "Mars/Base",
+        },
       ],
     });
     const found = await findCities("london uk");

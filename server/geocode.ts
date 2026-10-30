@@ -43,20 +43,18 @@ export async function geocodeCities(query: string): Promise<City[]> {
         r.timezone &&
         validTimezone(r.timezone),
     )
-    .map(
-      (r): City => ({
-        id: `geo-${r.id}`,
-        name: r.name!,
-        state:
-          r.country_code === "US"
-            ? (r.admin1 ?? "")
-            : [r.admin1, r.country].filter(Boolean).join(", "),
-        lat: r.latitude!,
-        lon: r.longitude!,
-        timezone: r.timezone!,
-        ...(r.population ? { population: r.population } : {}),
-      }),
-    );
+    .map((r): City => ({
+      id: `geo-${r.id}`,
+      name: r.name!,
+      state:
+        r.country_code === "US"
+          ? (r.admin1 ?? "")
+          : [r.admin1, r.country].filter(Boolean).join(", "),
+      lat: r.latitude!,
+      lon: r.longitude!,
+      timezone: r.timezone!,
+      ...(r.population ? { population: r.population } : {}),
+    }));
   if (geocoded.size > 500) geocoded.clear();
   geocoded.set(q, { at: Date.now(), value });
   return value;

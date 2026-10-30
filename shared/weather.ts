@@ -87,7 +87,8 @@ function hourAt(block: OpenMeteoBlock, i?: number): WeatherHour | null {
     cloudCover: percent(pick(block.cloud_cover)),
     description: describeWeatherCode(pick(block.weather_code)),
     solarWm2: within(
-      pick(block.shortwave_radiation_instant) ?? pick(block.shortwave_radiation),
+      pick(block.shortwave_radiation_instant) ??
+        pick(block.shortwave_radiation),
       0,
       1500,
     ),

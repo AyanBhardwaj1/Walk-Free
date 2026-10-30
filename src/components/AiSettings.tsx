@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, KeyRound, LoaderCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  KeyRound,
+  LoaderCircle,
+} from "lucide-react";
 import Select from "./Select";
 import {
   AI_PROVIDERS,
@@ -176,7 +181,9 @@ export default function AiSettings({
                 if (guess && guess !== provider) {
                   setProvider(guess);
                   setModel(info(guess).model);
-                  setNote(`Looks like a ${info(guess).label} key, so that provider is selected.`);
+                  setNote(
+                    `Provider set to ${info(guess).label} to match the key you pasted.`,
+                  );
                 }
               }}
             />

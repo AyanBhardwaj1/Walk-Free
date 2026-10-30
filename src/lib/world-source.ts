@@ -1,10 +1,6 @@
 import { prebuiltAreaFor } from "../../shared/areas.js";
 import { ServiceError } from "../../shared/errors.js";
-import {
-  hasCanopy,
-  withCanopy,
-  type CanopyCell,
-} from "../../shared/canopy.js";
+import { hasCanopy, withCanopy, type CanopyCell } from "../../shared/canopy.js";
 import type { World } from "../../shared/types.js";
 import {
   MAX_TILED_ELEMENTS,
@@ -191,13 +187,15 @@ export async function loadWorld(
     deps.onStage?.("Adding tree canopy…");
     return addCanopy(world, await canopy);
   };
-  if (prebuilt)
-    return { world: await withTrees(prebuilt), source: "prebuilt" };
+  if (prebuilt) return { world: await withTrees(prebuilt), source: "prebuilt" };
   deps.onStage?.("Downloading OpenStreetMap data…");
   const pending = deps.skipServer ? null : fromServer(request, deps);
   canopy = canopyFor(request, deps);
   const server = await pending;
   if (server) return { world: await withTrees(server), source: "server" };
   deps.onStage?.("Map servers are busy · trying directly from your browser…");
-  return { world: await withTrees(await fromBrowser(request, deps)), source: "browser" };
+  return {
+    world: await withTrees(await fromBrowser(request, deps)),
+    source: "browser",
+  };
 }

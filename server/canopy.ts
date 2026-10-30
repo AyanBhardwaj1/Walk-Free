@@ -22,9 +22,7 @@ const TARGET_RESOLUTION = 2.2;
 
 const dispatcher = new EnvHttpProxyAgent();
 class Response extends BaseResponse {
-  constructor(
-    private response: Awaited<ReturnType<typeof fetch>>,
-  ) {
+  constructor(private response: Awaited<ReturnType<typeof fetch>>) {
     super();
   }
   get ok() {
@@ -71,8 +69,7 @@ export async function readCanopy(
 ): Promise<CanopyRaster | null> {
   const signal = AbortSignal.timeout(timeoutMs);
   const box = mercatorBox(lat, lon, radius);
-  const mercatorRes =
-    TARGET_RESOLUTION / Math.cos((lat * Math.PI) / 180);
+  const mercatorRes = TARGET_RESOLUTION / Math.cos((lat * Math.PI) / 180);
   const width = Math.ceil((box.east - box.west) / mercatorRes);
   const height = Math.ceil((box.north - box.south) / mercatorRes);
   const out: CanopyRaster = {

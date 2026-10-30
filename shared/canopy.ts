@@ -47,8 +47,7 @@ export function quadkeysFor(
   const size = (2 * Math.PI * R) / 2 ** zoom;
   const col = (x: number) => Math.floor((x + Math.PI * R) / size);
   const row = (y: number) => Math.floor((Math.PI * R - y) / size);
-  const keys: { key: string; west: number; north: number; size: number }[] =
-    [];
+  const keys: { key: string; west: number; north: number; size: number }[] = [];
   for (let tx = col(box.west); tx <= col(box.east); tx++)
     for (let ty = row(box.north); ty <= row(box.south); ty++) {
       let key = "";
@@ -94,7 +93,8 @@ export function canopyCells(
   const heights = new Float32Array(cols * cols);
   const lons = Array.from(
     { length: raster.width },
-    (_, px) => fromMercator(raster.west + (px + 0.5) * raster.resolution, 0).lon,
+    (_, px) =>
+      fromMercator(raster.west + (px + 0.5) * raster.resolution, 0).lon,
   );
   for (let py = 0; py < raster.height; py++) {
     const { lat } = fromMercator(
@@ -123,12 +123,17 @@ export function canopyCells(
   // Keep the densest canopy when an area has more than the cap.
   found.sort((a, b) => b.cover - a.cover);
   const round = (n: number) => Math.round(n * 10) / 10;
-  return found.slice(0, maxCells).map(({ cell, cover }) => [
-    round((cell % cols) * CELL - half + CELL / 2),
-    round(Math.floor(cell / cols) * CELL - half + CELL / 2),
-    round(Math.min(CELL + 1, CELL * Math.sqrt(cover))),
-    Math.max(MIN_TREE_HEIGHT, Math.round(Math.min(45, heights[cell] / canopy[cell]))),
-  ]);
+  return found
+    .slice(0, maxCells)
+    .map(({ cell, cover }) => [
+      round((cell % cols) * CELL - half + CELL / 2),
+      round(Math.floor(cell / cols) * CELL - half + CELL / 2),
+      round(Math.min(CELL + 1, CELL * Math.sqrt(cover))),
+      Math.max(
+        MIN_TREE_HEIGHT,
+        Math.round(Math.min(45, heights[cell] / canopy[cell])),
+      ),
+    ]);
 }
 
 /**
@@ -150,9 +155,10 @@ export function canopyTrees(
       const k = key(o.position[0], o.position[1]);
       trees.set(k, [...(trees.get(k) ?? []), o.position]);
     } else if (o.footprint) {
-      const ring = o.footprint.map(
-        (p): Point => [p[0] + o.position[0], p[1] + o.position[1]],
-      );
+      const ring = o.footprint.map((p): Point => [
+        p[0] + o.position[0],
+        p[1] + o.position[1],
+      ]);
       const xs = ring.map((p) => p[0]);
       const ys = ring.map((p) => p[1]);
       for (

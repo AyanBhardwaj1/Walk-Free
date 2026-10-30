@@ -165,6 +165,7 @@ export default function AuthPage({
                     <input
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
+                      name="code"
                       autoComplete="one-time-code"
                       inputMode="numeric"
                       required
@@ -181,6 +182,7 @@ export default function AuthPage({
                         <input
                           value={name}
                           onChange={(e) => setName(e.target.value)}
+                          name="name"
                           autoComplete="name"
                           maxLength={80}
                           required
@@ -194,7 +196,10 @@ export default function AuthPage({
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
+                          name="email"
                           autoComplete="email"
+                          spellCheck={false}
+                          autoCapitalize="none"
                           maxLength={254}
                           required
                         />
@@ -206,6 +211,7 @@ export default function AuthPage({
                         <span className="password-field">
                           <input
                             aria-label={reset ? "New password" : "Password"}
+                            name="password"
                             type={show ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -243,6 +249,7 @@ export default function AuthPage({
                           type={show ? "text" : "password"}
                           value={confirm}
                           onChange={(e) => setConfirm(e.target.value)}
+                          name="confirm-password"
                           autoComplete="new-password"
                           required
                           maxLength={128}

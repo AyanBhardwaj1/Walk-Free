@@ -671,4 +671,3 @@ export function nearestCity(lat: number, lon: number): City {
   }
   return nearest;
 }
-
