@@ -88,7 +88,8 @@ import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
-import { loadWorld } from "./lib/world-source";
+import { addCanopy, loadWorld } from "./lib/world-source";
+import { hasCanopy } from "../shared/canopy";
 import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
 import { openCoolStops } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
@@ -742,7 +743,7 @@ export default function App({
     setBusy(`Building ${c.name}…`);
     setQuery("");
     try {
-      const { world: loaded } = await loadWorld(
+      const { world: loaded, canopy } = await loadWorld(
         {
           lat: c.lat,
           lon: c.lon,
@@ -767,6 +768,15 @@ export default function App({
         c.timezone ? { ...(loaded as object), timezone: c.timezone } : loaded,
       );
       edit(w);
+      // Meta's canopy arrives after the map: add it in place (not as an
+      // undoable edit) if the same area is still open.
+      void canopy?.then((cells) =>
+        setWorld((current) =>
+          current.id === w.id && !hasCanopy(current)
+            ? addCanopy(current, cells)
+            : current,
+        ),
+      );
       setAtlas(null);
       setSelected(null);
       let [from, to] = defaultEndpoints(w, {

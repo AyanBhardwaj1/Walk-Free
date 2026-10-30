@@ -67,14 +67,16 @@ export async function requestBytes(
     const reason = options.errorReason
       ? providerReason((await response.text().catch(() => "")).slice(0, 4000))
       : (await response.body?.cancel(), undefined);
-    throw new ServiceError(
+    const failure = new ServiceError(
       response.status === 403 ? "NETWORK_BLOCKED" : "UPSTREAM_UNAVAILABLE",
       response.status === 403
         ? "The data provider or environment network policy denied this request."
         : `The data provider returned HTTP ${response.status}. Please try again later.`,
       502,
-      reason ?? `Required HTTPS host: ${new URL(url).hostname}`,
+      `Required HTTPS host: ${new URL(url).hostname}`,
     );
+    if (reason) failure.providerReason = reason;
+    throw failure;
   }
   const limit = options.maxBytes ?? 16 * 1024 * 1024;
   const length = Number(response.headers.get("content-length"));

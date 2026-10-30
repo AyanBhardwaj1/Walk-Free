@@ -359,18 +359,19 @@ describe("testing a person's own key", () => {
 
   it("passes the provider's own reason back to the person", async () => {
     setUsageStore(memoryUsage());
-    requestJson.mockRejectedValueOnce(
-      new ServiceError(
-        "UPSTREAM_UNAVAILABLE",
-        "The data provider returned HTTP 404. Please try again later.",
-        502,
-        "meta-llama/llama-9 is not a valid model ID",
-      ),
+    const failure = new ServiceError(
+      "UPSTREAM_UNAVAILABLE",
+      "The data provider returned HTTP 404. Please try again later.",
+      502,
+      "Required HTTPS host: openrouter.ai",
     );
+    failure.providerReason = "meta-llama/llama-9 is not a valid model ID";
+    requestJson.mockRejectedValueOnce(failure);
     const result = await post("/api/agent/test-key", {}, own);
     expect(result.status).toBe(400);
     expect(result.body.error).toContain("Check the model name");
     expect(result.body.error).toContain("is not a valid model ID");
+    expect(result.body.error).not.toContain("Required HTTPS host");
   });
 
   it("asks for a key when none was sent", async () => {
@@ -382,14 +383,13 @@ describe("testing a person's own key", () => {
   it("never sends the shared key's provider reason to the browser", async () => {
     vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-site-key");
     setUsageStore(memoryUsage());
-    requestJson.mockRejectedValueOnce(
-      new ServiceError(
-        "UPSTREAM_UNAVAILABLE",
-        "The data provider returned HTTP 401. Please try again later.",
-        502,
-        "Incorrect API key provided: sk-site***",
-      ),
+    const failure = new ServiceError(
+      "UPSTREAM_UNAVAILABLE",
+      "The data provider returned HTTP 401. Please try again later.",
+      502,
     );
+    failure.providerReason = "Incorrect API key provided: sk-site***";
+    requestJson.mockRejectedValueOnce(failure);
     const result = await post("/api/agent/chat", {
       messages: [{ role: "user", content: "Hi" }],
       context,

@@ -120,8 +120,12 @@ export function canopyCells(
     const cover = canopy[cell] / count[cell];
     if (cover >= MIN_COVER) found.push({ cell, cover });
   }
-  // Keep the densest canopy when an area has more than the cap.
-  found.sort((a, b) => b.cover - a.cover);
+  // Over the cap, keep the densest canopy; ties (common: full cover) break
+  // on a fixed hash so the kept cells spread over the whole area instead of
+  // filling its northern rows first.
+  const spread = (cell: number) =>
+    Math.imul(cell ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
+  found.sort((a, b) => b.cover - a.cover || spread(a.cell) - spread(b.cell));
   const round = (n: number) => Math.round(n * 10) / 10;
   return found
     .slice(0, maxCells)

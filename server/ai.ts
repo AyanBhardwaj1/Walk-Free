@@ -153,8 +153,8 @@ export async function chatCompletion(
       (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
     );
     const reason =
-      config.own && error instanceof ServiceError && error.details
-        ? ` The provider said: “${error.details}”`
+      config.own && error instanceof ServiceError && error.providerReason
+        ? ` The provider said: “${error.providerReason}”`
         : "";
     if (
       status === 401 ||

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OsmResponse } from "../shared/osm";
 import { ServiceError } from "../shared/errors";
 import { prebuiltAreaFor } from "../shared/areas";
-import { loadWorld } from "../src/lib/world-source";
+import { addCanopy, loadWorld } from "../src/lib/world-source";
+import { worldOrigin } from "../shared/osm";
 import type { World } from "../shared/types";
 
 const requestJson = vi.fn();
@@ -94,6 +95,7 @@ describe("client world sources", () => {
     expect(result).toEqual({
       source: "prebuilt",
       world: { id: "hero", name: "UC Berkeley, CA", provenance },
+      canopy: null,
     });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith("/areas/uc-berkeley.json");
@@ -158,13 +160,17 @@ describe("client world sources", () => {
     ).toBe(false);
   });
 
-  it("adds canopy trees where no tree is mapped, and notes the source", async () => {
+  it("adds canopy trees after the map, shifted onto the map's own origin", async () => {
+    const origin = worldOrigin(far.lat, far.lon);
+    // The server answers for a centre about 111 m north of the area.
+    const served = { lat: origin.lat + 0.001, lon: origin.lon };
     const fetch = vi.fn(async (url: RequestInfo | URL) =>
       String(url).startsWith("/api/canopy")
         ? json({
+            origin: served,
             cells: [
               [0, 0, 8, 12],
-              [200, 200, 6, 9],
+              [0, 2000, 6, 9],
             ],
           })
         : json(osm(41.3, -90.3)),
@@ -174,15 +180,19 @@ describe("client world sources", () => {
       apiBase: "",
       skipServer: true,
     });
-    const world = result.world as World;
+    // The map is ready before its canopy.
+    expect(
+      (result.world as World).objects.some((o) => o.source === "canopy"),
+    ).toBe(false);
+    const world = addCanopy(result.world as World, await result.canopy!);
     const canopy = world.objects.filter((o) => o.source === "canopy");
-    expect(canopy.map((o) => o.position)).toEqual([
-      [0, 0],
-      [200, 200],
-    ]);
+    // North is negative y locally; the far cell lies outside the area.
+    expect(canopy).toHaveLength(1);
+    expect(canopy[0].position[0]).toBeCloseTo(0, 1);
+    expect(canopy[0].position[1]).toBeCloseTo(-111.2, 0);
     expect(canopy[0]).toMatchObject({ kind: "tree", width: 8, height: 12 });
     expect(world.provenance.attribution).toMatch(/Canopy Height Maps/);
-    expect(world.provenance.notes.at(-1)).toMatch(/^Tree canopy: 2 tree/);
+    expect(world.provenance.notes.at(-1)).toMatch(/^Tree canopy: 1 tree/);
   });
 
   it("keeps the map and says so when the canopy service is down", async () => {
@@ -196,7 +206,7 @@ describe("client world sources", () => {
       apiBase: "",
       skipServer: true,
     });
-    const world = result.world as World;
+    const world = addCanopy(result.world as World, await result.canopy!);
     expect(world.roads).toHaveLength(1);
     expect(world.provenance.notes.at(-1)).toMatch(/^Tree canopy unavailable/);
   });

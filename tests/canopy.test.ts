@@ -101,3 +101,25 @@ describe("canopy trees", () => {
     expect(trees.every((t) => t.source === "canopy")).toBe(true);
   });
 });
+
+describe("canopy cap", () => {
+  it("spreads kept crowns over the whole area when canopy is everywhere", () => {
+    const origin = { lat: 0.001, lon: 0.001 };
+    const box = mercatorBox(origin.lat, origin.lon, 300);
+    const width = 300;
+    const forest: CanopyRaster = {
+      width,
+      height: width,
+      data: new Uint8Array(width * width).fill(15),
+      west: box.west,
+      north: box.north,
+      resolution: (box.east - box.west) / width,
+    };
+    const cells = canopyCells(origin, 600, forest, 400);
+    expect(cells).toHaveLength(400);
+    const ys = cells.map((c) => c[1]);
+    // Both the northern and southern thirds keep trees.
+    expect(ys.some((y) => y < -100)).toBe(true);
+    expect(ys.some((y) => y > 100)).toBe(true);
+  });
+});

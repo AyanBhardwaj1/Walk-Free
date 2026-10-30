@@ -70,9 +70,13 @@ function validTimezone(zone: string) {
 }
 
 /** Indexed matches first, then geocoded places the index lacks. */
-export async function findCities(query: string): Promise<City[]> {
+export async function findCities(
+  query: string,
+  geocode = true,
+): Promise<City[]> {
   const local = searchCities(query);
-  if (local.length >= 3 || normalize(query).length < 3) return local;
+  if (!geocode || local.length >= 3 || normalize(query).length < 3)
+    return local;
   try {
     const near = (a: City, b: City) =>
       Math.abs(a.lat - b.lat) < 0.05 && Math.abs(a.lon - b.lon) < 0.05;

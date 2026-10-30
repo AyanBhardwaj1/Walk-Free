@@ -11,6 +11,7 @@ import {
   overpassRetryable,
   parseOsmWorld,
   worldOrigin,
+  localPoint,
   type OsmResponse,
 } from "../../shared/osm.js";
 
@@ -140,62 +141,114 @@ async function fromBrowser(request: AreaRequest, deps: WorldSourceDeps) {
   );
 }
 
-/** Inferred tree crowns from the canopy map, or null if it can't be read. */
-async function canopyFor(request: AreaRequest, deps: WorldSourceDeps) {
+/** Where an area's canopy is requested for: its centre and half-width. */
+interface CanopyTarget {
+  origin: { lat: number; lon: number };
+  radius: number;
+}
+
+/**
+ * Inferred tree crowns from the canopy map, moved onto the target's local
+ * grid and trimmed to it, or null if the map can't be read. The server
+ * snaps requests to a coarse grid so neighbouring areas share its cache.
+ */
+async function canopyFor(target: CanopyTarget, deps: WorldSourceDeps) {
   const params = new URLSearchParams({
-    lat: String(request.lat),
-    lon: String(request.lon),
-    radius: String(request.radius),
+    lat: String(target.origin.lat),
+    lon: String(target.origin.lon),
+    radius: String(target.radius),
   });
   try {
     const response = await deps.fetch(`${deps.apiBase}/api/canopy?${params}`, {
       signal: AbortSignal.timeout(30_000),
     });
-    const data = (await readJson(response)) as { cells?: unknown } | null;
-    return response.ok && Array.isArray(data?.cells)
-      ? (data.cells as CanopyCell[])
-      : null;
+    const data = (await readJson(response)) as {
+      cells?: unknown;
+      origin?: { lat?: unknown; lon?: unknown };
+    } | null;
+    if (!response.ok || !Array.isArray(data?.cells)) return null;
+    const from = data.origin;
+    const [dx, dy] =
+      typeof from?.lat === "number" && typeof from.lon === "number"
+        ? localPoint(from.lat, from.lon, target.origin)
+        : [0, 0];
+    return (data.cells as CanopyCell[])
+      .map(([x, y, crown, height]): CanopyCell => [
+        Math.round((x + dx) * 10) / 10,
+        Math.round((y + dy) * 10) / 10,
+        crown,
+        height,
+      ])
+      .filter(
+        ([x, y]) => Math.abs(x) < target.radius && Math.abs(y) < target.radius,
+      );
   } catch {
     return null;
   }
 }
 
 /** Adds canopy trees when the world is a parsed map that lacks them. */
-function addCanopy(world: unknown, cells: CanopyCell[] | null) {
+export function addCanopy<W>(world: W, cells: CanopyCell[] | null): W {
   const w = world as Partial<World> | null;
   if (!Array.isArray(w?.objects) || !Array.isArray(w?.provenance?.notes))
     return world;
-  return withCanopy(w as World, cells);
+  return withCanopy(w as World, cells) as W;
+}
+
+export interface LoadedWorld {
+  world: unknown;
+  source: WorldSource;
+  /**
+   * Canopy crowns for this world, still loading, so the map can show first;
+   * null when the world already has them.
+   */
+  canopy: Promise<CanopyCell[] | null> | null;
 }
 
 /**
  * Builds an area from the fastest reliable source: a shipped hero area, the
  * API (with its own mirror fallback and cache), then Overpass directly from
  * the browser, which avoids serverless time limits and shared-IP throttling.
+ * Meta's canopy map, which fills in unmapped trees, loads alongside.
  */
 export async function loadWorld(
   request: AreaRequest,
   deps: WorldSourceDeps,
-): Promise<{ world: unknown; source: WorldSource }> {
-  const prebuilt = await fromPrebuilt(request, deps);
-  if (prebuilt && hasCanopy(prebuilt as World))
-    return { world: prebuilt, source: "prebuilt" };
-  // Meta's canopy map fills in unmapped trees; it loads alongside the map.
-  let canopy: Promise<CanopyCell[] | null> | null = null;
-  const withTrees = async (world: unknown) => {
-    canopy ??= canopyFor(request, deps);
-    deps.onStage?.("Adding tree canopy…");
-    return addCanopy(world, await canopy);
-  };
-  if (prebuilt) return { world: await withTrees(prebuilt), source: "prebuilt" };
+): Promise<LoadedWorld> {
+  const prebuilt = (await fromPrebuilt(request, deps)) as World | null;
+  if (prebuilt) {
+    const done =
+      hasCanopy(prebuilt) ||
+      !prebuilt.origin ||
+      !Number.isFinite(prebuilt.extent);
+    return {
+      world: prebuilt,
+      source: "prebuilt",
+      canopy: done
+        ? null
+        : canopyFor(
+            { origin: prebuilt.origin, radius: prebuilt.extent / 2 },
+            deps,
+          ),
+    };
+  }
   deps.onStage?.("Downloading OpenStreetMap data…");
   const pending = deps.skipServer ? null : fromServer(request, deps);
-  canopy = canopyFor(request, deps);
+  // A built area's origin and size follow from the request.
+  const canopy = canopyFor(
+    {
+      origin: worldOrigin(request.lat, request.lon),
+      radius: request.radius,
+    },
+    deps,
+  );
+  // Errors in the map build win; the canopy request never rejects.
   const server = await pending;
-  if (server) return { world: await withTrees(server), source: "server" };
+  if (server) return { world: server, source: "server", canopy };
   deps.onStage?.("Map servers are busy · trying directly from your browser…");
   return {
-    world: await withTrees(await fromBrowser(request, deps)),
+    world: await fromBrowser(request, deps),
     source: "browser",
+    canopy,
   };
 }
