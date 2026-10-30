@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { getCanopy, getWorld, getWeather } from "./data.js";
 import { CANOPY_ATTRIBUTION } from "../shared/canopy.js";
 import { findCities } from "./geocode.js";
-import { rateLimiter } from "./rate-limit.js";
+import { clientKey, perAccount, rateLimiter } from "./rate-limit.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
 import { agentRouter } from "./agent.js";
@@ -52,7 +52,7 @@ app.get("/api/cities", async (q, r, next) => {
   try {
     const query = String(q.query.q || "").toLowerCase();
     // Past the limit, answer from the bundled index only.
-    r.json(await findCities(query, geocodeAllowed(q)));
+    r.json(await findCities(query, geocodeAllowed(clientKey(q))));
   } catch (e) {
     next(e);
   }
@@ -63,7 +63,7 @@ app.get("/api/canopy", async (q, r, next) => {
   try {
     const { lat, lon } = coordinates(q.query.lat, q.query.lon);
     const radius = boundedRadius(q.query.radius);
-    if (!canopyAllowed(q)) {
+    if (!canopyAllowed(clientKey(q))) {
       r.setHeader("Cache-Control", "no-store");
       r.status(429).json({
         error: "Too many canopy requests. Wait a minute and try again.",
@@ -90,7 +90,9 @@ app.get("/api/canopy", async (q, r, next) => {
   }
 });
 app.use("/api", authenticate);
-app.get("/api/world", async (q, r, next) => {
+// Each build can run several Overpass queries; keep one account from
+// holding every map slot or getting the server blocked upstream.
+app.get("/api/world", perAccount(12, "map"), async (q, r, next) => {
   try {
     const { lat, lon } = coordinates(q.query.lat, q.query.lon);
     r.json(
@@ -105,7 +107,7 @@ app.get("/api/world", async (q, r, next) => {
     next(e);
   }
 });
-app.get("/api/weather", async (q, r, next) => {
+app.get("/api/weather", perAccount(40, "weather"), async (q, r, next) => {
   try {
     const { lat, lon } = coordinates(q.query.lat, q.query.lon);
     r.json(await getWeather(lat, lon));
@@ -139,11 +141,9 @@ app.use(
   ) => {
     // People see a sentence; details stay in the server log.
     if (e instanceof ServiceError) {
-      r.status(e.status).json({
-        error: e.message,
-        code: e.code,
-        details: e.details,
-      });
+      // Details name upstream hosts; they help operators, not visitors.
+      if (e.details) console.warn(`${e.code}: ${e.details}`);
+      r.status(e.status).json({ error: e.message, code: e.code });
       return;
     }
     if (e instanceof ZodError) {

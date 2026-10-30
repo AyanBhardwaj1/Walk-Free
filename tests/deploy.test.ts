@@ -26,3 +26,17 @@ describe("serverless deployment", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("security headers", () => {
+  it("sends a content security policy that blocks injected scripts and framing", () => {
+    const config = JSON.parse(readFileSync("vercel.json", "utf8")) as {
+      headers: { source: string; headers: { key: string; value: string }[] }[];
+    };
+    const all = config.headers.find((h) => h.source === "/(.*)")!.headers;
+    const csp = all.find((h) => h.key === "Content-Security-Policy")!.value;
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toMatch(/script-src[^;]*unsafe/);
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+  });
+});

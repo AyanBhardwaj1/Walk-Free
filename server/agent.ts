@@ -19,6 +19,22 @@ export const proposalSchema = z.object({
   removeIds: z.array(z.string().max(80)).max(80).default([]),
 });
 export const agentRouter = Router();
+
+/**
+ * The shared key is for verified accounts, so throwaway sign-ups can't use
+ * up the site's monthly allowance. A person's own key is always allowed.
+ */
+function requireVerifiedForSharedKey(
+  config: { own?: boolean },
+  account: { emailVerified?: boolean },
+) {
+  if (!config.own && account.emailVerified === false)
+    throw new ServiceError(
+      "EMAIL_UNVERIFIED",
+      "Verify your email to use the shared assistant, or add your own AI key in AI settings.",
+      403,
+    );
+}
 agentRouter.post("/propose", async (q, r, next) => {
   try {
     // A person's own key skips the shared caps; it is used only for this call.
@@ -30,9 +46,9 @@ agentRouter.post("/propose", async (q, r, next) => {
         scene: z
           .array(
             z.object({
-              id: z.string(),
-              name: z.string(),
-              kind: z.string(),
+              id: z.string().max(80),
+              name: z.string().max(100),
+              kind: z.string().max(30),
               position: z.tuple([z.number().finite(), z.number().finite()]),
               height: z.number().finite(),
               width: z.number().finite(),
@@ -45,7 +61,7 @@ agentRouter.post("/propose", async (q, r, next) => {
         roads: z
           .array(
             z.object({
-              name: z.string(),
+              name: z.string().max(100),
               points: z
                 .array(z.tuple([z.number().finite(), z.number().finite()]))
                 .max(200),
@@ -55,6 +71,7 @@ agentRouter.post("/propose", async (q, r, next) => {
           .default([]),
       })
       .parse(q.body);
+    requireVerifiedForSharedKey(config, r.locals.account);
     await chargeAiCall(r.locals.account.id, new Date(), config.own);
     const { content: text } = await chatCompletion(
       config,
@@ -162,6 +179,46 @@ export function recentTurns<T extends { role: string }>(
   return lastUser >= 0 ? messages.slice(lastUser) : messages;
 }
 
+/** Most characters of conversation sent to the model in one call. */
+export const MAX_PROMPT_CHARS = 60_000;
+
+/**
+ * Recent turns that fit both the message and the size budget, dropping the
+ * oldest whole turns first. A single turn too large to send is refused.
+ */
+export function boundedHistory<T extends { role: string }>(messages: T[]) {
+  let kept = recentTurns(messages);
+  while (JSON.stringify(kept).length > MAX_PROMPT_CHARS) {
+    const next = kept.findIndex((m, i) => i > 0 && m.role === "user");
+    if (next < 0)
+      throw new ServiceError(
+        "CHAT_TOO_LONG",
+        "That conversation got too long. Start a new conversation and ask again.",
+        400,
+      );
+    kept = kept.slice(next);
+  }
+  return kept;
+}
+
+/** Every tool result must answer a call the assistant made just before it. */
+export function checkToolResults(
+  messages: z.infer<typeof chatMessageSchema>[],
+) {
+  let open = new Set<string>();
+  for (const m of messages) {
+    if (m.role === "assistant")
+      open = new Set((m.tool_calls ?? []).map((c) => c.id));
+    else if (m.role === "user") open = new Set();
+    else if (!open.delete(m.tool_call_id))
+      throw new ServiceError(
+        "INVALID_CHAT",
+        "Some of the conversation didn't line up. Start a new conversation and ask again.",
+        400,
+      );
+  }
+}
+
 /** Tool rounds since the person's latest message. */
 export function toolRounds(messages: z.infer<typeof chatMessageSchema>[]) {
   let rounds = 0;
@@ -220,6 +277,7 @@ agentRouter.post("/chat", async (q, r, next) => {
     const { messages, context } = chatRequestSchema.parse(q.body);
     if (messages[0].role !== "user")
       throw new ServiceError("INVALID_CHAT", "Start with a question.", 400);
+    checkToolResults(messages);
     const rounds = toolRounds(messages);
     if (rounds > MAX_TOOL_ROUNDS)
       throw new ServiceError(
@@ -227,6 +285,8 @@ agentRouter.post("/chat", async (q, r, next) => {
         "That took too many steps. Try asking a simpler question.",
         400,
       );
+    const history = boundedHistory(messages);
+    requireVerifiedForSharedKey(config, r.locals.account);
     await chargeAiCall(r.locals.account.id, new Date(), config.own);
     // The browser's description of the scene is data, kept out of the
     // system rules so it cannot rewrite them.
@@ -236,7 +296,7 @@ agentRouter.post("/chat", async (q, r, next) => {
       [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "system", content: situation },
-        ...recentTurns(messages),
+        ...history,
       ],
       // On the last allowed round, force a final answer instead of more tools.
       { tools: rounds < MAX_TOOL_ROUNDS ? ASSISTANT_TOOLS : undefined },
