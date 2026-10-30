@@ -292,10 +292,15 @@ export function memoryUsage(): UsageStore {
 }
 
 let store: UsageStore | null = null;
-function usageStore(): UsageStore {
+/** Per-instance counts for own-key calls when no database is configured. */
+let ownKeyFallback: UsageStore | null = null;
+function usageStore(own = false): UsageStore {
   if (store) return store;
   const url = process.env.WALK_FREE_DATABASE_URL || process.env.DATABASE_URL;
   if (url) return (store = postgresUsage(url));
+  // A person's own key spends their money, not the site's, so a
+  // best-effort cap per server instance is enough without the database.
+  if (own) return (ownKeyFallback ??= memoryUsage());
   // Serverless instances do not share memory, so hosted AI needs the database.
   if (process.env.VERCEL)
     throw new ServiceError(
@@ -324,7 +329,7 @@ export async function chargeAiCall(
   const limits = usageLimits();
   let result: UsageResult;
   try {
-    result = await usageStore().record(
+    result = await usageStore(own).record(
       own ? `${OWN_PREFIX}${userId}` : userId,
       day,
       own

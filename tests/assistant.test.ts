@@ -107,6 +107,22 @@ describe("assistant usage limits", () => {
     });
   });
 
+  it("still serves own-key calls on a host without the usage database", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("WALK_FREE_DATABASE_URL", "");
+    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", "1");
+    const now = new Date("2026-10-28T12:00:00Z");
+    await chargeAiCall("own-only", now, true);
+    await expect(chargeAiCall("own-only", now, true)).rejects.toMatchObject({
+      code: "AI_DAILY_LIMIT",
+    });
+    // The shared key still needs the database.
+    await expect(chargeAiCall("own-only", now)).rejects.toMatchObject({
+      code: "AI_LIMITS_NOT_CONFIGURED",
+    });
+  });
+
   it("reads provider settings so another compatible model can be swapped in", () => {
     vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
     vi.stubEnv("WALK_FREE_AI_BASE_URL", "https://api.example.com/v1/");
