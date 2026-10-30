@@ -411,6 +411,12 @@ export default function App({
   const heatPlace = findPlace(heatPlaceId);
   const comparePlace = findPlace(comparePlaceId);
   const profileDay = atLocalHour(heatEnv.dateTime, world.timezone, 12);
+  // With a forecast each hour has its own weather, so the values shown for
+  // the current hour don't matter to the profile; in a scenario they do.
+  const profileWeather =
+    heatEnv.weatherMode === "forecast" && forecast
+      ? forecast
+      : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
   const heatProfile = useMemo(
     () =>
       heatPlace
@@ -427,12 +433,7 @@ export default function App({
       heatPlace?.id,
       world,
       profileDay,
-      heatEnv.temperatureC,
-      heatEnv.humidity,
-      heatEnv.windMps,
-      heatEnv.cloudCover,
-      heatEnv.weatherMode,
-      forecast,
+      profileWeather,
     ],
   );
   const heatOverlay = useMemo(() => {
