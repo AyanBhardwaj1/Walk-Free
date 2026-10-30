@@ -490,6 +490,7 @@ export default function App({
             label: "Your location on mapped path",
             detail: "GPS start",
             search: "your location",
+            keys: [{ text: "your location", place: true }],
           },
           ...catalog,
         ]

@@ -169,7 +169,8 @@ describe("heat estimates", () => {
       [9, 15],
     );
     expect(profile.map((p) => p.hour)).toEqual([9, 15]);
-    expect(profile[1].shadeFeelsC).toBeCloseTo(40, 0);
+    // 40 °C at 30% humidity: the NWS heat index is about 43 °C.
+    expect(profile[1].shadeFeelsC).toBeCloseTo(43.1, 0);
     expect(profile[0].feelsLikeC).toBeLessThan(profile[1].feelsLikeC);
   });
 
