@@ -275,7 +275,8 @@ export default function App({
         m = main.getBoundingClientRect();
       const phone = window.matchMedia("(max-width: 650px)").matches;
       const next = phone
-        ? { left: 0, bottom: Math.max(0, m.bottom - a.top), top: 64 }
+        ? // Above the sheet and the time-of-day card that sits on it.
+          { left: 0, bottom: Math.max(0, m.bottom - a.top) + 110, top: 64 }
         : {
             left: panelOpen ? Math.max(0, a.right - m.left) : 0,
             bottom: 110,
@@ -424,6 +425,13 @@ export default function App({
     heatEnv.weatherMode === "forecast" && forecast
       ? forecast
       : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+  const mapCredit = atlas
+    ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
+    : world.provenance.live
+      ? world.objects.some((o) => o.source === "canopy")
+        ? "© OpenStreetMap contributors · Canopy © Meta & WRI"
+        : "© OpenStreetMap contributors"
+      : "Original design study";
   const heatProfile = useMemo(
     () =>
       heatPlace
@@ -1044,12 +1052,13 @@ export default function App({
         flash(`Live weather on · ${f.source}. Updates every 10 minutes.`);
     } catch (e) {
       // Background refreshes keep the last weather; a new area says so.
-      if (reportFailure && request === buildRequest.current)
-        setMessage(
-          quiet
-            ? "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab."
-            : friendlyError(e),
-        );
+      if (reportFailure && request === buildRequest.current) {
+        if (quiet)
+          flash(
+            "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab.",
+          );
+        else setMessage(friendlyError(e));
+      }
     } finally {
       // Only clear the spinner this call started.
       if (!quiet) setBusy((current) => (current === working ? "" : current));
@@ -2333,16 +2342,12 @@ export default function App({
                   <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
                 ))}
               </div>
+              {/* On phones the map credit lives here, clear of the sheet. */}
+              <small className="timeline-credit">{mapCredit}</small>
             </div>
           )}
-          <div className="map-credit">
-            {atlas
-              ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
-              : world.provenance.live
-                ? world.objects.some((o) => o.source === "canopy")
-                  ? "© OpenStreetMap contributors · Canopy © Meta & WRI"
-                  : "© OpenStreetMap contributors"
-                : "Original design study"}
+          <div className={`map-credit${atlas ? "" : " has-timeline"}`}>
+            {mapCredit}
             <span>Scene units: meters</span>
           </div>
           {busy && (
