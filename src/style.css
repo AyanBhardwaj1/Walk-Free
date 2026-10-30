@@ -1722,6 +1722,10 @@ footer {
   letter-spacing: 1px;
   color: #8b9080;
 }
+.section-label {
+  display: block;
+  margin: 14px 0;
+}
 
 /* ===== Full-screen map with a floating panel (desktop) ===== */
 .app > main {

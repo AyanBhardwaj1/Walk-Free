@@ -10,7 +10,6 @@ import {
 } from "react";
 import {
   ArrowUpRight,
-  Search,
   TreePine,
   Building2,
   Route,
@@ -23,13 +22,11 @@ import {
   Sparkles,
   MapPin,
   Navigation,
-  ChevronRight,
   Mountain,
   Plus,
   Minus,
   MousePointer2,
   Landmark,
-  Wind,
   Compass,
   Check,
   X,
@@ -52,7 +49,7 @@ import type {
   WeatherForecast,
 } from "../shared/types";
 import { heatIndexC, isShaded, sunDirection } from "./lib/environment";
-import { applyDesignProposal, type DesignProposal } from "./lib/proposals";
+import { applyDesignProposal } from "./lib/proposals";
 import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
@@ -147,6 +144,23 @@ async function api(
     );
   return data;
 }
+/**
+ * The best match for a place name: the server's index plus its worldwide
+ * geocoder, or the bundled index alone when the API can't be reached.
+ */
+async function lookUpPlace(query: string): Promise<City | undefined> {
+  try {
+    const r = await fetch(
+      `${API_BASE}/api/cities?q=${encodeURIComponent(query)}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    const found = r.ok ? ((await r.json()) as City[]) : [];
+    if (Array.isArray(found) && found[0]) return found[0];
+  } catch {
+    // Offline or blocked: the bundled index still knows US cities.
+  }
+  return searchCities(query.toLowerCase())[0];
+}
 const tools = [
   ["select", "Select", MousePointer2],
   ["tree", "Tree", TreePine],
@@ -190,8 +204,6 @@ export default function App({
   const [tool, setTool] = useState("select");
   const [probe, setProbe] = useState<Point>([0, 0]);
   const [history, setHistory] = useState<World[]>([]);
-  const [query, setQuery] = useState("");
-  const [cities, setCities] = useState<City[]>([]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState("route");
@@ -508,8 +520,8 @@ export default function App({
       setComparePlaceId(null);
     },
     async buildArea(query) {
-      const city = searchCities(query.toLowerCase())[0];
-      if (!city) return `No US city or campus matching "${query}" is indexed.`;
+      const city = await lookUpPlace(query);
+      if (!city) return `No city or campus matching "${query}" was found.`;
       const built = await loadCity(city, true, 1000);
       return built
         ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
@@ -592,6 +604,9 @@ export default function App({
     });
     if (!world.graph.nodes.some((n) => n.id === start)) setStart(from);
     if (!world.graph.nodes.some((n) => n.id === end)) setEnd(to);
+    // Endpoints depend on the walking graph only; edits that leave it alone
+    // (trees, buildings) must not reset them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.graph, start, end, stairs, hypothetical]);
   useEffect(() => {
     setPicking(null);
@@ -686,28 +701,6 @@ export default function App({
     }, 600);
     return () => clearTimeout(timer);
   }, [world, projectKey, hydrated]);
-  useEffect(() => {
-    if (!query.trim()) {
-      setCities([]);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () =>
-        fetch(
-          `${import.meta.env.VITE_API_BASE_URL || ""}/api/cities?q=${encodeURIComponent(query)}`,
-          { signal: controller.signal },
-        )
-          .then((r) => r.json())
-          .then(setCities)
-          .catch(() => {}),
-      200,
-    );
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query]);
   useEffect(() => () => stopSpeech(), []);
   function edit(next: World) {
     location.reset();
@@ -735,13 +728,11 @@ export default function App({
       location.reset();
       stopSpeech();
       setAtlas(c);
-      setQuery("");
       setMode("explore");
       setTab("route");
       return true;
     }
     setBusy(`Building ${c.name}…`);
-    setQuery("");
     try {
       const { world: loaded, canopy } = await loadWorld(
         {
@@ -1090,6 +1081,9 @@ export default function App({
       lastSpoken.current = text;
       speak(text);
     }
+    // `location` is a fresh object every render; its fix and stop are what
+    // this effect uses.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tracking,
     location.fix,
@@ -1372,7 +1366,9 @@ export default function App({
                   />
                   Spoken guidance
                 </label>
-                <label>WHAT MATTERS TODAY?</label>
+                <div className="field-label section-label">
+                  WHAT MATTERS TODAY?
+                </div>
                 <RouteChoices
                   choices={routeChoices}
                   selected={pref}
