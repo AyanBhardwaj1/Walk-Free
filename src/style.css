@@ -1377,6 +1377,9 @@ footer {
   display: block;
   color: #3f5938;
 }
+.route-extra.water {
+  color: #2a6a96;
+}
 
 /* Flat walking view */
 .walk-map {

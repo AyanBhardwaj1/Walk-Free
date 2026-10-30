@@ -114,6 +114,13 @@ export default function RouteChoices({
                     Avoids mapped stairs and steep slopes
                   </span>
                 )}
+                {!!route.waterStops && (
+                  <span className="route-extra water">
+                    {route.waterStops} water{" "}
+                    {route.waterStops === 1 ? "fountain" : "fountains"} on the
+                    way
+                  </span>
+                )}
                 {same && <small>Same path as quickest</small>}
                 {route.warnings.length > 0 && (
                   <small>Detour budget applied</small>

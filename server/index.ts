@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 import { resolve } from "node:path";
 import { getCanopy, getWorld, getWeather } from "./data.js";
 import { CANOPY_ATTRIBUTION } from "../shared/canopy.js";
-import { cities, searchCities } from "./cities.js";
+import { findCities } from "./geocode.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
 import { agentRouter } from "./agent.js";
@@ -46,9 +46,12 @@ app.get("/api/health", (_q, r) =>
     appUrlConfigured: Boolean(process.env.WALK_FREE_APP_URL),
   }),
 );
-app.get("/api/cities", (q, r) => {
-  const term = String(q.query.q || "").toLowerCase();
-  r.json(searchCities(term));
+app.get("/api/cities", async (q, r, next) => {
+  try {
+    r.json(await findCities(String(q.query.q || "").toLowerCase()));
+  } catch (e) {
+    next(e);
+  }
 });
 // Public and cacheable: open data about the area, no account details.
 app.get("/api/canopy", async (q, r, next) => {

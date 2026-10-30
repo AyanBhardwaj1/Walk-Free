@@ -4,13 +4,14 @@ import type { City } from "../shared/types.js";
  * An independently curated, bundled gazetteer of approximate city and campus
  * centers. Coordinates are geographic facts, manually compiled for this app;
  * this is not a scraped geocoding service or a third-party licensed database.
+ * Only when it has few matches does findCities ask Open-Meteo's geocoder.
  * Centers are starting viewpoints, not street addresses, campus entrances,
  * surveyed boundaries, or guarantees of pedestrian access. Time zones are IANA
  * identifiers for the named location; nearestCity is not a time-zone polygon
  * lookup. Search runs locally and sends no requests to public geocoders.
  */
 export const cityDataProvenance =
-  "Walk-Free curated US city and university index. Approximate center coordinates for map discovery; not geocoded addresses or surveyed campus boundaries. Time zones use IANA identifiers. No live geocoding request is made.";
+  "Walk-Free curated US city and university index. Approximate center coordinates for map discovery; not geocoded addresses or surveyed campus boundaries. Time zones use IANA identifiers. Places outside the index come from Open-Meteo geocoding (GeoNames, CC BY 4.0).";
 
 const zones = {
   E: "America/New_York",
@@ -576,7 +577,7 @@ const states: Record<string, string> = {
   WY: "Wyoming",
 };
 
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -670,3 +671,4 @@ export function nearestCity(lat: number, lon: number): City {
   }
   return nearest;
 }
+

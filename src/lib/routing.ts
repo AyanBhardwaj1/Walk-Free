@@ -208,6 +208,19 @@ function planner(
     }
     return edges.reverse();
   }
+  const water = (w.amenities ?? []).filter((a) => a.kind === "water");
+  /** Mapped drinking water within a few steps of the walk. */
+  function waterAlong(points: Point[]) {
+    if (!water.length) return 0;
+    const near = (p: Point) =>
+      points.some((q, i) => {
+        const r = points[i + 1];
+        return r
+          ? segmentDistance(p, q, r) <= WATER_REACH
+          : Math.hypot(p[0] - q[0], p[1] - q[1]) <= WATER_REACH;
+      });
+    return water.filter((a) => near(a.position)).length;
+  }
   const quick = solve("quickest");
   const length = (edges: GraphEdge[]) =>
     edges.reduce((sum, e) => sum + e.distance, 0);
@@ -265,12 +278,14 @@ function planner(
       }
     }
     const distance = length(edges);
+    const points = edges.flatMap((e, i) => (i ? e.points.slice(1) : e.points));
+    const waterStops = waterAlong(points);
     return {
       id: crypto.randomUUID(),
       preference,
       edges,
       distance,
-      points: edges.flatMap((e, i) => (i ? e.points.slice(1) : e.points)),
+      points,
       durationMinutes: distance / 78,
       shadeFraction:
         edges.reduce((s, e) => s + e.distance * edgeShade(e), 0) / distance,
@@ -281,6 +296,7 @@ function planner(
       directions: walkingDirections(edges),
       warnings,
       ...(coolStop ? { coolStop } : {}),
+      ...(waterStops ? { waterStops } : {}),
     };
   };
 }
@@ -295,6 +311,21 @@ export function route(
 }
 
 /** Compare all preferences with one graph, quickest route and shade cache. */
+/** How far off the path a fountain still counts as "on the way", metres. */
+const WATER_REACH = 20;
+function segmentDistance(p: Point, a: Point, b: Point) {
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1),
+    ),
+  );
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+
 export function compareRoutes(
   w: World,
   start: string,

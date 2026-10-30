@@ -1,4 +1,5 @@
 import type {
+  Amenity,
   Point,
   SceneObject,
   SceneRoad,
@@ -228,6 +229,24 @@ function pointInPolygon(point: Point, polygon: Point[]): boolean {
   }
   return inside;
 }
+/** Water you can drink, or a public shelter that gives shade. */
+function amenityKind(tags: Record<string, string>): Amenity["kind"] | null {
+  if (tags.access === "private" || tags.access === "no") return null;
+  if (
+    tags.amenity === "drinking_water" ||
+    (tags.amenity === "water_point" && tags.drinking_water !== "no") ||
+    tags.drinking_water === "yes"
+  )
+    return "water";
+  if (
+    tags.amenity === "shelter" &&
+    tags.shelter_type !== "lean_to" &&
+    tags.shelter_type !== "basic_hut"
+  )
+    return "shelter";
+  return null;
+}
+
 export function parseOsmWorld(
   response: OsmResponse,
   origin: { lat: number; lon: number },
@@ -258,7 +277,8 @@ export function parseOsmWorld(
   ];
   const objects: SceneObject[] = [],
     roads: SceneRoad[] = [],
-    landscapes: Landscape[] = [];
+    landscapes: Landscape[] = [],
+    amenities: Amenity[] = [];
   const graphNodes = new Map<string, GraphNode>(),
     edges: GraphEdge[] = [];
   const nodeElements = new Map(
@@ -360,6 +380,24 @@ export function parseOsmWorld(
   }
   for (const element of elements) {
     const tags = element.tags ?? {};
+    const amenity = amenityKind(tags);
+    if (
+      amenity &&
+      element.type === "node" &&
+      Number.isFinite(element.lat) &&
+      Number.isFinite(element.lon)
+    ) {
+      const position = localPoint(element.lat!, element.lon!, origin);
+      if (inArea(position))
+        amenities.push({
+          id: `osm-node-${element.id}`,
+          kind: amenity,
+          name:
+            tags.name ??
+            (amenity === "water" ? "Drinking water" : "Shade shelter"),
+          position,
+        });
+    }
     if (
       element.type === "node" &&
       tags.natural === "tree" &&
@@ -526,6 +564,7 @@ export function parseOsmWorld(
     objects,
     roads,
     landscapes,
+    amenities,
     graph: { nodes: [...graphNodes.values()], edges },
     provenance: {
       source: "OpenStreetMap via Overpass API",
@@ -574,7 +613,7 @@ export function overpassQuery(
     .join(",");
   // Ways carry their own geometry; of their nodes, only tagged ones (gates,
   // barriers, crossings, names) affect routing, so skip the untagged bulk.
-  return `[out:json][timeout:${timeoutSeconds}];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox});)->.area;.area out body geom;way.area["highway"];node(w)(if:count_tags()>0);out body;`;
+  return `[out:json][timeout:${timeoutSeconds}];(way["building"](${bbox});way["building:part"](${bbox});relation["building"](${bbox});way["highway"](${bbox});node["natural"="tree"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox});way["leisure"~"^(park|garden|recreation_ground)$"](${bbox});way["landuse"~"^(forest|grass|recreation_ground)$"](${bbox});node["amenity"~"^(drinking_water|water_point|shelter)$"](${bbox});node["drinking_water"="yes"](${bbox});)->.area;.area out body geom;way.area["highway"];node(w)(if:count_tags()>0);out body;`;
 }
 
 /** Areas wider than this are fetched as four tiles to stay under limits. */

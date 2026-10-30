@@ -66,6 +66,13 @@ export interface Terrain {
   resolution: number;
   heights: number[];
 }
+/** A heat-relief spot mapped in OpenStreetMap. */
+export interface Amenity {
+  id: string;
+  kind: "water" | "shelter";
+  name: string;
+  position: Point;
+}
 export interface World {
   id: string;
   name: string;
@@ -75,6 +82,8 @@ export interface World {
   objects: SceneObject[];
   roads: SceneRoad[];
   landscapes: Landscape[];
+  /** Drinking water and shade shelters; absent in older saved scenes. */
+  amenities?: Amenity[];
   graph: WalkGraph;
   terrain?: Terrain;
   provenance: {
@@ -150,6 +159,8 @@ export interface RouteResult {
   warnings: string[];
   /** Name of the cool stop the route passes through, when there is one. */
   coolStop?: string;
+  /** Mapped drinking water within a short step of the route. */
+  waterStops?: number;
 }
 export type EditorTool =
   "select" | ObjectKind | "road" | "footway" | "raise" | "lower" | "flatten";

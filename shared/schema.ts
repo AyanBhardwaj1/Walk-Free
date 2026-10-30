@@ -60,6 +60,17 @@ export const worldSchema = z.object({
       }),
     )
     .max(10000),
+  amenities: z
+    .array(
+      z.object({
+        id: z.string().max(80),
+        kind: z.enum(["water", "shelter"]),
+        name: z.string().max(200),
+        position: point,
+      }),
+    )
+    .max(20000)
+    .optional(),
   graph: z.object({
     nodes: z
       .array(z.object({ id: z.string(), point, name: z.string().optional() }))

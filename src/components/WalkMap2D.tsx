@@ -17,6 +17,8 @@ const COLORS = {
   start: "#3f5938",
   end: "#b46539",
   you: "#3479bf",
+  canopy: "rgba(112, 140, 96, 0.32)",
+  water: "#2f7fb5",
 };
 
 export default function WalkMap2D({
@@ -109,6 +111,17 @@ export default function WalkMap2D({
       g.closePath();
       g.fill();
     }
+    // Tree crowns, mapped and inferred, so shade reads at a glance.
+    g.fillStyle = COLORS.canopy;
+    g.beginPath();
+    for (const o of world.objects) {
+      if (o.kind !== "tree") continue;
+      const [x, y] = toScreen(o.position);
+      const r = Math.max(1.5 * dpr, (o.width / 2) * scale);
+      g.moveTo(x + r, y);
+      g.arc(x, y, r, 0, Math.PI * 2);
+    }
+    g.fill();
     g.lineCap = "round";
     g.lineJoin = "round";
     for (const kind of ["path", "road"] as const) {
@@ -145,6 +158,8 @@ export default function WalkMap2D({
       g.fill();
       g.stroke();
     };
+    for (const a of world.amenities ?? [])
+      if (a.kind === "water") dot(a.position, COLORS.water, 4);
     dot(start, COLORS.start, 7);
     dot(end, COLORS.end, 9);
     if (you && accuracy) {
@@ -161,7 +176,7 @@ export default function WalkMap2D({
       <canvas
         ref={canvas}
         role="img"
-        aria-label="Flat walking map with your route"
+        aria-label="Flat walking map with your route, tree shade and drinking water"
         style={{ width: "100%", height: "100%" }}
       />
       <div className="walk-map-zoom">

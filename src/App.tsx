@@ -714,7 +714,9 @@ export default function App({
         },
       );
       if (request !== buildRequest.current) return false;
-      const w = worldSchema.parse(loaded);
+      // A geocoded place knows its own time zone; the parser only guesses
+      // from the nearest indexed US city.
+      const w = worldSchema.parse({ ...(loaded as object), timezone: c.timezone });
       edit(w);
       setAtlas(null);
       setSelected(null);
