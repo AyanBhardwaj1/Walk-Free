@@ -422,11 +422,15 @@ function ChatDemo() {
 const FAQ = [
   {
     q: "How accurate are the temperatures?",
-    a: "They are estimates, not thermometer readings. Walk-Free combines live weather (Open-Meteo, with NWS as backup) with a heat index and models where mapped buildings and trees cast shade at that minute. Unmapped trees and awnings aren't counted, so real shade can be higher.",
+    a: "They are estimates, not thermometer readings. Walk-Free combines live weather and measured sunlight (Open-Meteo, with NWS as backup) with a heat index and models where buildings and trees cast shade at that minute. Awnings and arcades aren't counted, so real shade can be higher.",
+  },
+  {
+    q: "Where does the tree shade come from?",
+    a: "Trees mapped in OpenStreetMap, plus Meta and the World Resources Institute's 1-metre global canopy height map, which fills in the many trees nobody has mapped. At UC Berkeley that's 214 mapped trees and about 10,900 more crowns from the canopy map.",
   },
   {
     q: "Which places work?",
-    a: "UT Austin, UC Berkeley, Michigan, UCLA, Stanford and Arizona State open instantly with their full campus maps. Any other US area up to 3 km across builds from OpenStreetMap; if a place isn't on our map, Walk-Free hands off to Google Maps.",
+    a: "UT Austin, UC Berkeley, Michigan, UCLA, Stanford and Arizona State open instantly with their full campus maps. Any other area up to 3 km across builds from OpenStreetMap; if a place isn't on our map, Walk-Free hands off to Google Maps.",
   },
   {
     q: "Do I need an account?",

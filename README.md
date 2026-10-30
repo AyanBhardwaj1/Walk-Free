@@ -39,7 +39,13 @@ npm start
 - Search: one search bar finds buildings, streets and cities; From/To fields search as you type. Matching understands campus codes and nicknames (GDC, PCL, SAC, RRH, UGLi, YRL…), OSM ref/short/alt names and synonyms (hall/dormitory, library/lib). Places off the map, and walks without a mapped connection, hand off to Google Maps.
 - Layout: full-screen map with a collapsible floating panel on desktop and a draggable bottom sheet on phones; custom dropdowns throughout.
 - Guest demo at `/demo` (and `/demo?area=ut-austin`): campuses, heat and routes without an account; the assistant needs sign-in or the person's own AI key.
-- Bring your own AI key: the Ask tab's AI settings accept an OpenAI, Meta Llama API, Fireworks, Baseten, OpenRouter or Together key, stored only in that browser and used per request without the shared caps.
+- Bring your own AI key: the Ask tab's AI settings accept an OpenAI, Meta Llama API, Fireworks, Baseten, OpenRouter or Together key, stored only in that browser and used per request without the shared caps. **Test and save** makes one small call first and shows the provider's own reason if the key or model is rejected; the provider is picked from the key's prefix, and the form opens by itself when the shared assistant is unset or out of quota.
+- Layered data with fallbacks (see Data & Sources in the app):
+  - Streets, paths, buildings, mapped trees, drinking water and shelters from OpenStreetMap.
+  - Tree canopy from Meta and WRI's 1 m Canopy Height Maps v2 fills in shade where OSM maps few trees (at Berkeley: 214 mapped trees plus about 10,900 inferred crowns). The server reads only the needed byte ranges of the public Cloud-Optimized GeoTIFFs; `/api/canopy` is public and CDN-cached, and areas still load without it.
+  - Weather from Open-Meteo, then NWS, then the browser; live sunlight (W/m²) replaces the cloud-cover estimate of solar heat, and the UV index is shown.
+  - City search uses the bundled US index, then Open-Meteo geocoding (GeoNames) for anywhere else, with the place's own time zone.
+- Route cards count mapped drinking fountains within 20 m of the walk.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.
@@ -57,7 +63,7 @@ This is a working development implementation, not a validated public navigation 
 
 BART transfers, live service disruptions, general nationwide transit, verified indoor campus maps, comprehensive accessibility validation, and background-navigation device tests are not complete. The city atlas streams a broad 3D basemap; detailed editable scenes load a bounded neighborhood selected from that atlas. Designed roads do not automatically become verified navigation links. Terrain changes do not alter the walking graph or the shade estimator's flat-ground assumption. Importing assets as custom glTF models is not implemented.
 
-Feels-like temperatures are estimates: shade uses the heat index (or air temperature), and direct sun adds up to 8 °C scaled by sun height, cloud and wind. They are comfort guidance for choosing a walk, not measured street temperatures or health advice. Shade calculations estimate direct solar occlusion, not measured local air temperature, calibrated microclimate simulation, or a guaranteed comfort index. Forecast fog is regional; the product cannot promise street-by-street fog avoidance. Scenery is currently inferred from mapped parks/path types. Forecast defaults for missing humidity/clouds remain scenario assumptions. Date/time solar controls explicitly display UTC input and local display time.
+Feels-like temperatures are estimates: shade uses the heat index (or air temperature), and direct sun adds up to 8 °C scaled by measured sunlight in live weather (sun height and cloud in scenarios) and by wind. Inferred canopy crowns are 9 m cells where at least 45% of the 1 m canopy map is 3 m or taller; they are not surveyed trees. They are comfort guidance for choosing a walk, not measured street temperatures or health advice. Shade calculations estimate direct solar occlusion, not measured local air temperature, calibrated microclimate simulation, or a guaranteed comfort index. Forecast fog is regional; the product cannot promise street-by-street fog avoidance. Scenery is currently inferred from mapped parks/path types. Forecast defaults for missing humidity/clouds remain scenario assumptions. Date/time solar controls explicitly display UTC input and local display time.
 
 ## Data and service configuration
 
@@ -67,10 +73,12 @@ Required outbound hosts:
 - `tiles.openfreemap.org`: streamed city atlas and map assets.
 - `api.open-meteo.com`: live weather (primary; open data, CC BY 4.0, no key), refreshed every 10 minutes in the app. The browser contacts it directly if the API cannot.
 - `api.weather.gov`: backup hourly forecasts for US locations.
+- `dataforgood-fb-data.s3.amazonaws.com`: Meta/WRI canopy height tiles (server only; the bucket sends no CORS headers). `WALK_FREE_CANOPY_URL` can point at a mirror.
+- `geocoding-api.open-meteo.com`: city search fallback.
 - `www.bart.gov` (and its canonical redirects): official static GTFS schedules.
 - `api.openai.com`: optional assistant.
 
-No map subscription or geocoding key is required. The city index is a curated list of major US city coordinates; see `server/cities.ts`. See [research](docs/RESEARCH.md) for source licenses, data gaps, and examined alternatives. Preserve OSM attribution and applicable ODbL obligations in downstream data exports. The procedural study is original fictional geometry.
+No map subscription or geocoding key is required. The city index is a curated list of major US city coordinates (`server/cities.ts`), with Open-Meteo geocoding as a fallback (`server/geocode.ts`). Run `npm run areas:canopy` to add canopy to the shipped areas without downloading OSM again. See [research](docs/RESEARCH.md) for source licenses, data gaps, and examined alternatives. Preserve OSM attribution and applicable ODbL obligations in downstream data exports. The procedural study is original fictional geometry.
 
 ## Accounts and privacy
 
