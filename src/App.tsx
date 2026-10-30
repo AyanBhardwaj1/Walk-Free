@@ -1333,13 +1333,40 @@ export default function App({
             }
           />
           {!atlas && (
-            <div className="tabs">
+            // The tabs inside take focus; per WAI-ARIA the list itself doesn't.
+            // eslint-disable-next-line jsx-a11y/interactive-supports-focus
+            <div
+              className="tabs"
+              role="tablist"
+              aria-label="Panel sections"
+              onKeyDown={(e) => {
+                // Arrow keys move between tabs (WAI-ARIA tabs pattern).
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                const tabs = [
+                  ...e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    '[role="tab"]',
+                  ),
+                ];
+                const i = tabs.indexOf(e.target as HTMLButtonElement);
+                if (i < 0) return;
+                const next =
+                  tabs[
+                    (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                      tabs.length
+                  ];
+                next.focus();
+                next.click();
+              }}
+            >
               {(mode === "explore"
                 ? ["route", "heat", "ask", "climate", "data"]
                 : ["build", "assistant", "data"]
               ).map((t) => (
                 <button
                   key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  tabIndex={tab === t ? 0 : -1}
                   className={tab === t ? "chosen" : ""}
                   onClick={() => setTab(t)}
                 >
