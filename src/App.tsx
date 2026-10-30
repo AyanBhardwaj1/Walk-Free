@@ -58,7 +58,11 @@ import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
 import AssistantPanel from "./components/AssistantPanel";
-import { converse, type ChatMessage } from "./lib/assistant-client";
+import {
+  converse,
+  PartialChatError,
+  type ChatMessage,
+} from "./lib/assistant-client";
 import type { ToolHost } from "./lib/assistant-tools";
 import { searchCities } from "../server/cities";
 import {
@@ -104,6 +108,7 @@ import {
 } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
+import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
 import WalkMap2D from "./components/WalkMap2D";
@@ -201,6 +206,8 @@ export default function App({
   const [world, setWorld] = useState<World>(createStudyWorld);
   // Saving waits until the stored scene has been read back.
   const [hydrated, setHydrated] = useState(false);
+  // Set when the saved scene couldn't be read, so it is never overwritten.
+  const saveBlocked = useRef(false);
   const firstWorld = useRef(world);
   const [atlas, setAtlas] = useState<City | null>(null);
   const [mode, setMode] = useState<"explore" | "studio">("explore");
@@ -429,12 +436,7 @@ export default function App({
         : null,
     // Recompute per place and day, not on every slider move.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      heatPlace?.id,
-      world,
-      profileDay,
-      profileWeather,
-    ],
+    [heatPlace?.id, world, profileDay, profileWeather],
   );
   const heatOverlay = useMemo(() => {
     if (!edgeHeat || !heatMap) return null;
@@ -553,6 +555,7 @@ export default function App({
   const toolHost = useRef<ToolHost>(null!);
   toolHost.current = {
     world: routeWorld,
+    scene: world,
     env,
     forecast,
     catalog: endpointCatalog,
@@ -647,7 +650,13 @@ export default function App({
       setChat(messages);
       if (speakReplies) speak(reply);
     } catch (e) {
-      setChatError(friendlyError(e));
+      if (e instanceof PartialChatError) {
+        // Tools already changed the map; keep that in the conversation.
+        setChat(e.messages);
+        setChatError(
+          `${friendlyError(e)} Changes already made stay on the map; use Undo to remove them.`,
+        );
+      } else setChatError(friendlyError(e));
     } finally {
       setChatStatus(null);
     }
@@ -685,16 +694,33 @@ export default function App({
   useEffect(() => {
     let active = true;
     loadProject(projectKey)
-      .then((stored) => {
-        const parsed = stored ? worldSchema.safeParse(stored) : null;
-        // Never replace an area the person built while this was loading.
-        if (active && parsed?.success)
-          setWorld((current) =>
-            current === firstWorld.current ? parsed.data : current,
+      .then(async (stored) => {
+        if (!active || !stored) return;
+        let parsed = worldSchema.safeParse(stored);
+        // An old out-of-range edit shouldn't cost the whole scene.
+        if (!parsed.success)
+          parsed = worldSchema.safeParse(repairWorld(stored));
+        if (!parsed.success) {
+          // Keep the unreadable copy and don't save over it.
+          saveBlocked.current = true;
+          await saveProject(`${projectKey}:unreadable`, stored).catch(() => {});
+          setMessage(
+            "Your saved scene couldn't be opened, so it was kept aside and this session won't save over it. Export your work to keep a copy.",
           );
+          return;
+        }
+        const data = parsed.data;
+        // Never replace an area the person built while this was loading.
+        setWorld((current) =>
+          current === firstWorld.current ? data : current,
+        );
       })
       .catch(() => {
-        /* No saved scene, or storage is unavailable: keep the study. */
+        // Reading failed: don't overwrite what might still be there.
+        saveBlocked.current = true;
+        setMessage(
+          "Your saved scene couldn't be read, so this session won't save over it. Export your work to keep a copy.",
+        );
       })
       .finally(() => active && setHydrated(true));
     return () => {
@@ -740,13 +766,13 @@ export default function App({
     if (env.weatherMode !== "forecast" || atlas) return;
     const timer = setInterval(() => {
       if (document.visibilityState === "visible")
-        void weather(world.origin, true, buildRequest.current);
+        void weather(world.origin, { quiet: true });
     }, LIVE_REFRESH_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [env.weatherMode, world.origin, atlas]);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || saveBlocked.current) return;
     const timer = setTimeout(() => {
       saveProject(projectKey, world).catch(() =>
         setMessage(
@@ -761,8 +787,14 @@ export default function App({
     location.reset();
     stopSpeech();
     setProposal(null);
+    // A different area makes any before/after planting comparison meaningless.
+    if (next.id !== world.id) clearHeatImpact();
     setHistory((h) => [...h.slice(-29), world]);
     setWorld(next);
+  }
+  function clearHeatImpact() {
+    setHeatBaseline(null);
+    setPlanting(null);
   }
   function updateObject(changes: Partial<SceneObject>) {
     edit({
@@ -816,13 +848,15 @@ export default function App({
       edit(w);
       // Meta's canopy arrives after the map: add it in place (not as an
       // undoable edit) if the same area is still open.
-      void canopy?.then((cells) =>
-        setWorld((current) =>
+      void canopy?.then((cells) => {
+        const add = (current: World) =>
           current.id === w.id && !hasCanopy(current)
             ? addCanopy(current, cells)
-            : current,
-        ),
-      );
+            : current;
+        setWorld(add);
+        // Planting compares against this; give it the same trees.
+        setHeatBaseline((before) => before && add(before));
+      });
       setAtlas(null);
       setSelected(null);
       let [from, to] = defaultEndpoints(w, {
@@ -860,7 +894,7 @@ export default function App({
         weatherMode: "scenario",
       }));
       setForecast(null);
-      void weather(w.origin, true, request);
+      void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
         from && to
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
@@ -987,17 +1021,21 @@ export default function App({
   }
   async function weather(
     origin = world.origin,
-    quiet = false,
-    request?: number,
+    {
+      quiet = false,
+      request = buildRequest.current,
+      reportFailure = !quiet,
+    }: { quiet?: boolean; request?: number; reportFailure?: boolean } = {},
   ) {
-    if (!quiet) setBusy("Getting live weather…");
+    const working = "Getting live weather…";
+    if (!quiet) setBusy(working);
     try {
       const f = await loadWeather(origin, {
         fetch: window.fetch.bind(window),
         apiBase: API_BASE,
       });
       // Weather that arrives after another area was built is discarded.
-      if (request !== undefined && request !== buildRequest.current) return;
+      if (request !== buildRequest.current) return;
       setForecast(f);
       // Quiet refreshes keep the time the person (or assistant) chose;
       // asking for live weather jumps to now.
@@ -1005,10 +1043,16 @@ export default function App({
       if (!quiet)
         flash(`Live weather on · ${f.source}. Updates every 10 minutes.`);
     } catch (e) {
-      // Background refreshes fail quietly and keep the last weather.
-      if (!quiet) setMessage(friendlyError(e));
+      // Background refreshes keep the last weather; a new area says so.
+      if (reportFailure && request === buildRequest.current)
+        setMessage(
+          quiet
+            ? "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab."
+            : friendlyError(e),
+        );
     } finally {
-      if (!quiet) setBusy("");
+      // Only clear the spinner this call started.
+      if (!quiet) setBusy((current) => (current === working ? "" : current));
     }
   }
   /** A short confirmation that clears itself; errors use setMessage. */
@@ -1879,14 +1923,15 @@ export default function App({
                         <input
                           type="number"
                           min={k === "rotation" ? -360 : 1}
-                          max={k === "rotation" ? 360 : 600}
+                          max={k === "rotation" ? 360 : 1500}
                           value={object[k]}
                           onChange={(e) => {
-                            if (
-                              Number.isFinite(+e.target.value) &&
-                              +e.target.value >= (k === "rotation" ? -360 : 1)
-                            )
-                              updateObject({ [k]: +e.target.value });
+                            // Clamp to what a saved scene allows; ignore "-".
+                            const value = clampObjectField(
+                              k,
+                              e.target.valueAsNumber,
+                            );
+                            if (value !== null) updateObject({ [k]: value });
                           }}
                         />
                       </label>
@@ -1899,10 +1944,12 @@ export default function App({
                         type="number"
                         value={Math.round(object.position[i])}
                         onChange={(e) => {
+                          const value = e.target.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
                           const p: Point = [...object.position];
                           p[i] = Math.max(
                             -world.extent / 2,
-                            Math.min(world.extent / 2, +e.target.value),
+                            Math.min(world.extent / 2, value),
                           );
                           updateObject({ position: p });
                         }}
@@ -2158,6 +2205,8 @@ export default function App({
                   onClick={() => {
                     location.reset();
                     stopSpeech();
+                    // The planting totals no longer describe the scene.
+                    clearHeatImpact();
                     setWorld(history.at(-1)!);
                     setHistory(history.slice(0, -1));
                   }}

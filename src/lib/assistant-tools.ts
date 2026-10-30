@@ -24,7 +24,10 @@ import {
 
 /** What the assistant may read and change in the running app. */
 export interface ToolHost {
+  /** The map routes use; with a GPS fix, a path is split at the walker. */
   world: World;
+  /** The saved scene, which edits change. Defaults to `world`. */
+  scene?: World;
   env: Environment;
   forecast: WeatherForecast | null;
   catalog: Destination[];
@@ -260,26 +263,24 @@ export async function runTool(
     case "build_area":
       return { result: await host.buildArea(a.place) };
     case "plant_shade_trees": {
+      // Edit the saved scene, never the copy split at the walker's location.
+      const scene = host.scene ?? host.world;
       const place = matchPlace(
-        placeHeat(host.world, host.env).filter((p) => p.kind === "street"),
+        placeHeat(scene, host.env).filter((p) => p.kind === "street"),
         a.street,
       );
       if (!place) return { error: `No street or path matching "${a.street}".` };
-      const result = plantShadeRow(host.world, place.edgeIds[0]);
+      const result = plantShadeRow(scene, place.edgeIds[0]);
       if (!result)
         return { error: `${place.name} already has trees all along it.` };
       const ids = new Set(result.edgeIds);
-      const before = areaHeat(
-        host.world,
-        edgeHeatMap(host.world, host.env),
-        ids,
-      )!;
+      const before = areaHeat(scene, edgeHeatMap(scene, host.env), ids)!;
       const after = areaHeat(
         result.world,
         edgeHeatMap(result.world, host.env),
         ids,
       )!;
-      host.applyPlanting(result, host.world);
+      host.applyPlanting(result, scene);
       return {
         street: result.street,
         trees_planted: result.planted,
