@@ -93,7 +93,7 @@ import { openCoolStops } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
-import { describeConditions, liveConditions } from "./lib/live-weather";
+import { uvLabel, describeConditions, liveConditions } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import WorldCanvas from "./components/WorldCanvas";
@@ -1484,6 +1484,14 @@ export default function App({
                 setChatError("");
               }}
               ownKey={ownKey}
+              onTestKey={async (value) => {
+                const check = await api(
+                  "/api/agent/test-key",
+                  {},
+                  ownKeyHeaders(value),
+                );
+                return { model: check.model, latencyMs: check.latencyMs };
+              }}
               onOwnKey={(value) => {
                 setOwnKey(value);
                 saveOwnKey(account.id, value);
@@ -2014,6 +2022,14 @@ export default function App({
                       })}`
                     : `${Math.round(env.windMps * 2.237)} mph wind`}
                 </small>
+                {env.weatherMode === "forecast" && uvLabel(env.uvIndex) && (
+                  <small
+                    className={`uv-badge ${uvLabel(env.uvIndex)!.high ? "high" : ""}`}
+                    title="UV index from Open-Meteo"
+                  >
+                    {uvLabel(env.uvIndex)!.text}
+                  </small>
+                )}
               </div>
             </div>
           )}

@@ -17,6 +17,8 @@ import { samplePolyline } from "./routing.js";
  */
 const SUN_BOOST_MAX_C = 8;
 const CLOUD_DAMPING = 0.75;
+/** Sunlight on a clear day with the sun overhead, W/m². */
+const CLEAR_SKY_WM2 = 1000;
 const WIND_DAMPING_PER_MPS = 0.08;
 const WALK_METERS_PER_MINUTE = 78;
 const SAMPLE_SPACING_M = 15;
@@ -65,12 +67,16 @@ export function heatConditions(
   const shadeFeelsC =
     heatIndexC(env.temperatureC, env.humidity) ?? env.temperatureC;
   const cloud = Math.min(1, Math.max(0, env.cloudCover / 100));
+  // Live weather measures sunlight directly; scenarios estimate it from the
+  // sun's height and the cloud cover.
+  const sunlight =
+    env.weatherMode === "forecast" && Number.isFinite(env.solarWm2)
+      ? Math.min(1, env.solarWm2! / CLEAR_SKY_WM2)
+      : Math.sin(sun.altitude) * (1 - CLOUD_DAMPING * cloud);
   const sunBoostC =
     sun.altitude <= 0
       ? 0
-      : (SUN_BOOST_MAX_C *
-          Math.sin(sun.altitude) *
-          (1 - CLOUD_DAMPING * cloud)) /
+      : (SUN_BOOST_MAX_C * Math.max(0, sunlight)) /
         (1 + WIND_DAMPING_PER_MPS * Math.max(0, env.windMps));
   return { shadeFeelsC, sunBoostC };
 }
@@ -299,8 +305,10 @@ export function weatherAt(
         humidity: hour.humidity ?? env.humidity,
         windMps: hour.windMps ?? env.windMps,
         cloudCover: hour.cloudCover ?? env.cloudCover,
+        solarWm2: hour.solarWm2 ?? undefined,
+        uvIndex: hour.uvIndex ?? undefined,
       }
-    : { ...env, dateTime: iso };
+    : { ...env, dateTime: iso, solarWm2: undefined, uvIndex: undefined };
 }
 
 /** How a place feels hour by hour through the local day. */

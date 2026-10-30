@@ -15,6 +15,8 @@ import {
   type OsmElement,
 } from "../shared/osm.js";
 import { fetchOverpass } from "../server/data.js";
+import { readCanopy } from "../server/canopy.js";
+import { canopyCells, withCanopy } from "../shared/canopy.js";
 
 const limits = { budgetMs: 10 * 60_000, mirrorTimeoutMs: 180_000 };
 
@@ -36,13 +38,20 @@ async function buildArea(area: PrebuiltArea) {
     for (const e of tile.elements) elements.set(`${e.type}:${e.id}`, e);
     console.log(`${area.slug}: tile ${sy},${sx} -> ${tile.elements.length}`);
   }
-  return parseOsmWorld(
+  const origin = worldOrigin(area.lat, area.lon);
+  const world = parseOsmWorld(
     { elements: [...elements.values()] },
-    worldOrigin(area.lat, area.lon),
+    origin,
     area.name,
     area.radius,
     new Date(),
     600_000,
+  );
+  // Fill in trees OpenStreetMap hasn't mapped from Meta's canopy height map.
+  const raster = await readCanopy(origin.lat, origin.lon, area.radius, 120_000);
+  return withCanopy(
+    world,
+    raster && canopyCells(origin, area.radius * 2, raster),
   );
 }
 

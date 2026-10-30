@@ -1,7 +1,8 @@
 import express from "express";
 import { ZodError } from "zod";
 import { resolve } from "node:path";
-import { getWorld, getWeather } from "./data.js";
+import { getCanopy, getWorld, getWeather } from "./data.js";
+import { CANOPY_ATTRIBUTION } from "../shared/canopy.js";
 import { cities, searchCities } from "./cities.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
@@ -48,6 +49,27 @@ app.get("/api/health", (_q, r) =>
 app.get("/api/cities", (q, r) => {
   const term = String(q.query.q || "").toLowerCase();
   r.json(searchCities(term));
+});
+// Public and cacheable: open data about the area, no account details.
+app.get("/api/canopy", async (q, r, next) => {
+  try {
+    const { lat, lon } = coordinates(q.query.lat, q.query.lon);
+    const cells = await getCanopy(lat, lon, boundedRadius(q.query.radius));
+    if (!cells) {
+      r.status(503).json({
+        error: "The tree canopy map can't be reached right now.",
+        code: "CANOPY_UNAVAILABLE",
+      });
+      return;
+    }
+    r.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
+    );
+    r.json({ cells, attribution: CANOPY_ATTRIBUTION });
+  } catch (e) {
+    next(e);
+  }
 });
 app.use("/api", authenticate);
 app.get("/api/world", async (q, r, next) => {

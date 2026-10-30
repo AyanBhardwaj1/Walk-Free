@@ -2,7 +2,7 @@
 export type Point = [number, number];
 export type ObjectKind =
   "building" | "skyscraper" | "tower" | "landmark" | "tree";
-export type SourceKind = "osm" | "user" | "ai" | "study";
+export type SourceKind = "osm" | "canopy" | "user" | "ai" | "study";
 export interface SceneObject {
   id: string;
   kind: ObjectKind;
@@ -101,6 +101,10 @@ export interface WeatherHour {
   windMps: number;
   cloudCover: number | null;
   description: string;
+  /** Measured sunlight on the ground, W/m² (Open-Meteo only). */
+  solarWm2?: number | null;
+  /** UV index (Open-Meteo only). */
+  uvIndex?: number | null;
 }
 export interface WeatherForecast {
   source: string;
@@ -117,6 +121,9 @@ export interface Environment {
   windMps: number;
   cloudCover: number;
   weatherMode: "forecast" | "scenario";
+  /** Live sunlight on the ground, W/m²; used instead of cloud cover. */
+  solarWm2?: number;
+  uvIndex?: number;
 }
 export type RoutePreference =
   "quickest" | "shade" | "scenic" | "indoors" | "stepfree" | "night";

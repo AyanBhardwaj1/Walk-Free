@@ -27,6 +27,8 @@ export function liveConditions(
           humidity: current.humidity ?? at.humidity,
           windMps: current.windMps,
           cloudCover: current.cloudCover ?? at.cloudCover,
+          solarWm2: current.solarWm2 ?? at.solarWm2,
+          uvIndex: current.uvIndex ?? at.uvIndex,
         }
       : at),
     weatherMode: "forecast",
@@ -45,4 +47,20 @@ export function describeConditions(
       : best,
   );
   return hour.description || `${Math.round(env.cloudCover)}% cloud`;
+}
+
+/** WHO UV index category, such as "UV 8 · Very high", or null. */
+export function uvLabel(uv: number | undefined) {
+  if (uv === undefined || !Number.isFinite(uv)) return null;
+  const level =
+    uv < 3
+      ? "Low"
+      : uv < 6
+        ? "Moderate"
+        : uv < 8
+          ? "High"
+          : uv < 11
+            ? "Very high"
+            : "Extreme";
+  return { text: `UV ${Math.round(uv)} · ${level}`, high: uv >= 6 };
 }

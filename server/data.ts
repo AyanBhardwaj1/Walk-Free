@@ -1,3 +1,5 @@
+import { canopyCells, type CanopyCell } from "../shared/canopy.js";
+import { readCanopy } from "./canopy.js";
 import {
   mkdir,
   readFile,
@@ -418,4 +420,33 @@ export async function getNwsWeather(
       return parseNwsForecast(forecast.properties?.periods ?? [], grid);
     },
   );
+}
+
+/**
+ * Inferred crown cells for an area from Meta's canopy height map, or null
+ * when the map can't be read. Results are cached: the canopy changes slowly.
+ */
+let activeCanopyReads = 0;
+export async function getCanopy(
+  lat: number,
+  lon: number,
+  radius: number,
+): Promise<CanopyCell[] | null> {
+  const origin = worldOrigin(lat, lon);
+  const key = `canopy-v1-${origin.lat}-${origin.lon}-${radius}`;
+  try {
+    return await cached(key, 30 * 24 * 60 * 60 * 1000, async () => {
+      // A public endpoint: bound how many tile reads one instance runs.
+      if (activeCanopyReads >= 3) throw new Error("Canopy reads busy");
+      activeCanopyReads++;
+      const raster = await readCanopy(origin.lat, origin.lon, radius).finally(
+        () => activeCanopyReads--,
+      );
+      // Throwing skips the cache, so a later request tries again.
+      if (!raster) throw new Error("Canopy height map unavailable");
+      return canopyCells(origin, radius * 2, raster);
+    });
+  } catch {
+    return null;
+  }
 }

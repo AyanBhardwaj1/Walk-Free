@@ -3,6 +3,7 @@ import type { OsmResponse } from "../shared/osm";
 import { ServiceError } from "../shared/errors";
 import { prebuiltAreaFor } from "../shared/areas";
 import { loadWorld } from "../src/lib/world-source";
+import type { World } from "../shared/types";
 
 const requestJson = vi.fn();
 vi.mock("../server/network.js", async (original) => ({
@@ -82,15 +83,19 @@ describe("client world sources", () => {
   });
 
   it("serves a shipped hero area without calling the API", async () => {
-    const fetch = vi.fn(async () => json({ id: "hero", name: "old" }));
+    const provenance = { notes: ["Tree canopy: 3 tree crowns inferred"] };
+    const fetch = vi.fn(async () =>
+      json({ id: "hero", name: "old", provenance }),
+    );
     const result = await loadWorld(
       { lat: 37.8719, lon: -122.2585, name: "UC Berkeley, CA", radius: 1000 },
       { fetch, apiBase: "" },
     );
     expect(result).toEqual({
       source: "prebuilt",
-      world: { id: "hero", name: "UC Berkeley, CA" },
+      world: { id: "hero", name: "UC Berkeley, CA", provenance },
     });
+    expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith("/areas/uc-berkeley.json");
   });
 
@@ -114,7 +119,11 @@ describe("client world sources", () => {
     const result = await loadWorld(far, { fetch, apiBase: "" });
     expect(result.source).toBe("browser");
     expect((result.world as { roads: unknown[] }).roads).toHaveLength(1);
-    expect(fetch.mock.calls.map((c) => String(c[0]))).toEqual([
+    expect(
+      fetch.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => !u.startsWith("/api/canopy")),
+    ).toEqual([
       expect.stringMatching(/^\/api\/world/),
       "https://overpass-api.de/api/interpreter",
       "https://overpass.private.coffee/api/interpreter",
@@ -122,13 +131,16 @@ describe("client world sources", () => {
   });
 
   it("shows login errors instead of bypassing the account check", async () => {
-    const fetch = vi.fn(async () =>
+    const fetch = vi.fn(async (_url: RequestInfo | URL) =>
       json({ error: "Please log in to continue." }, 401),
     );
     await expect(loadWorld(far, { fetch, apiBase: "" })).rejects.toThrow(
       "Please log in to continue.",
     );
-    expect(fetch).toHaveBeenCalledTimes(1);
+    // No Overpass request went around the account check.
+    expect(
+      fetch.mock.calls.every((c) => String(c[0]).startsWith("/api/")),
+    ).toBe(true);
   });
 
   it("lets guests build straight from the browser without the API", async () => {
@@ -141,9 +153,52 @@ describe("client world sources", () => {
       skipServer: true,
     });
     expect(result.source).toBe("browser");
-    expect(fetch.mock.calls.some((c) => String(c[0]).startsWith("/api/"))).toBe(
-      false,
+    expect(
+      fetch.mock.calls.some((c) => String(c[0]).startsWith("/api/world")),
+    ).toBe(false);
+  });
+
+  it("adds canopy trees where no tree is mapped, and notes the source", async () => {
+    const fetch = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).startsWith("/api/canopy")
+        ? json({
+            cells: [
+              [0, 0, 8, 12],
+              [200, 200, 6, 9],
+            ],
+          })
+        : json(osm(41.3, -90.3)),
     );
+    const result = await loadWorld(far, {
+      fetch,
+      apiBase: "",
+      skipServer: true,
+    });
+    const world = result.world as World;
+    const canopy = world.objects.filter((o) => o.source === "canopy");
+    expect(canopy.map((o) => o.position)).toEqual([
+      [0, 0],
+      [200, 200],
+    ]);
+    expect(canopy[0]).toMatchObject({ kind: "tree", width: 8, height: 12 });
+    expect(world.provenance.attribution).toMatch(/Canopy Height Maps/);
+    expect(world.provenance.notes.at(-1)).toMatch(/^Tree canopy: 2 tree/);
+  });
+
+  it("keeps the map and says so when the canopy service is down", async () => {
+    const fetch = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).startsWith("/api/canopy")
+        ? json({ error: "down" }, 503)
+        : json(osm(41.3, -90.3)),
+    );
+    const result = await loadWorld(far, {
+      fetch,
+      apiBase: "",
+      skipServer: true,
+    });
+    const world = result.world as World;
+    expect(world.roads).toHaveLength(1);
+    expect(world.provenance.notes.at(-1)).toMatch(/^Tree canopy unavailable/);
   });
 
   it("explains when every provider fails", async () => {
@@ -151,5 +206,18 @@ describe("client world sources", () => {
     await expect(loadWorld(far, { fetch, apiBase: "" })).rejects.toThrow(
       /Every map provider is busy/,
     );
+  });
+});
+
+describe("provider error reasons", () => {
+  it("reads the message from common error body shapes", async () => {
+    const { providerReason } = await import("../server/network");
+    expect(providerReason('{"error":{"message":"Invalid model"}}')).toBe(
+      "Invalid model",
+    );
+    expect(providerReason('{"error":"bad key"}')).toBe("bad key");
+    expect(providerReason('{"detail":"Not found"}')).toBe("Not found");
+    expect(providerReason("  plain\n text ")).toBe("plain text");
+    expect(providerReason('{"ok":false}')).toBeUndefined();
   });
 });

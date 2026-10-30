@@ -11,6 +11,26 @@ export interface RequestOptions {
   body?: string;
   timeoutMs?: number;
   maxBytes?: number;
+  /** Read the provider's short error reason into ServiceError.details. */
+  errorReason?: boolean;
+}
+
+/** The human-readable reason from an error body such as `{error:{message}}`. */
+export function providerReason(text: string): string | undefined {
+  let reason: unknown = text;
+  try {
+    const body = JSON.parse(text) as Record<string, unknown>;
+    const error = body.error as Record<string, unknown> | string | undefined;
+    reason =
+      (typeof error === "object" ? error?.message : error) ??
+      body.message ??
+      body.detail;
+  } catch {
+    /* Plain text bodies are used as they are. */
+  }
+  if (typeof reason !== "string") return undefined;
+  const clean = reason.replace(/\s+/g, " ").trim();
+  return clean ? clean.slice(0, 240) : undefined;
 }
 export async function requestBytes(
   url: string,
@@ -44,14 +64,16 @@ export async function requestBytes(
     );
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    const reason = options.errorReason
+      ? providerReason((await response.text().catch(() => "")).slice(0, 4000))
+      : (await response.body?.cancel(), undefined);
     throw new ServiceError(
       response.status === 403 ? "NETWORK_BLOCKED" : "UPSTREAM_UNAVAILABLE",
       response.status === 403
         ? "The data provider or environment network policy denied this request."
         : `The data provider returned HTTP ${response.status}. Please try again later.`,
       502,
-      `Required HTTPS host: ${new URL(url).hostname}`,
+      reason ?? `Required HTTPS host: ${new URL(url).hostname}`,
     );
   }
   const limit = options.maxBytes ?? 16 * 1024 * 1024;

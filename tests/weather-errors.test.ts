@@ -4,7 +4,12 @@ import type { AddressInfo } from "node:net";
 import { parseOpenMeteo, openMeteoUrl } from "../shared/weather";
 import { ServiceError } from "../shared/errors";
 import { loadWeather } from "../src/lib/weather-source";
-import { liveConditions, describeConditions } from "../src/lib/live-weather";
+import {
+  liveConditions,
+  describeConditions,
+  uvLabel,
+} from "../src/lib/live-weather";
+import { heatConditions } from "../src/lib/heat";
 import { friendlyError } from "../src/lib/errors";
 import { locationError } from "../src/lib/navigation";
 import type { Environment } from "../shared/types";
@@ -75,6 +80,53 @@ describe("live weather", () => {
     expect(
       describeConditions({ ...env, dateTime: "2026-10-29T19:10:00Z" }, f),
     ).toBe("Partly cloudy");
+  });
+
+  it("reads measured sunlight and UV, and the heat model uses them", () => {
+    const f = parseOpenMeteo({
+      current: { ...sample.current, shortwave_radiation: 820, uv_index: 8.4 },
+      hourly: {
+        ...sample.hourly,
+        shortwave_radiation_instant: [600, 9999, 0],
+        uv_index: [6, 7, 0],
+      },
+    });
+    expect(f.current).toMatchObject({ solarWm2: 820, uvIndex: 8.4 });
+    // Impossible readings are dropped rather than trusted.
+    expect(f.hours[1].solarWm2).toBeNull();
+    const live = liveConditions(env, f, "2026-10-29T20:05:00Z");
+    expect(live).toMatchObject({ solarWm2: 820, uvIndex: 8.4 });
+    expect(uvLabel(live.uvIndex)).toEqual({
+      text: "UV 8 · Very high",
+      high: true,
+    });
+    const url = new URL(openMeteoUrl(30.285, -97.7341));
+    expect(url.searchParams.get("hourly")).toContain(
+      "shortwave_radiation_instant",
+    );
+    expect(url.searchParams.get("current")).toContain("uv_index");
+  });
+
+  it("scales the sun's heat by measured sunlight in live weather only", () => {
+    const origin = { lat: 30.285, lon: -97.7341 };
+    // Early afternoon in Austin: the sun is high.
+    const base: Environment = {
+      ...env,
+      dateTime: "2026-07-15T19:00:00Z",
+      cloudCover: 0,
+      weatherMode: "forecast",
+    };
+    const bright = heatConditions({ ...base, solarWm2: 950 }, origin);
+    const hazy = heatConditions({ ...base, solarWm2: 300 }, origin);
+    expect(hazy.sunBoostC).toBeLessThan(bright.sunBoostC * 0.4);
+    // A scenario ignores readings and uses its own cloud cover.
+    const scenario = heatConditions(
+      { ...base, solarWm2: 300, weatherMode: "scenario" },
+      origin,
+    );
+    expect(scenario.sunBoostC).toBeCloseTo(
+      heatConditions({ ...base, weatherMode: "scenario" }, origin).sunBoostC,
+    );
   });
 
   it("falls back to Open-Meteo in the browser when the API fails", async () => {
