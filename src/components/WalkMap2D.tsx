@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import type { Point, RouteResult, World } from "../../shared/types";
+import { baseEdgeId } from "../lib/walk-location";
 
 /**
  * A flat, north-up walking map: lighter on battery than the 3D scene and
@@ -146,7 +147,7 @@ export default function WalkMap2D({
       // Colour each stretch by heat when available, so hot blocks stand out.
       g.lineWidth = 8 * dpr;
       for (const e of route.edges) {
-        g.strokeStyle = edgeColors?.get(e.id) ?? COLORS.route;
+        g.strokeStyle = edgeColors?.get(baseEdgeId(e.id)) ?? COLORS.route;
         g.beginPath();
         line(e.points);
         g.stroke();

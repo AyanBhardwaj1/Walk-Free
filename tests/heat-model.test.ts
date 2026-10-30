@@ -72,3 +72,44 @@ describe("shade from rotated buildings", () => {
     expect(isShaded([17.7, -17.7], world, noon)).toBe(false);
   });
 });
+
+describe("forecast lookup", () => {
+  it("uses the nearest forecast hour at half past, instead of keeping the old weather", async () => {
+    const { weatherAt } = await import("../src/lib/heat");
+    const hour = (iso: string, temperatureC: number) => ({
+      time: iso,
+      temperatureC,
+      humidity: 50,
+      windMps: 1,
+      cloudCover: 0,
+      description: "",
+    });
+    const forecast = {
+      source: "test",
+      fetchedAt: "2026-07-01T00:00:00Z",
+      attribution: "",
+      hours: [
+        hour("2026-07-01T11:00:00Z", 24),
+        hour("2026-07-01T12:00:00Z", 27.6),
+      ],
+    };
+    const env: Environment = {
+      dateTime: "2026-07-01T20:00:00Z",
+      temperatureC: 33.9,
+      humidity: 40,
+      windMps: 1,
+      cloudCover: 0,
+      weatherMode: "forecast",
+    };
+    expect(
+      weatherAt(env, "2026-07-01T11:30:00Z", forecast).temperatureC,
+    ).not.toBe(33.9);
+    expect(weatherAt(env, "2026-07-01T11:20:00Z", forecast).temperatureC).toBe(
+      24,
+    );
+    // Far from any forecast hour, the current values stay.
+    expect(weatherAt(env, "2026-07-01T15:00:00Z", forecast).temperatureC).toBe(
+      33.9,
+    );
+  });
+});

@@ -288,15 +288,25 @@ export function localHour(iso: string, timeZone: string) {
 }
 
 /** Forecast values for the hour containing `iso`, when a forecast exists. */
+/** A forecast hour applies up to this far from the moment asked about. */
+const FORECAST_REACH_MS = 60 * 60 * 1000;
+
 export function weatherAt(
   env: Environment,
   iso: string,
   forecast?: WeatherForecast | null,
 ): Environment {
   const t = Date.parse(iso);
-  const hour = forecast?.hours.find(
-    (h) => Math.abs(Date.parse(h.time) - t) < 30 * 60 * 1000,
-  );
+  // The nearest forecast hour; at half past, the earlier hour wins a tie.
+  let hour: WeatherForecast["hours"][number] | undefined;
+  let gap = FORECAST_REACH_MS;
+  for (const h of forecast?.hours ?? []) {
+    const d = Math.abs(Date.parse(h.time) - t);
+    if (d < gap) {
+      hour = h;
+      gap = d;
+    }
+  }
   return hour
     ? {
         ...env,

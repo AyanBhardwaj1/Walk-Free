@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import {
-  destinationCatalog,
-  rankDestinations,
-} from "../src/lib/destinations";
+import { destinationCatalog, rankDestinations } from "../src/lib/destinations";
 import type { World } from "../shared/types";
 
 const catalogs = new Map<string, ReturnType<typeof destinationCatalog>>();

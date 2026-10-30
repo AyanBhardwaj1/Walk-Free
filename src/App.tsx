@@ -80,7 +80,7 @@ import OmniSearch from "./components/OmniSearch";
 import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
-import { snapWalkPosition, hasArrived } from "./lib/walk-location";
+import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
@@ -88,7 +88,12 @@ import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
 import { addCanopy, loadWorld } from "./lib/world-source";
 import { hasCanopy } from "../shared/canopy";
 import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
-import { openCoolStops } from "./lib/cool-stops";
+import {
+  openCoolStops,
+  reachedCoolStop,
+  walkCoolStops,
+  type WalkStop,
+} from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
@@ -324,17 +329,64 @@ export default function App({
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
+  // Routes depend on the time (through the sun) and nothing else in the
+  // weather, so temperature or humidity changes don't re-plan them.
+  const routeTime = useDeferredValue(env.dateTime);
+  const routeEnv = useMemo(
+    () => ({ ...env, dateTime: routeTime }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [routeTime],
+  );
+  // While walking, keep the cool stop chosen at the start (see walkCoolStops).
+  const [walkStop, setWalkStop] = useState<WalkStop | null>(null);
+  const coolStops = useMemo(
+    () => walkCoolStops(openCoolStops(world, routeEnv), walkStop),
+    [world, routeEnv, walkStop],
+  );
   const routeChoices = useMemo(
     () =>
       compareRoutes(routeWorld, routeStart, end, {
         avoidStairs: stairs,
         allowHypothetical: tracking ? false : hypothetical,
         maxDetour: detour,
-        environment: env,
-        coolStops: openCoolStops(routeWorld, env),
+        environment: routeEnv,
+        coolStops,
       }),
-    [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
+    [
+      routeWorld,
+      routeStart,
+      end,
+      stairs,
+      hypothetical,
+      detour,
+      routeEnv,
+      coolStops,
+      tracking,
+    ],
   );
+  useEffect(() => {
+    setWalkStop(
+      tracking
+        ? { name: routeChoices.indoors?.coolStop ?? null, reached: false }
+        : null,
+    );
+    // Only the moment a walk starts or ends matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracking]);
+  useEffect(() => {
+    if (
+      walkStop?.name &&
+      !walkStop.reached &&
+      userPosition &&
+      reachedCoolStop(
+        world,
+        openCoolStops(world, routeEnv),
+        walkStop.name,
+        userPosition,
+      )
+    )
+      setWalkStop({ ...walkStop, reached: true });
+  }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
@@ -403,7 +455,8 @@ export default function App({
       feels = 0,
       shade = 0;
     for (const e of currentRoute.edges) {
-      const reading = edgeHeat.get(e.id);
+      // The stretch being walked is split at the walker; use its mapped edge.
+      const reading = edgeHeat.get(baseEdgeId(e.id));
       if (!reading) continue;
       length += e.distance;
       feels += reading.feelsLikeC * e.distance;
