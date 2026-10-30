@@ -5,7 +5,12 @@ import { worldSchema } from "../shared/schema";
 
 const lat = 30.28,
   lon = -97.73;
-const node = (id: number, dLat: number, dLon: number, tags?: object) => ({
+const node = (
+  id: number,
+  dLat: number,
+  dLon: number,
+  tags?: Record<string, string>,
+) => ({
   type: "node" as const,
   id,
   lat: lat + dLat,
