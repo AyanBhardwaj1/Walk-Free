@@ -307,7 +307,8 @@ export default function AuthPage({
               </>
             ) : mode === "login" ? (
               <>
-                New here? <a href="/signup">Create an account</a>
+                New here? <a href="/signup">Create an account</a> or{" "}
+                <a href="/demo">try the demo</a> without one.
               </>
             ) : (
               <a href="/login">Back to login</a>
