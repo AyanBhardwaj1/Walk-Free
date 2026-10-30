@@ -46,6 +46,7 @@ npm start
   - Weather from Open-Meteo, then NWS, then the browser; live sunlight (W/m²) replaces the cloud-cover estimate of solar heat, and the UV index is shown.
   - City search uses the bundled US index, then Open-Meteo geocoding (GeoNames) for anywhere else, with the place's own time zone.
 - Route cards count mapped drinking fountains within 20 m of the walk.
+- Quality gates: `npm run lint` (TypeScript, React hooks, accessibility), `npm test`, `npm run test:coverage`. The API rate-limits account, map, weather, canopy and geocoding requests and sends a Content-Security-Policy.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.
