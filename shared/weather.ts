@@ -7,13 +7,19 @@ import type { WeatherForecast, WeatherHour } from "./types.js";
  */
 const VARIABLES =
   "temperature_2m,relative_humidity_2m,cloud_cover,wind_speed_10m,weather_code";
+/**
+ * Measured sunlight (W/m², instantaneous so it matches the hour shown) and
+ * UV index; the heat model uses sunlight in place of a cloud-cover guess.
+ */
+const SUN_HOURLY = "shortwave_radiation_instant,uv_index";
+const SUN_CURRENT = "shortwave_radiation,uv_index";
 
 export function openMeteoUrl(lat: number, lon: number) {
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lon.toFixed(4),
-    hourly: VARIABLES,
-    current: VARIABLES,
+    hourly: `${VARIABLES},${SUN_HOURLY}`,
+    current: `${VARIABLES},${SUN_CURRENT}`,
     wind_speed_unit: "ms",
     timeformat: "unixtime",
     timezone: "GMT",
@@ -46,6 +52,9 @@ interface OpenMeteoBlock {
   cloud_cover?: number | (number | null)[];
   wind_speed_10m?: number | (number | null)[];
   weather_code?: number | (number | null)[];
+  shortwave_radiation?: number | (number | null)[];
+  shortwave_radiation_instant?: number | (number | null)[];
+  uv_index?: number | (number | null)[];
 }
 export interface OpenMeteoResponse {
   current?: OpenMeteoBlock;
@@ -54,7 +63,9 @@ export interface OpenMeteoResponse {
 
 const finite = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v);
-const percent = (v: unknown) => (finite(v) && v >= 0 && v <= 100 ? v : null);
+const within = (v: unknown, min: number, max: number) =>
+  finite(v) && v >= min && v <= max ? v : null;
+const percent = (v: unknown) => within(v, 0, 100);
 
 function hourAt(block: OpenMeteoBlock, i?: number): WeatherHour | null {
   const pick = (v: unknown) => (i === undefined ? v : (v as unknown[])?.[i]);
@@ -75,6 +86,13 @@ function hourAt(block: OpenMeteoBlock, i?: number): WeatherHour | null {
     windMps: finite(wind) && wind >= 0 && wind < 120 ? wind : 0,
     cloudCover: percent(pick(block.cloud_cover)),
     description: describeWeatherCode(pick(block.weather_code)),
+    solarWm2: within(
+      pick(block.shortwave_radiation_instant) ??
+        pick(block.shortwave_radiation),
+      0,
+      1500,
+    ),
+    uvIndex: within(pick(block.uv_index), 0, 20),
   };
 }
 

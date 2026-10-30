@@ -110,6 +110,7 @@ export async function chatCompletion(
     tools?: ToolSpec[];
     json?: boolean;
     maxTokens?: number;
+    timeoutMs?: number;
   } = {},
 ) {
   const openAi = config.baseUrl.includes("api.openai.com");
@@ -124,12 +125,18 @@ export async function chatCompletion(
       Authorization: `Bearer ${config.key}`,
       "Content-Type": "application/json",
     },
-    timeoutMs: CALL_TIMEOUT_MS,
+    timeoutMs: options.timeoutMs ?? CALL_TIMEOUT_MS,
     maxBytes: 2_000_000,
+    // A person's own provider explains a rejected key or model; the shared
+    // key's reasons stay on the server (they can echo part of the key).
+    errorReason: config.own,
     body: JSON.stringify({
       model: config.model,
       messages,
-      max_completion_tokens: options.maxTokens ?? MAX_OUTPUT_TOKENS,
+      // OpenAI's reasoning models require the newer name; other compatible
+      // providers all accept the original one.
+      [openAi ? "max_completion_tokens" : "max_tokens"]:
+        options.maxTokens ?? MAX_OUTPUT_TOKENS,
       ...(options.tools?.length
         ? { tools: options.tools, tool_choice: "auto" }
         : {}),
@@ -145,6 +152,10 @@ export async function chatCompletion(
     const status = Number(
       (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
     );
+    const reason =
+      config.own && error instanceof ServiceError && error.providerReason
+        ? ` The provider said: “${error.providerReason}”`
+        : "";
     if (
       status === 401 ||
       status === 403 ||
@@ -153,7 +164,7 @@ export async function chatCompletion(
       throw new ServiceError(
         "AI_KEY_REJECTED",
         config.own
-          ? "The AI provider rejected your key. Check it in AI settings."
+          ? `The AI provider rejected your key. Check it in AI settings.${reason}`
           : "The assistant's AI key was rejected. Please tell the site owner.",
         400,
       );
@@ -161,15 +172,21 @@ export async function chatCompletion(
       throw new ServiceError(
         "AI_MODEL",
         config.own
-          ? "The AI provider didn't accept that model name. Check it in AI settings."
+          ? `The AI provider didn't accept that request. Check the model name in AI settings.${reason}`
           : "The assistant's AI model is unavailable right now.",
         400,
       );
     if (status === 429)
       throw new ServiceError(
         "AI_BUSY",
-        "The AI provider is rate-limiting requests. Wait a moment and try again.",
+        `The AI provider is rate-limiting requests or your account is out of credit. Wait a moment and try again.${reason}`,
         429,
+      );
+    if (config.own && error instanceof ServiceError && status)
+      throw new ServiceError(
+        "AI_PROVIDER_ERROR",
+        `Your AI provider returned an error (HTTP ${status}). Try again in a moment.${reason}`,
+        502,
       );
     throw error;
   });

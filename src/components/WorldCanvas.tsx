@@ -14,19 +14,94 @@ import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
-function FrameArea({ extent }: { extent: number }) {
-  const { camera, size, invalidate } = useThree();
+/** Screen space covered by panels, in CSS pixels, so the map frames around it. */
+export interface MapInsets {
+  left: number;
+  bottom: number;
+  top: number;
+}
+const NO_INSETS: MapInsets = { left: 0, bottom: 0, top: 0 };
+const VIEW_DIRECTION = new THREE.Vector3(0.65, 0.72, 0.7).normalize();
+/**
+ * Frames the route (or the whole area) inside the part of the screen that
+ * panels leave visible, by shifting the projection centre into that region.
+ * Re-frames only when the endpoints, area or visible region change, so the
+ * time slider never moves the camera.
+ */
+function FrameArea({
+  extent,
+  insets,
+  focus,
+}: {
+  extent: number;
+  insets: MapInsets;
+  focus: Point[];
+}) {
+  const { camera, size, invalidate, controls } = useThree();
+  const focusKey = focus.map((p) => p.map(Math.round).join(",")).join("|");
   useEffect(() => {
-    const fit = Math.max(1, 1.2 / (size.width / size.height));
-    camera.position.set(
-      extent * 0.65 * fit,
-      extent * 0.72 * fit,
-      extent * 0.7 * fit,
+    const cam = camera as THREE.PerspectiveCamera;
+    const left = Math.min(insets.left, size.width * 0.6);
+    const bottom = Math.min(insets.bottom, size.height * 0.7);
+    const top = Math.min(insets.top, size.height * 0.2);
+    const visible = Math.max(
+      120,
+      Math.min(size.width - left, size.height - bottom - top),
     );
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
+    cam.setViewOffset(
+      size.width,
+      size.height,
+      -left / 2,
+      (bottom - top) / 2,
+      size.width,
+      size.height,
+    );
+    let center: Point = [0, 0];
+    let radius = extent / 2;
+    if (focus.length) {
+      const xs = focus.map((p) => p[0]),
+        zs = focus.map((p) => p[1]);
+      center = [
+        (Math.min(...xs) + Math.max(...xs)) / 2,
+        (Math.min(...zs) + Math.max(...zs)) / 2,
+      ];
+      const half =
+        Math.hypot(
+          Math.max(...xs) - Math.min(...xs),
+          Math.max(...zs) - Math.min(...zs),
+        ) / 2;
+      radius = Math.min(extent / 2, Math.max(160, half * 1.35 + 60));
+    }
+    // Distance at which a circle of this radius fits the visible region.
+    const tan = Math.tan(((cam.fov / 2) * Math.PI) / 180);
+    const distance = (radius * 0.9) / (tan * (visible / size.height));
+    const target = new THREE.Vector3(center[0], 0, center[1]);
+    cam.position.copy(target).addScaledVector(VIEW_DIRECTION, distance);
+    cam.lookAt(target);
+    cam.updateProjectionMatrix();
+    const orbit = controls as unknown as {
+      target: THREE.Vector3;
+      update: () => void;
+    } | null;
+    if (orbit) {
+      orbit.target.copy(target);
+      orbit.update();
+    }
     invalidate();
-  }, [camera, extent, size.width, size.height, invalidate]);
+    // focusKey stands in for focus, which is a new array on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    camera,
+    controls,
+    extent,
+    focusKey,
+    insets.left,
+    insets.bottom,
+    insets.top,
+    size.width,
+    size.height,
+    invalidate,
+  ]);
   return null;
 }
 function WalkingPaths({
@@ -239,8 +314,15 @@ function Endpoint({
           depthTest={false}
         />
       </mesh>
-      <sprite position={[0, 22, 0]} scale={[58, 25, 1]} renderOrder={10}>
+      {/* A constant size on screen, however close the camera frames. */}
+      <sprite
+        position={[0, 8, 0]}
+        center={[0.5, 0]}
+        scale={[0.05, 0.022, 1]}
+        renderOrder={10}
+      >
         <spriteMaterial
+          sizeAttenuation={false}
           map={texture}
           depthTest={false}
           depthWrite={false}
@@ -266,6 +348,7 @@ export default function WorldCanvas({
   showBuildings = true,
   heat,
   onHeatSelect,
+  insets = NO_INSETS,
 }: {
   world: World;
   environment: Environment;
@@ -282,6 +365,8 @@ export default function WorldCanvas({
   showBuildings?: boolean;
   heat?: HeatOverlay | null;
   onHeatSelect?: (edgeId: string, point: Point) => void;
+  /** Panels over the map; the camera frames the area beside them. */
+  insets?: MapInsets;
 }) {
   const sun = sunDirection(environment, world.origin);
   const extent = world.extent;
@@ -312,7 +397,11 @@ export default function WorldCanvas({
       frameloop="demand"
       raycaster={{ params: { Line: { threshold: 3 } } } as never}
     >
-      <FrameArea extent={extent} />
+      <FrameArea
+        extent={extent}
+        insets={insets}
+        focus={startPoint && endPoint ? [startPoint, endPoint] : []}
+      />
       <color attach="background" args={["#eeece3"]} />
       <ambientLight intensity={1.1} />
       <hemisphereLight args={["#fff7e2", "#9aab91", 1.2]} />
@@ -461,7 +550,6 @@ export default function WorldCanvas({
         minDistance={70}
         maxDistance={extent * 4}
         maxPolarAngle={Math.PI * 0.48}
-        target={[0, 0, 0]}
       />
     </Canvas>
   );

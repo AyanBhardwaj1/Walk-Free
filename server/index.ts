@@ -1,8 +1,10 @@
 import express from "express";
 import { ZodError } from "zod";
 import { resolve } from "node:path";
-import { getWorld, getWeather } from "./data.js";
-import { cities, searchCities } from "./cities.js";
+import { getCanopy, getWorld, getWeather } from "./data.js";
+import { CANOPY_ATTRIBUTION } from "../shared/canopy.js";
+import { findCities } from "./geocode.js";
+import { rateLimiter } from "./rate-limit.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
 import { agentRouter } from "./agent.js";
@@ -45,9 +47,47 @@ app.get("/api/health", (_q, r) =>
     appUrlConfigured: Boolean(process.env.WALK_FREE_APP_URL),
   }),
 );
-app.get("/api/cities", (q, r) => {
-  const term = String(q.query.q || "").toLowerCase();
-  r.json(searchCities(term));
+const geocodeAllowed = rateLimiter(40);
+app.get("/api/cities", async (q, r, next) => {
+  try {
+    const query = String(q.query.q || "").toLowerCase();
+    // Past the limit, answer from the bundled index only.
+    r.json(await findCities(query, geocodeAllowed(q)));
+  } catch (e) {
+    next(e);
+  }
+});
+// Public and cacheable: open data about the area, no account details.
+const canopyAllowed = rateLimiter(20);
+app.get("/api/canopy", async (q, r, next) => {
+  try {
+    const { lat, lon } = coordinates(q.query.lat, q.query.lon);
+    const radius = boundedRadius(q.query.radius);
+    if (!canopyAllowed(q)) {
+      r.setHeader("Cache-Control", "no-store");
+      r.status(429).json({
+        error: "Too many canopy requests. Wait a minute and try again.",
+        code: "RATE_LIMITED",
+      });
+      return;
+    }
+    const area = await getCanopy(lat, lon, radius);
+    if (!area) {
+      r.setHeader("Cache-Control", "no-store");
+      r.status(503).json({
+        error: "The tree canopy map can't be reached right now.",
+        code: "CANOPY_UNAVAILABLE",
+      });
+      return;
+    }
+    r.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=86400",
+    );
+    r.json({ ...area, attribution: CANOPY_ATTRIBUTION });
+  } catch (e) {
+    next(e);
+  }
 });
 app.use("/api", authenticate);
 app.get("/api/world", async (q, r, next) => {

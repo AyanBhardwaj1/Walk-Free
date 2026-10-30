@@ -1064,7 +1064,13 @@
   color: #f4f1e6;
 }
 .feature-visual.tone-heat {
-  background: linear-gradient(135deg, #b13a2b, #d7772d 40%, #d9b142 65%, #4f8a9c);
+  background: linear-gradient(
+    135deg,
+    #b13a2b,
+    #d7772d 40%,
+    #d9b142 65%,
+    #4f8a9c
+  );
 }
 .feature-visual.tone-routes {
   background: var(--forest-2);
@@ -1082,7 +1088,14 @@
   bottom: 14%;
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #4f8a9c, #6f9b5f, #d9b142, #d7772d, #b13a2b);
+  background: linear-gradient(
+    90deg,
+    #4f8a9c,
+    #6f9b5f,
+    #d9b142,
+    #d7772d,
+    #b13a2b
+  );
   box-shadow: 0 0 0 4px #ffffff33;
 }
 .feature-chips {
@@ -1273,7 +1286,8 @@
   height: 18px;
   border-radius: 9px;
   background:
-    radial-gradient(circle, #9aa48c 3px, transparent 4px) 6px 50% / 12px 100% repeat-x,
+    radial-gradient(circle, #9aa48c 3px, transparent 4px) 6px 50% / 12px 100%
+      repeat-x,
     #efeee5;
   animation: typing 1s steps(3) infinite;
 }
@@ -1397,8 +1411,10 @@
   .landing-v2 .landing-header nav {
     display: none;
   }
+  /* The hero has the main call to action; keep a way to log in. */
   .landing-v2 .landing-header .quiet-link {
-    display: none;
+    font-size: 14px;
+    padding: 10px 2px;
   }
   .cine-hero {
     padding: 120px 22px 60px;
@@ -1449,4 +1465,14 @@
   .preview-readout strong {
     font-size: 52px;
   }
+}
+
+.public-site h1,
+.public-site h2,
+.public-site h3 {
+  text-wrap: balance;
+}
+.public-site a,
+.public-site button {
+  touch-action: manipulation;
 }

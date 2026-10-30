@@ -17,6 +17,8 @@ const COLORS = {
   start: "#3f5938",
   end: "#b46539",
   you: "#3479bf",
+  canopy: "rgba(112, 140, 96, 0.32)",
+  water: "#2f7fb5",
 };
 
 export default function WalkMap2D({
@@ -27,6 +29,7 @@ export default function WalkMap2D({
   start,
   end,
   edgeColors,
+  insets,
 }: {
   world: World;
   route: RouteResult | null;
@@ -36,6 +39,8 @@ export default function WalkMap2D({
   end?: Point;
   /** Optional heat colour per edge id, used to colour the route. */
   edgeColors?: Map<string, string> | null;
+  /** Panels over the map; the route centres in the space beside them. */
+  insets?: { left: number; bottom: number; top: number };
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -73,9 +78,11 @@ export default function WalkMap2D({
     const g = c.getContext("2d");
     if (!g) return;
     const scale = ZOOMS[zoom] * dpr;
+    const shiftX = ((insets?.left ?? 0) / 2) * dpr;
+    const shiftY = (((insets?.top ?? 0) - (insets?.bottom ?? 0)) / 2) * dpr;
     const toScreen = (p: Point): [number, number] => [
-      (p[0] - center[0]) * scale + c.width / 2,
-      (p[1] - center[1]) * scale + c.height / 2,
+      (p[0] - center[0]) * scale + c.width / 2 + shiftX,
+      (p[1] - center[1]) * scale + c.height / 2 + shiftY,
     ];
     const line = (pts: Point[]) => {
       pts.forEach((p, i) => {
@@ -109,6 +116,17 @@ export default function WalkMap2D({
       g.closePath();
       g.fill();
     }
+    // Tree crowns, mapped and inferred, so shade reads at a glance.
+    g.fillStyle = COLORS.canopy;
+    g.beginPath();
+    for (const o of world.objects) {
+      if (o.kind !== "tree") continue;
+      const [x, y] = toScreen(o.position);
+      const r = Math.max(1.5 * dpr, (o.width / 2) * scale);
+      g.moveTo(x + r, y);
+      g.arc(x, y, r, 0, Math.PI * 2);
+    }
+    g.fill();
     g.lineCap = "round";
     g.lineJoin = "round";
     for (const kind of ["path", "road"] as const) {
@@ -145,6 +163,8 @@ export default function WalkMap2D({
       g.fill();
       g.stroke();
     };
+    for (const a of world.amenities ?? [])
+      if (a.kind === "water") dot(a.position, COLORS.water, 4);
     dot(start, COLORS.start, 7);
     dot(end, COLORS.end, 9);
     if (you && accuracy) {
@@ -155,13 +175,25 @@ export default function WalkMap2D({
       g.fill();
     }
     dot(you, COLORS.you, 9);
-  }, [world, route, you, accuracy, start, end, edgeColors, center, zoom, size]);
+  }, [
+    world,
+    route,
+    you,
+    accuracy,
+    start,
+    end,
+    edgeColors,
+    center,
+    zoom,
+    size,
+    insets,
+  ]);
   return (
     <div className="walk-map">
       <canvas
         ref={canvas}
         role="img"
-        aria-label="Flat walking map with your route"
+        aria-label="Flat walking map with your route, tree shade and drinking water"
         style={{ width: "100%", height: "100%" }}
       />
       <div className="walk-map-zoom">

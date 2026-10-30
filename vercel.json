@@ -51,7 +51,7 @@
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/((?!canopy).*)",
       "headers": [
         {
           "key": "Cache-Control",

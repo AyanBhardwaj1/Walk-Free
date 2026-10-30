@@ -1,3 +1,5 @@
+import { canopyCells, type CanopyCell } from "../shared/canopy.js";
+import { readCanopy } from "./canopy.js";
 import {
   mkdir,
   readFile,
@@ -418,4 +420,73 @@ export async function getNwsWeather(
       return parseNwsForecast(forecast.properties?.periods ?? [], grid);
     },
   );
+}
+
+/** Canopy for an area: crown cells relative to `origin`, in metres. */
+export interface CanopyArea {
+  origin: { lat: number; lon: number };
+  cells: CanopyCell[];
+}
+/** Radii canopy is computed for; requests round up to one of them. */
+const CANOPY_RADII = [500, 900, 1100, 1600];
+const CANOPY_CACHE_SIZE = 48;
+const MAX_CANOPY_READS = 3;
+const MAX_CANOPY_QUEUE = 12;
+const canopyCache = new Map<string, CanopyArea>();
+const canopyPending = new Map<string, Promise<CanopyArea | null>>();
+let canopyReads = 0;
+const canopyQueue: (() => void)[] = [];
+
+/**
+ * Inferred crown cells around a point from Meta's canopy height map, or
+ * null when the map can't be read. Requests snap to a coarse grid (about
+ * 100 m) and a few radii, so nearby areas share one cached result; the
+ * caller shifts cells from the returned origin to its own.
+ */
+export async function getCanopy(
+  lat: number,
+  lon: number,
+  radius: number,
+): Promise<CanopyArea | null> {
+  const origin = {
+    lat: Math.round(lat * 1000) / 1000,
+    lon: Math.round(lon * 1000) / 1000,
+  };
+  // Cover the request even after the centre moves to the grid.
+  const r = CANOPY_RADII.find((x) => x >= radius + 80) ?? CANOPY_RADII.at(-1)!;
+  const key = `${origin.lat},${origin.lon},${r}`;
+  const hit = canopyCache.get(key);
+  if (hit) {
+    canopyCache.delete(key);
+    canopyCache.set(key, hit);
+    return hit;
+  }
+  const existing = canopyPending.get(key);
+  if (existing) return existing;
+  const task = (async () => {
+    // A public endpoint: bound tile reads per instance and queue the rest.
+    if (canopyReads >= MAX_CANOPY_READS) {
+      if (canopyQueue.length >= MAX_CANOPY_QUEUE) return null;
+      await new Promise<void>((resolve) => canopyQueue.push(resolve));
+    }
+    canopyReads++;
+    try {
+      const raster = await readCanopy(origin.lat, origin.lon, r);
+      if (!raster) return null;
+      const area = { origin, cells: canopyCells(origin, r * 2, raster) };
+      canopyCache.set(key, area);
+      if (canopyCache.size > CANOPY_CACHE_SIZE)
+        canopyCache.delete(canopyCache.keys().next().value!);
+      return area;
+    } finally {
+      canopyReads--;
+      canopyQueue.shift()?.();
+    }
+  })();
+  canopyPending.set(key, task);
+  try {
+    return await task;
+  } finally {
+    canopyPending.delete(key);
+  }
 }

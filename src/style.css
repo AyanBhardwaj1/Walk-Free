@@ -25,9 +25,35 @@ button {
   border: 0;
   color: inherit;
 }
+button,
+a,
+input,
+select,
+textarea,
+label {
+  /* No double-tap zoom delay; a quiet tint instead of the grey flash. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(63, 89, 56, 0.12);
+}
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+h1,
+h2,
+h3,
+.panel-title {
+  text-wrap: balance;
+}
+.choice-time,
+.route-heat,
+.route-choices span,
+.weather-chip strong {
+  font-variant-numeric: tabular-nums;
+}
+.search:focus-within {
+  outline: 2px solid #567451;
+  outline-offset: 2px;
 }
 button:focus-visible,
 input:focus-visible,
@@ -479,9 +505,22 @@ footer {
 }
 .weather-chip div small {
   display: block;
-  font-size: 9px;
-  color: #919980;
+  font-size: 10px;
+  color: #7c856d;
+  margin-top: 4px;
+}
+.weather-chip div small.uv-badge {
+  display: inline-block;
   margin-top: 5px;
+  padding: 1px 6px;
+  border: 1px solid #d9ddcb;
+  color: #5d6853;
+  font-variant-numeric: tabular-nums;
+}
+.weather-chip div small.uv-badge.high {
+  border-color: #e4c48a;
+  background: #fbf1dc;
+  color: #8a5a17;
 }
 .map-actions {
   position: absolute;
@@ -554,14 +593,60 @@ footer {
 }
 .map-credit {
   position: absolute;
-  bottom: 13px;
-  left: 28px;
+  bottom: 12px;
   right: 28px;
   display: flex;
-  justify-content: space-between;
-  font-size: 8px;
-  color: #8e967e;
-  letter-spacing: 0.3px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  max-width: calc(100% - 56px);
+  padding: 3px 8px;
+  background: #faf9f0d9;
+  font-size: 10px;
+  color: #5f6852;
+  letter-spacing: 0.2px;
+  text-align: right;
+}
+.data-layers {
+  list-style: none;
+  margin: 14px 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.data-layers li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid #e6e7dc;
+}
+.data-layers li > svg {
+  flex: none;
+  margin-top: 2px;
+  color: #4f7a46;
+}
+.data-layers li > svg[aria-label="Not loaded"] {
+  color: #a3a993;
+}
+.data-layers li div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.data-layers strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: #2f3a2b;
+}
+.data-layers span {
+  font-size: 11px;
+  color: #5d6853;
+}
+.data-layers small {
+  font-size: 11px;
+  color: #7f876f;
+  font-variant-numeric: tabular-nums;
 }
 .toast {
   position: absolute;
@@ -767,7 +852,6 @@ footer {
   }
   .map-credit {
     bottom: 10px;
-    left: 18px;
     right: 18px;
   }
   .tool-grid {
@@ -1364,6 +1448,9 @@ footer {
   display: block;
   color: #3f5938;
 }
+.route-extra.water {
+  color: #2a6a96;
+}
 
 /* Flat walking view */
 .walk-map {
@@ -1567,6 +1654,47 @@ footer {
 }
 .ai-settings-form label {
   margin: 12px 0 0;
+}
+.ai-settings.suggested {
+  border: 1px solid #c9d7bf;
+  background: #f1f5ea;
+  padding: 10px 12px 12px;
+}
+.ai-settings-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #34442f;
+}
+.ai-key-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #3f5c3a;
+}
+.ai-key-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ai-key-result:empty {
+  display: none;
+}
+.ai-key-result svg {
+  flex: none;
+  margin-top: 2px;
+}
+.ai-key-result.ok {
+  color: #2f6b34;
+}
+.ai-key-result.bad {
+  color: #9a3b25;
 }
 .ai-settings-actions {
   display: flex;
@@ -1983,7 +2111,15 @@ footer {
     left: 12px !important;
     bottom: calc(var(--sheet-height, 46dvh) + 120px);
   }
+  /* Above the time-of-day card, so the credit stays visible on phones. */
   .app > main .map-credit {
+    bottom: calc(var(--sheet-height, 46dvh) + 64px);
+    right: 12px;
+    max-width: calc(100% - 24px);
+    white-space: nowrap;
+    font-size: 9px;
+  }
+  .app > main .map-credit span {
     display: none;
   }
 }
@@ -2087,4 +2223,12 @@ footer {
 }
 .guest-lock .primary {
   text-decoration: none;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
 }

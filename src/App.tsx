@@ -2,6 +2,7 @@ import {
   useState,
   useMemo,
   useEffect,
+  useLayoutEffect,
   useRef,
   lazy,
   Suspense,
@@ -87,16 +88,22 @@ import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
 import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
-import { loadWorld } from "./lib/world-source";
+import { addCanopy, loadWorld } from "./lib/world-source";
+import { hasCanopy } from "../shared/canopy";
 import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
 import { openCoolStops } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
-import { describeConditions, liveConditions } from "./lib/live-weather";
+import {
+  uvLabel,
+  describeConditions,
+  liveConditions,
+} from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
-import WorldCanvas from "./components/WorldCanvas";
+import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
+import DataLayers from "./components/DataLayers";
 import WalkMap2D from "./components/WalkMap2D";
 import { toF } from "./lib/heat";
 import type { Account } from "./lib/account";
@@ -227,6 +234,47 @@ export default function App({
   const [panelOpen, setPanelOpen] = useState(true);
   // Phone bottom sheet: a peek at the map, half, or nearly full screen.
   const [sheet, setSheet] = useState<0 | 1 | 2>(1);
+  const asideRef = useRef<HTMLElement>(null);
+  const [mapInsets, setMapInsets] = useState<MapInsets>({
+    left: 0,
+    bottom: 0,
+    top: 0,
+  });
+  // Track how much of the screen the panel or sheet covers, so the map
+  // frames the route in the part people can see.
+  useLayoutEffect(() => {
+    const aside = asideRef.current;
+    const main = aside?.parentElement;
+    if (!aside || !main) return;
+    const measure = () => {
+      const a = aside.getBoundingClientRect(),
+        m = main.getBoundingClientRect();
+      const phone = window.matchMedia("(max-width: 650px)").matches;
+      const next = phone
+        ? { left: 0, bottom: Math.max(0, m.bottom - a.top), top: 64 }
+        : {
+            left: panelOpen ? Math.max(0, a.right - m.left) : 0,
+            bottom: 110,
+            top: 0,
+          };
+      setMapInsets((prev) =>
+        prev.left === next.left &&
+        prev.bottom === next.bottom &&
+        prev.top === next.top
+          ? prev
+          : next,
+      );
+    };
+    // Wait for the sheet's height transition before measuring again.
+    const settle = setTimeout(measure, 320);
+    const observer = new ResizeObserver(measure);
+    observer.observe(main);
+    measure();
+    return () => {
+      clearTimeout(settle);
+      observer.disconnect();
+    };
+  }, [panelOpen, sheet]);
   const sheetDrag = useRef<number | null>(null);
   // The scene before the first tree in this comparison, and the last row.
   const [heatBaseline, setHeatBaseline] = useState<World | null>(null);
@@ -695,7 +743,7 @@ export default function App({
     setBusy(`Building ${c.name}…`);
     setQuery("");
     try {
-      const { world: loaded } = await loadWorld(
+      const { world: loaded, canopy } = await loadWorld(
         {
           lat: c.lat,
           lon: c.lon,
@@ -714,8 +762,21 @@ export default function App({
         },
       );
       if (request !== buildRequest.current) return false;
-      const w = worldSchema.parse(loaded);
+      // A geocoded place knows its own time zone; the parser only guesses
+      // from the nearest indexed US city.
+      const w = worldSchema.parse(
+        c.timezone ? { ...(loaded as object), timezone: c.timezone } : loaded,
+      );
       edit(w);
+      // Meta's canopy arrives after the map: add it in place (not as an
+      // undoable edit) if the same area is still open.
+      void canopy?.then((cells) =>
+        setWorld((current) =>
+          current.id === w.id && !hasCanopy(current)
+            ? addCanopy(current, cells)
+            : current,
+        ),
+      );
       setAtlas(null);
       setSelected(null);
       let [from, to] = defaultEndpoints(w, {
@@ -1109,7 +1170,7 @@ export default function App({
           { "--sheet-height": SHEET_HEIGHTS[sheet] } as React.CSSProperties
         }
       >
-        <aside className={panelOpen ? "" : "collapsed"}>
+        <aside ref={asideRef} className={panelOpen ? "" : "collapsed"}>
           <button
             className="sheet-handle"
             aria-label={sheet === 2 ? "Show more map" : "Show more controls"}
@@ -1484,6 +1545,14 @@ export default function App({
                 setChatError("");
               }}
               ownKey={ownKey}
+              onTestKey={async (value) => {
+                const check = await api(
+                  "/api/agent/test-key",
+                  {},
+                  ownKeyHeaders(value),
+                );
+                return { model: check.model, latencyMs: check.latencyMs };
+              }}
               onOwnKey={(value) => {
                 setOwnKey(value);
                 saveOwnKey(account.id, value);
@@ -1860,6 +1929,7 @@ export default function App({
           {!atlas && tab === "data" && (
             <section>
               <div className="section-title">Know your ground</div>
+              <DataLayers world={world} env={env} forecast={forecast} />
               <p>{world.provenance.source}</p>
               <p className="fine">{world.provenance.attribution}</p>
               {world.provenance.notes.map((n) => (
@@ -1912,6 +1982,7 @@ export default function App({
               start={startNode?.point}
               end={endNode?.point}
               edgeColors={heatOverlay?.colors}
+              insets={mapInsets}
             />
           ) : (
             <WorldCanvas
@@ -1930,6 +2001,7 @@ export default function App({
               showTrees={trees}
               showBuildings={buildings}
               heat={heatOverlay}
+              insets={mapInsets}
               onHeatSelect={
                 mode === "explore" || tool === "shaderow"
                   ? selectHeatEdge
@@ -2014,6 +2086,14 @@ export default function App({
                       })}`
                     : `${Math.round(env.windMps * 2.237)} mph wind`}
                 </small>
+                {env.weatherMode === "forecast" && uvLabel(env.uvIndex) && (
+                  <small
+                    className={`uv-badge ${uvLabel(env.uvIndex)!.high ? "high" : ""}`}
+                    title="UV index from Open-Meteo"
+                  >
+                    {uvLabel(env.uvIndex)!.text}
+                  </small>
+                )}
               </div>
             </div>
           )}
@@ -2132,7 +2212,9 @@ export default function App({
             {atlas
               ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
               : world.provenance.live
-                ? "© OpenStreetMap contributors"
+                ? world.objects.some((o) => o.source === "canopy")
+                  ? "© OpenStreetMap contributors · Canopy © Meta & WRI"
+                  : "© OpenStreetMap contributors"
                 : "Original design study"}
             <span>Scene units: meters</span>
           </div>

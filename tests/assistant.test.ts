@@ -329,3 +329,72 @@ describe("own-key limits and matching", () => {
       ).toThrow(/isn't supported/);
   });
 });
+
+describe("testing a person's own key", () => {
+  const own = {
+    "x-walk-free-ai-key": "sk-or-v1-user-key-123456",
+    "x-walk-free-ai-provider": "openrouter",
+    "x-walk-free-ai-model": "meta-llama/llama-4-maverick",
+  };
+  it("makes one small call and reports the model that answered", async () => {
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: "ready" } }],
+    });
+    const result = await post("/api/agent/test-key", {}, own);
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      ok: true,
+      model: "meta-llama/llama-4-maverick",
+      reply: "ready",
+    });
+    const [url, options] = requestJson.mock.calls[0];
+    expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    const sent = JSON.parse(options.body);
+    // Non-OpenAI providers get the widely supported token limit name.
+    expect(sent.max_tokens).toBe(200);
+    expect(sent.max_completion_tokens).toBeUndefined();
+    expect(options.errorReason).toBe(true);
+  });
+
+  it("passes the provider's own reason back to the person", async () => {
+    setUsageStore(memoryUsage());
+    const failure = new ServiceError(
+      "UPSTREAM_UNAVAILABLE",
+      "The data provider returned HTTP 404. Please try again later.",
+      502,
+      "Required HTTPS host: openrouter.ai",
+    );
+    failure.providerReason = "meta-llama/llama-9 is not a valid model ID";
+    requestJson.mockRejectedValueOnce(failure);
+    const result = await post("/api/agent/test-key", {}, own);
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain("Check the model name");
+    expect(result.body.error).toContain("is not a valid model ID");
+    expect(result.body.error).not.toContain("Required HTTPS host");
+  });
+
+  it("asks for a key when none was sent", async () => {
+    const result = await post("/api/agent/test-key", {});
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/Paste an API key/);
+  });
+
+  it("never sends the shared key's provider reason to the browser", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-site-key");
+    setUsageStore(memoryUsage());
+    const failure = new ServiceError(
+      "UPSTREAM_UNAVAILABLE",
+      "The data provider returned HTTP 401. Please try again later.",
+      502,
+    );
+    failure.providerReason = "Incorrect API key provided: sk-site***";
+    requestJson.mockRejectedValueOnce(failure);
+    const result = await post("/api/agent/chat", {
+      messages: [{ role: "user", content: "Hi" }],
+      context,
+    });
+    expect(JSON.stringify(result.body)).not.toContain("sk-site");
+    expect(requestJson.mock.calls[0][1].errorReason).toBeFalsy();
+  });
+});

@@ -206,6 +206,9 @@ export async function runTool(
               ...(r.coolStop
                 ? { cool_stop: r.coolStop, cool_stop_hours: "not verified" }
                 : {}),
+              ...(r.waterStops
+                ? { water_fountains_on_route: r.waterStops }
+                : {}),
               feels_like_f: deg(heat.feelsLikeC),
             },
           ];
