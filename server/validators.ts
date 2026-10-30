@@ -35,6 +35,8 @@ export function cleanName(
   if (typeof value !== "string") return fallback;
   return (
     value
+      // Control characters are exactly what this strips.
+      // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u001f\u007f]/g, "")
       .trim()
       .slice(0, 120) || fallback

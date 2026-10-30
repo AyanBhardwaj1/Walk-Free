@@ -22,6 +22,24 @@ type Post = (
   body: unknown,
 ) => Promise<{ reply: string; toolCalls: ToolCall[] }>;
 
+/** The server's limits on one assistant message (server/agent.ts). */
+const MAX_REPLY_CHARS = 6000;
+const MAX_TOOL_CALLS = 8;
+
+/**
+ * A conversation that failed after some tools had already run. `messages`
+ * keeps what was done, closed with a note, so the next question has context.
+ */
+export class PartialChatError extends Error {
+  constructor(
+    message: string,
+    public messages: ChatMessage[],
+  ) {
+    super(message);
+    this.name = "PartialChatError";
+  }
+}
+
 const KEEP_USER_TURNS = 6;
 /** Stays well under the server's message limit. */
 const MAX_MESSAGES = 60;
@@ -51,13 +69,34 @@ export async function converse(
   onTool?: (name: string) => void,
 ): Promise<{ messages: ChatMessage[]; reply: string }> {
   let messages = trimHistory(history);
+  const start = messages.length;
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const { reply, toolCalls } = await post("/api/agent/chat", {
-      messages,
-      context: context(),
-    });
-    if (!toolCalls?.length) {
-      const text = reply?.trim() || "Sorry, I couldn't come up with an answer.";
+    let answer: { reply: string; toolCalls: ToolCall[] };
+    try {
+      answer = await post("/api/agent/chat", {
+        messages,
+        context: context(),
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "The assistant stopped.";
+      // Nothing ran yet: an ordinary failure.
+      if (messages.length === start) throw error;
+      throw new PartialChatError(reason, [
+        ...messages,
+        {
+          role: "assistant",
+          content:
+            "I stopped partway. The changes above are on the map; they can be undone.",
+        },
+      ]);
+    }
+    const reply = answer.reply;
+    const toolCalls = (answer.toolCalls ?? []).slice(0, MAX_TOOL_CALLS);
+    if (!toolCalls.length) {
+      const text = (
+        reply?.trim() || "Sorry, I couldn't come up with an answer."
+      ).slice(0, MAX_REPLY_CHARS);
       return {
         messages: [...messages, { role: "assistant", content: text }],
         reply: text,
@@ -90,7 +129,11 @@ export async function converse(
     }
     messages = [
       ...messages,
-      { role: "assistant", content: reply || null, tool_calls: toolCalls },
+      {
+        role: "assistant",
+        content: reply ? reply.slice(0, MAX_REPLY_CHARS) : null,
+        tool_calls: toolCalls,
+      },
       ...results,
     ];
   }

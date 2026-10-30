@@ -59,6 +59,10 @@ export default function OmniSearch({
           aria-label="Search places, buildings or cities"
           aria-expanded={open}
           aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            open && results[active] ? `${listId}-${active}` : undefined
+          }
           placeholder="Search a building, street or city…"
           value={query}
           onFocus={() => setFocused(true)}
@@ -86,6 +90,7 @@ export default function OmniSearch({
           {results.map((r, i) => (
             <li
               key={r.kind === "place" ? `p-${r.place.id}` : `c-${r.city.id}`}
+              id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
               className={i === active ? "active" : ""}

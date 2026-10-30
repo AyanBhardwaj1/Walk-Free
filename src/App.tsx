@@ -10,7 +10,6 @@ import {
 } from "react";
 import {
   ArrowUpRight,
-  Search,
   TreePine,
   Building2,
   Route,
@@ -23,13 +22,11 @@ import {
   Sparkles,
   MapPin,
   Navigation,
-  ChevronRight,
   Mountain,
   Plus,
   Minus,
   MousePointer2,
   Landmark,
-  Wind,
   Compass,
   Check,
   X,
@@ -52,7 +49,7 @@ import type {
   WeatherForecast,
 } from "../shared/types";
 import { heatIndexC, isShaded, sunDirection } from "./lib/environment";
-import { applyDesignProposal, type DesignProposal } from "./lib/proposals";
+import { applyDesignProposal } from "./lib/proposals";
 import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
@@ -61,7 +58,11 @@ import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
 import AssistantPanel from "./components/AssistantPanel";
-import { converse, type ChatMessage } from "./lib/assistant-client";
+import {
+  converse,
+  PartialChatError,
+  type ChatMessage,
+} from "./lib/assistant-client";
 import type { ToolHost } from "./lib/assistant-tools";
 import { searchCities } from "../server/cities";
 import {
@@ -83,7 +84,7 @@ import OmniSearch from "./components/OmniSearch";
 import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
-import { snapWalkPosition, hasArrived } from "./lib/walk-location";
+import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { compareRoutes, nearestWalkNode } from "./lib/routing";
@@ -91,7 +92,12 @@ import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
 import { addCanopy, loadWorld } from "./lib/world-source";
 import { hasCanopy } from "../shared/canopy";
 import { loadOwnKey, ownKeyHeaders, saveOwnKey } from "./lib/ai-key";
-import { openCoolStops } from "./lib/cool-stops";
+import {
+  openCoolStops,
+  reachedCoolStop,
+  walkCoolStops,
+  type WalkStop,
+} from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
@@ -102,6 +108,7 @@ import {
 } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
+import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
 import WalkMap2D from "./components/WalkMap2D";
@@ -147,6 +154,23 @@ async function api(
     );
   return data;
 }
+/**
+ * The best match for a place name: the server's index plus its worldwide
+ * geocoder, or the bundled index alone when the API can't be reached.
+ */
+async function lookUpPlace(query: string): Promise<City | undefined> {
+  try {
+    const r = await fetch(
+      `${API_BASE}/api/cities?q=${encodeURIComponent(query)}`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    const found = r.ok ? ((await r.json()) as City[]) : [];
+    if (Array.isArray(found) && found[0]) return found[0];
+  } catch {
+    // Offline or blocked: the bundled index still knows US cities.
+  }
+  return searchCities(query.toLowerCase())[0];
+}
 const tools = [
   ["select", "Select", MousePointer2],
   ["tree", "Tree", TreePine],
@@ -182,6 +206,8 @@ export default function App({
   const [world, setWorld] = useState<World>(createStudyWorld);
   // Saving waits until the stored scene has been read back.
   const [hydrated, setHydrated] = useState(false);
+  // Set when the saved scene couldn't be read, so it is never overwritten.
+  const saveBlocked = useRef(false);
   const firstWorld = useRef(world);
   const [atlas, setAtlas] = useState<City | null>(null);
   const [mode, setMode] = useState<"explore" | "studio">("explore");
@@ -190,8 +216,6 @@ export default function App({
   const [tool, setTool] = useState("select");
   const [probe, setProbe] = useState<Point>([0, 0]);
   const [history, setHistory] = useState<World[]>([]);
-  const [query, setQuery] = useState("");
-  const [cities, setCities] = useState<City[]>([]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState("route");
@@ -251,7 +275,8 @@ export default function App({
         m = main.getBoundingClientRect();
       const phone = window.matchMedia("(max-width: 650px)").matches;
       const next = phone
-        ? { left: 0, bottom: Math.max(0, m.bottom - a.top), top: 64 }
+        ? // Above the sheet and the time-of-day card that sits on it.
+          { left: 0, bottom: Math.max(0, m.bottom - a.top) + 110, top: 64 }
         : {
             left: panelOpen ? Math.max(0, a.right - m.left) : 0,
             bottom: 110,
@@ -312,17 +337,64 @@ export default function App({
   const worldRef = useRef(world);
   worldRef.current = world;
   const upload = useRef<HTMLInputElement>(null);
+  // Routes depend on the time (through the sun) and nothing else in the
+  // weather, so temperature or humidity changes don't re-plan them.
+  const routeTime = useDeferredValue(env.dateTime);
+  const routeEnv = useMemo(
+    () => ({ ...env, dateTime: routeTime }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [routeTime],
+  );
+  // While walking, keep the cool stop chosen at the start (see walkCoolStops).
+  const [walkStop, setWalkStop] = useState<WalkStop | null>(null);
+  const coolStops = useMemo(
+    () => walkCoolStops(openCoolStops(world, routeEnv), walkStop),
+    [world, routeEnv, walkStop],
+  );
   const routeChoices = useMemo(
     () =>
       compareRoutes(routeWorld, routeStart, end, {
         avoidStairs: stairs,
         allowHypothetical: tracking ? false : hypothetical,
         maxDetour: detour,
-        environment: env,
-        coolStops: openCoolStops(routeWorld, env),
+        environment: routeEnv,
+        coolStops,
       }),
-    [routeWorld, routeStart, end, stairs, hypothetical, detour, env, tracking],
+    [
+      routeWorld,
+      routeStart,
+      end,
+      stairs,
+      hypothetical,
+      detour,
+      routeEnv,
+      coolStops,
+      tracking,
+    ],
   );
+  useEffect(() => {
+    setWalkStop(
+      tracking
+        ? { name: routeChoices.indoors?.coolStop ?? null, reached: false }
+        : null,
+    );
+    // Only the moment a walk starts or ends matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracking]);
+  useEffect(() => {
+    if (
+      walkStop?.name &&
+      !walkStop.reached &&
+      userPosition &&
+      reachedCoolStop(
+        world,
+        openCoolStops(world, routeEnv),
+        walkStop.name,
+        userPosition,
+      )
+    )
+      setWalkStop({ ...walkStop, reached: true });
+  }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
@@ -347,6 +419,19 @@ export default function App({
   const heatPlace = findPlace(heatPlaceId);
   const comparePlace = findPlace(comparePlaceId);
   const profileDay = atLocalHour(heatEnv.dateTime, world.timezone, 12);
+  // With a forecast each hour has its own weather, so the values shown for
+  // the current hour don't matter to the profile; in a scenario they do.
+  const profileWeather =
+    heatEnv.weatherMode === "forecast" && forecast
+      ? forecast
+      : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+  const mapCredit = atlas
+    ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
+    : world.provenance.live
+      ? world.objects.some((o) => o.source === "canopy")
+        ? "© OpenStreetMap contributors · Canopy © Meta & WRI"
+        : "© OpenStreetMap contributors"
+      : "Original design study";
   const heatProfile = useMemo(
     () =>
       heatPlace
@@ -359,17 +444,7 @@ export default function App({
         : null,
     // Recompute per place and day, not on every slider move.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      heatPlace?.id,
-      world,
-      profileDay,
-      heatEnv.temperatureC,
-      heatEnv.humidity,
-      heatEnv.windMps,
-      heatEnv.cloudCover,
-      heatEnv.weatherMode,
-      forecast,
-    ],
+    [heatPlace?.id, world, profileDay, profileWeather],
   );
   const heatOverlay = useMemo(() => {
     if (!edgeHeat || !heatMap) return null;
@@ -391,7 +466,8 @@ export default function App({
       feels = 0,
       shade = 0;
     for (const e of currentRoute.edges) {
-      const reading = edgeHeat.get(e.id);
+      // The stretch being walked is split at the walker; use its mapped edge.
+      const reading = edgeHeat.get(baseEdgeId(e.id));
       if (!reading) continue;
       length += e.distance;
       feels += reading.feelsLikeC * e.distance;
@@ -478,6 +554,7 @@ export default function App({
             label: "Your location on mapped path",
             detail: "GPS start",
             search: "your location",
+            keys: [{ text: "your location", place: true }],
           },
           ...catalog,
         ]
@@ -486,6 +563,7 @@ export default function App({
   const toolHost = useRef<ToolHost>(null!);
   toolHost.current = {
     world: routeWorld,
+    scene: world,
     env,
     forecast,
     catalog: endpointCatalog,
@@ -508,8 +586,8 @@ export default function App({
       setComparePlaceId(null);
     },
     async buildArea(query) {
-      const city = searchCities(query.toLowerCase())[0];
-      if (!city) return `No US city or campus matching "${query}" is indexed.`;
+      const city = await lookUpPlace(query);
+      if (!city) return `No city or campus matching "${query}" was found.`;
       const built = await loadCity(city, true, 1000);
       return built
         ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
@@ -580,7 +658,13 @@ export default function App({
       setChat(messages);
       if (speakReplies) speak(reply);
     } catch (e) {
-      setChatError(friendlyError(e));
+      if (e instanceof PartialChatError) {
+        // Tools already changed the map; keep that in the conversation.
+        setChat(e.messages);
+        setChatError(
+          `${friendlyError(e)} Changes already made stay on the map; use Undo to remove them.`,
+        );
+      } else setChatError(friendlyError(e));
     } finally {
       setChatStatus(null);
     }
@@ -592,6 +676,9 @@ export default function App({
     });
     if (!world.graph.nodes.some((n) => n.id === start)) setStart(from);
     if (!world.graph.nodes.some((n) => n.id === end)) setEnd(to);
+    // Endpoints depend on the walking graph only; edits that leave it alone
+    // (trees, buildings) must not reset them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.graph, start, end, stairs, hypothetical]);
   useEffect(() => {
     setPicking(null);
@@ -615,16 +702,43 @@ export default function App({
   useEffect(() => {
     let active = true;
     loadProject(projectKey)
-      .then((stored) => {
-        const parsed = stored ? worldSchema.safeParse(stored) : null;
-        // Never replace an area the person built while this was loading.
-        if (active && parsed?.success)
-          setWorld((current) =>
-            current === firstWorld.current ? parsed.data : current,
+      .then(async (stored) => {
+        if (!active || !stored) return;
+        let parsed = worldSchema.safeParse(stored);
+        // An old out-of-range edit shouldn't cost the whole scene.
+        if (!parsed.success)
+          parsed = worldSchema.safeParse(repairWorld(stored));
+        if (!parsed.success) {
+          // Set the unreadable copy aside before anything can save over it.
+          saveBlocked.current = true;
+          const keptAside = await saveProject(
+            `${projectKey}:unreadable`,
+            stored,
+          ).then(
+            () => true,
+            () => false,
           );
+          // Once it's safe, new work saves as usual (now and next time).
+          saveBlocked.current = !keptAside;
+          setMessage(
+            keptAside
+              ? "Your saved scene couldn't be opened, so a copy was kept aside and you're starting fresh. New changes save as usual."
+              : "Your saved scene couldn't be opened, so this session won't save over it. Export your work to keep a copy.",
+          );
+          return;
+        }
+        const data = parsed.data;
+        // Never replace an area the person built while this was loading.
+        setWorld((current) =>
+          current === firstWorld.current ? data : current,
+        );
       })
       .catch(() => {
-        /* No saved scene, or storage is unavailable: keep the study. */
+        // Reading failed: don't overwrite what might still be there.
+        saveBlocked.current = true;
+        setMessage(
+          "Your saved scene couldn't be read, so this session won't save over it. Export your work to keep a copy.",
+        );
       })
       .finally(() => active && setHydrated(true));
     return () => {
@@ -670,13 +784,13 @@ export default function App({
     if (env.weatherMode !== "forecast" || atlas) return;
     const timer = setInterval(() => {
       if (document.visibilityState === "visible")
-        void weather(world.origin, true, buildRequest.current);
+        void weather(world.origin, { quiet: true });
     }, LIVE_REFRESH_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [env.weatherMode, world.origin, atlas]);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || saveBlocked.current) return;
     const timer = setTimeout(() => {
       saveProject(projectKey, world).catch(() =>
         setMessage(
@@ -686,35 +800,19 @@ export default function App({
     }, 600);
     return () => clearTimeout(timer);
   }, [world, projectKey, hydrated]);
-  useEffect(() => {
-    if (!query.trim()) {
-      setCities([]);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () =>
-        fetch(
-          `${import.meta.env.VITE_API_BASE_URL || ""}/api/cities?q=${encodeURIComponent(query)}`,
-          { signal: controller.signal },
-        )
-          .then((r) => r.json())
-          .then(setCities)
-          .catch(() => {}),
-      200,
-    );
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query]);
   useEffect(() => () => stopSpeech(), []);
   function edit(next: World) {
     location.reset();
     stopSpeech();
     setProposal(null);
+    // A different area makes any before/after planting comparison meaningless.
+    if (next.id !== world.id) clearHeatImpact();
     setHistory((h) => [...h.slice(-29), world]);
     setWorld(next);
+  }
+  function clearHeatImpact() {
+    setHeatBaseline(null);
+    setPlanting(null);
   }
   function updateObject(changes: Partial<SceneObject>) {
     edit({
@@ -735,13 +833,11 @@ export default function App({
       location.reset();
       stopSpeech();
       setAtlas(c);
-      setQuery("");
       setMode("explore");
       setTab("route");
       return true;
     }
     setBusy(`Building ${c.name}…`);
-    setQuery("");
     try {
       const { world: loaded, canopy } = await loadWorld(
         {
@@ -770,13 +866,15 @@ export default function App({
       edit(w);
       // Meta's canopy arrives after the map: add it in place (not as an
       // undoable edit) if the same area is still open.
-      void canopy?.then((cells) =>
-        setWorld((current) =>
+      void canopy?.then((cells) => {
+        const add = (current: World) =>
           current.id === w.id && !hasCanopy(current)
             ? addCanopy(current, cells)
-            : current,
-        ),
-      );
+            : current;
+        setWorld(add);
+        // Planting compares against this; give it the same trees.
+        setHeatBaseline((before) => before && add(before));
+      });
       setAtlas(null);
       setSelected(null);
       let [from, to] = defaultEndpoints(w, {
@@ -814,7 +912,7 @@ export default function App({
         weatherMode: "scenario",
       }));
       setForecast(null);
-      void weather(w.origin, true, request);
+      void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
         from && to
           ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
@@ -941,17 +1039,21 @@ export default function App({
   }
   async function weather(
     origin = world.origin,
-    quiet = false,
-    request?: number,
+    {
+      quiet = false,
+      request = buildRequest.current,
+      reportFailure = !quiet,
+    }: { quiet?: boolean; request?: number; reportFailure?: boolean } = {},
   ) {
-    if (!quiet) setBusy("Getting live weather…");
+    const working = "Getting live weather…";
+    if (!quiet) setBusy(working);
     try {
       const f = await loadWeather(origin, {
         fetch: window.fetch.bind(window),
         apiBase: API_BASE,
       });
       // Weather that arrives after another area was built is discarded.
-      if (request !== undefined && request !== buildRequest.current) return;
+      if (request !== buildRequest.current) return;
       setForecast(f);
       // Quiet refreshes keep the time the person (or assistant) chose;
       // asking for live weather jumps to now.
@@ -959,10 +1061,17 @@ export default function App({
       if (!quiet)
         flash(`Live weather on · ${f.source}. Updates every 10 minutes.`);
     } catch (e) {
-      // Background refreshes fail quietly and keep the last weather.
-      if (!quiet) setMessage(friendlyError(e));
+      // Background refreshes keep the last weather; a new area says so.
+      if (reportFailure && request === buildRequest.current) {
+        if (quiet)
+          flash(
+            "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab.",
+          );
+        else setMessage(friendlyError(e));
+      }
     } finally {
-      if (!quiet) setBusy("");
+      // Only clear the spinner this call started.
+      if (!quiet) setBusy((current) => (current === working ? "" : current));
     }
   }
   /** A short confirmation that clears itself; errors use setMessage. */
@@ -1090,6 +1199,9 @@ export default function App({
       lastSpoken.current = text;
       speak(text);
     }
+    // `location` is a fresh object every render; its fix and stop are what
+    // this effect uses.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tracking,
     location.fix,
@@ -1240,13 +1352,40 @@ export default function App({
             }
           />
           {!atlas && (
-            <div className="tabs">
+            // The tabs inside take focus; per WAI-ARIA the list itself doesn't.
+            // eslint-disable-next-line jsx-a11y/interactive-supports-focus
+            <div
+              className="tabs"
+              role="tablist"
+              aria-label="Panel sections"
+              onKeyDown={(e) => {
+                // Arrow keys move between tabs (WAI-ARIA tabs pattern).
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                const tabs = [
+                  ...e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    '[role="tab"]',
+                  ),
+                ];
+                const i = tabs.indexOf(e.target as HTMLButtonElement);
+                if (i < 0) return;
+                const next =
+                  tabs[
+                    (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                      tabs.length
+                  ];
+                next.focus();
+                next.click();
+              }}
+            >
               {(mode === "explore"
                 ? ["route", "heat", "ask", "climate", "data"]
                 : ["build", "assistant", "data"]
               ).map((t) => (
                 <button
                   key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  tabIndex={tab === t ? 0 : -1}
                   className={tab === t ? "chosen" : ""}
                   onClick={() => setTab(t)}
                 >
@@ -1372,7 +1511,9 @@ export default function App({
                   />
                   Spoken guidance
                 </label>
-                <label>WHAT MATTERS TODAY?</label>
+                <div className="field-label section-label">
+                  WHAT MATTERS TODAY?
+                </div>
                 <RouteChoices
                   choices={routeChoices}
                   selected={pref}
@@ -1828,14 +1969,15 @@ export default function App({
                         <input
                           type="number"
                           min={k === "rotation" ? -360 : 1}
-                          max={k === "rotation" ? 360 : 600}
+                          max={k === "rotation" ? 360 : 1500}
                           value={object[k]}
                           onChange={(e) => {
-                            if (
-                              Number.isFinite(+e.target.value) &&
-                              +e.target.value >= (k === "rotation" ? -360 : 1)
-                            )
-                              updateObject({ [k]: +e.target.value });
+                            // Clamp to what a saved scene allows; ignore "-".
+                            const value = clampObjectField(
+                              k,
+                              e.target.valueAsNumber,
+                            );
+                            if (value !== null) updateObject({ [k]: value });
                           }}
                         />
                       </label>
@@ -1848,10 +1990,12 @@ export default function App({
                         type="number"
                         value={Math.round(object.position[i])}
                         onChange={(e) => {
+                          const value = e.target.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
                           const p: Point = [...object.position];
                           p[i] = Math.max(
                             -world.extent / 2,
-                            Math.min(world.extent / 2, +e.target.value),
+                            Math.min(world.extent / 2, value),
                           );
                           updateObject({ position: p });
                         }}
@@ -2107,6 +2251,8 @@ export default function App({
                   onClick={() => {
                     location.reset();
                     stopSpeech();
+                    // The planting totals no longer describe the scene.
+                    clearHeatImpact();
                     setWorld(history.at(-1)!);
                     setHistory(history.slice(0, -1));
                   }}
@@ -2206,16 +2352,12 @@ export default function App({
                   <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
                 ))}
               </div>
+              {/* On phones the map credit lives here, clear of the sheet. */}
+              <small className="timeline-credit">{mapCredit}</small>
             </div>
           )}
-          <div className="map-credit">
-            {atlas
-              ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
-              : world.provenance.live
-                ? world.objects.some((o) => o.source === "canopy")
-                  ? "© OpenStreetMap contributors · Canopy © Meta & WRI"
-                  : "© OpenStreetMap contributors"
-                : "Original design study"}
+          <div className={`map-credit${atlas ? "" : " has-timeline"}`}>
+            {mapCredit}
             <span>Scene units: meters</span>
           </div>
           {busy && (

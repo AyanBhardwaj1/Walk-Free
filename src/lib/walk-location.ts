@@ -64,14 +64,14 @@ export function snapWalkPosition(
     );
   const first = {
     ...edge,
-    id: edge.id + ":location-a",
+    id: edge.id + SPLIT_SUFFIXES[0],
     to: nodeId,
     points: compact([...edge.points.slice(0, segment + 1), point]),
     distance: (edge.distance * along) / total,
   };
   const last = {
     ...edge,
-    id: edge.id + ":location-b",
+    id: edge.id + SPLIT_SUFFIXES[1],
     from: nodeId,
     points: compact([point, ...edge.points.slice(segment + 1)]),
     distance: (edge.distance * (total - along)) / total,
@@ -123,4 +123,14 @@ export function hasArrived(
     remaining !== null &&
     remaining <= 25
   );
+}
+
+/** Suffixes of the two halves of a path split at the walker's location. */
+const SPLIT_SUFFIXES = [":location-a", ":location-b"] as const;
+
+/** The mapped edge a (possibly split) route edge came from. */
+export function baseEdgeId(id: string) {
+  for (const suffix of SPLIT_SUFFIXES)
+    if (id.endsWith(suffix)) return id.slice(0, -suffix.length);
+  return id;
 }

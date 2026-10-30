@@ -104,14 +104,9 @@ function Building({
   detailed,
   onPointerDown,
 }: Props) {
-  const geometry = useMemo(
-    () => buildingGeometry(object),
-    [object.footprint, object.height, object.width, object.depth],
-  );
-  const lines = useMemo(
-    () => facadeGeometry(object),
-    [object.height, object.width, object.depth, object.kind],
-  );
+  // Objects are replaced, never mutated, so identity tracks every change.
+  const geometry = useMemo(() => buildingGeometry(object), [object]);
+  const lines = useMemo(() => facadeGeometry(object), [object]);
   useEffect(
     () => () => {
       geometry.dispose();

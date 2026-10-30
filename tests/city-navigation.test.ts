@@ -128,7 +128,8 @@ describe("built campus navigation", () => {
     expect(found.total).toBe(1);
     expect(found.shown[0].label).toBe("Path near Campus Library");
     expect(found.shown[0].id).toBe("osm-node-4");
-    expect(searchDestinations(catalog, "college walk", "", 60).total).toBe(3);
+    // The street's plain path points share one label and are listed once.
+    expect(searchDestinations(catalog, "college walk", "", 60).total).toBe(2);
     expect(catalog.length).toBe(w.graph.nodes.length);
   });
   it("searches beyond the initial option limit and keeps the current point available", () => {
@@ -137,6 +138,7 @@ describe("built campus navigation", () => {
       label: `Point ${i}`,
       detail: "",
       search: `point ${i}`,
+      keys: [{ text: `point ${i}`, place: false }],
     }));
     expect(
       searchDestinations(catalog, "point 499", "0").shown.map((n) => n.id),

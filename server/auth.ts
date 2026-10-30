@@ -1,5 +1,6 @@
 import { Router, type Request, type RequestHandler } from "express";
 import { z } from "zod";
+import { clientKey, failureLimiter, rateLimiter } from "./rate-limit.js";
 
 export type Account = {
   id: string;
@@ -18,6 +19,21 @@ const allowedPosts = new Set([
   "/email-otp/send-verification-otp",
 ]);
 const email = z.string().trim().toLowerCase().email().max(254);
+
+/** Requests that send someone an email: limited per address (inbox flooding). */
+const EMAIL_SENDING = new Set([
+  "/sign-up/email",
+  "/request-password-reset",
+  "/email-otp/send-verification-otp",
+]);
+/** Requests that try a password or code: only failures count. */
+const GUESSING = new Set(["/sign-in/email", "/email-otp/verify-email"]);
+const QUARTER_HOUR = 15 * 60_000;
+const perClient = rateLimiter(30);
+const perEmail = rateLimiter(5, QUARTER_HOUR);
+// Generous: a campus network can put many people behind one address.
+const perClientSensitive = rateLimiter(60, QUARTER_HOUR);
+const wrongGuesses = failureLimiter(5, QUARTER_HOUR);
 const newPassword = z.string().min(12).max(128);
 const payloads: Record<string, z.ZodTypeAny> = {
   "/sign-up/email": z.object({
@@ -181,6 +197,26 @@ authRouter.post("/{*path}", async (q, r) => {
     });
     return;
   }
+  // Stops one client flooding someone's inbox or guessing passwords; the
+  // provider sees only this server's address, so limit here.
+  const target = (parsed.data as { email?: unknown }).email;
+  const client = clientKey(q);
+  const guessKey = `${client} ${q.path} ${target}`;
+  const sensitive = EMAIL_SENDING.has(q.path) || GUESSING.has(q.path);
+  const allowed =
+    perClient(client) &&
+    (!sensitive || perClientSensitive(client)) &&
+    !(GUESSING.has(q.path) && wrongGuesses.blocked(guessKey)) &&
+    (!EMAIL_SENDING.has(q.path) ||
+      typeof target !== "string" ||
+      perEmail(`${q.path} ${target}`));
+  if (!allowed) {
+    r.status(429).json({
+      error: "Too many attempts. Wait 15 minutes and try again.",
+      code: "RATE_LIMITED",
+    });
+    return;
+  }
   try {
     const body = { ...(parsed.data as Record<string, unknown>) };
     // Reset links always return to this application, never an arbitrary URL.
@@ -199,6 +235,8 @@ authRouter.post("/{*path}", async (q, r) => {
     const cookies = response.headers.getSetCookie().map(browserCookie);
     if (cookies.length) r.setHeader("Set-Cookie", cookies);
     if (!response.ok) {
+      if (GUESSING.has(q.path) && response.status < 500)
+        wrongGuesses.fail(guessKey);
       r.status(response.status).json({
         error:
           typeof data.message === "string"

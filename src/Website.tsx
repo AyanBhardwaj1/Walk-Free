@@ -123,6 +123,8 @@ export default function Website() {
       window.removeEventListener("focus", refresh);
       window.clearInterval(timer);
     };
+    // `workspace` comes from the URL path, which doesn't change in a page's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signOut() {

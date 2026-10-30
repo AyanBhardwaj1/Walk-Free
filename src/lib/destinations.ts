@@ -88,7 +88,27 @@ export interface Destination {
   id: string;
   label: string;
   detail: string;
+  /** Everything searchable about this point, folded (see `fold`). */
   search: string;
+  /** Folded names that can match a query on their own: buildings, parks,
+   * their codes and aliases (place: true), and street names. `primary`
+   * marks the names the label is about. */
+  keys: { text: string; place: boolean; primary?: boolean }[];
+}
+
+/**
+ * Lower case without accents or punctuation, with letters and digits apart,
+ * so "Perry-Castañeda", "perry castaneda" and "ISTB4"/"(ISTB) 4" all meet.
+ */
+export function fold(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .replace(/[^a-z0-9&]+/g, " ")
+    .trim();
 }
 const meaningfulName = (s: string) =>
   !["Street", "Footpath", "Building", "Mapped tree"].includes(s);
@@ -115,17 +135,45 @@ export function destinationCatalog(world: World): Destination[] {
     string,
     { name: string; aliases: string[]; distance: number }[]
   >();
-  for (const o of world.objects) {
-    if (o.kind === "tree" || !meaningfulName(o.name) || !o.name.trim())
-      continue;
+  // Named buildings, plus named parks and squares (as their middle).
+  const named = [
+    ...world.objects
+      .filter(
+        (o) => o.kind !== "tree" && meaningfulName(o.name) && o.name.trim(),
+      )
+      .map((o) => ({
+        name: o.name,
+        aliases: o.aliases ?? [],
+        position: o.position,
+        size: Math.max(o.width, o.depth),
+      })),
+    ...world.landscapes
+      .filter(
+        (l) => l.kind === "park" && l.name !== "Green space" && l.name.trim(),
+      )
+      .map((l) => {
+        const xs = l.points.map((p) => p[0]),
+          zs = l.points.map((p) => p[1]);
+        const [minX, maxX, minZ, maxZ] = [
+          Math.min(...xs),
+          Math.max(...xs),
+          Math.min(...zs),
+          Math.max(...zs),
+        ];
+        return {
+          name: l.name,
+          aliases: [] as string[],
+          position: [(minX + maxX) / 2, (minZ + maxZ) / 2] as Point,
+          size: Math.max(maxX - minX, maxZ - minZ),
+        };
+      }),
+  ];
+  for (const o of named) {
     const x = Math.floor(o.position[0] / 80),
       z = Math.floor(o.position[1] / 80);
     // Large buildings (stadiums, arenas) sit far from any path at their centre.
     let best: GraphNode | undefined,
-      distance = Math.max(
-        BUILDING_LINK_M,
-        Math.max(o.width, o.depth) / 2 + BUILDING_EDGE_M,
-      );
+      distance = Math.max(BUILDING_LINK_M, o.size / 2 + BUILDING_EDGE_M);
     const cells = Math.ceil(distance / 80);
     for (let dx = -cells; dx <= cells; dx++)
       for (let dz = -cells; dz <= cells; dz++) {
@@ -144,7 +192,7 @@ export function destinationCatalog(world: World): Destination[] {
       if (!nearby.has(best.id)) nearby.set(best.id, []);
       nearby.get(best.id)!.push({
         name: o.name,
-        aliases: [...(o.aliases ?? []), ...(BUILDING_ALIASES[o.name] ?? [])],
+        aliases: [...o.aliases, ...(BUILDING_ALIASES[o.name] ?? [])],
         distance,
       });
     }
@@ -160,17 +208,37 @@ export function destinationCatalog(world: World): Destination[] {
         n.name ||
         (places.length ? `Path near ${places[0].name}` : road || "Mapped path");
       const detail = `${road && road !== label ? road + " · " : ""}${locationLabel(n.point)}`;
+      // The label names the node, else its nearest place, else its streets.
+      const labelPlace = !n.name && places.length ? places[0] : null;
+      const keys = [
+        ...places.flatMap((p) =>
+          [p.name, ...p.aliases].map((t) => ({
+            text: fold(t),
+            place: true,
+            primary: p === labelPlace,
+          })),
+        ),
+        ...[...roads.get(n.id)!].map((t) => ({
+          text: fold(t),
+          place: false,
+          primary: !n.name && !labelPlace,
+        })),
+        ...(n.name
+          ? [{ text: fold(n.name), place: false, primary: true }]
+          : []),
+      ].filter((k) => k.text);
       return {
         id: n.id,
         label,
         detail,
-        search: [
-          label,
-          detail,
-          ...places.flatMap((p) => [p.name, ...p.aliases]),
-        ]
-          .join(" ")
-          .toLowerCase(),
+        search: fold(
+          [
+            label,
+            detail,
+            ...places.flatMap((p) => [p.name, ...p.aliases]),
+          ].join(" "),
+        ),
+        keys,
       };
     })
     .sort(
@@ -184,37 +252,95 @@ const BUILDING_LINK_M = 120;
 /** Extra reach beyond a building's half-width when linking it to a path. */
 const BUILDING_EDGE_M = 40;
 
-const words = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9& ]+/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
+const words = (s: string) => fold(s).split(" ").filter(Boolean);
+
+/** How well one name matches the whole query: exact beats a prefix beats a word. */
+function keyScore(key: string, phrase: string) {
+  if (key === phrase) return 100;
+  if (key.startsWith(phrase + " ")) return 70;
+  if (key.startsWith(phrase)) return 60;
+  if (key.includes(" " + phrase)) return 40;
+  return key.includes(phrase) ? 20 : 0;
+}
+
+function rank(catalog: Destination[], terms: string[]) {
+  const phrase = terms.join(" ");
+  const seen = new Set<string>();
+  return (
+    catalog
+      .flatMap((d) => {
+        if (
+          !terms.every((t) =>
+            searchVariants(t).some((v) => d.search.includes(v)),
+          )
+        )
+          return [];
+        // The best name match; buildings and parks edge out streets on a
+        // tie, and names the label isn't about (a nearby street or building)
+        // count half, so "durant" finds Durant Avenue before a hall beside it.
+        const score = Math.max(
+          5,
+          ...d.keys.map((k) => {
+            const s = keyScore(k.text, phrase);
+            const weighted = s && k.place ? s + 10 : s;
+            return k.primary === false ? weighted / 2 : weighted;
+          }),
+        );
+        return [{ d, score }];
+      })
+      .sort((a, b) => b.score - a.score || a.d.label.length - b.d.label.length)
+      .map((m) => m.d)
+      // A street is many path points with one label; list it once.
+      .filter((d) => !seen.has(d.label) && seen.add(d.label))
+  );
+}
+
+/** Distinct words in the catalog's names, for typo matching. */
+const vocabularies = new WeakMap<Destination[], string[]>();
+function vocabulary(catalog: Destination[]) {
+  let words = vocabularies.get(catalog);
+  if (!words) {
+    words = [
+      ...new Set(
+        catalog.flatMap((d) => d.keys.flatMap((k) => k.text.split(" "))),
+      ),
+    ].filter((w) => w.length >= 3);
+    vocabularies.set(catalog, words);
+  }
+  return words;
+}
+
+/** True when a and b differ by at most one inserted, dropped or changed letter. */
+function oneEdit(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  return (
+    a.slice(i + 1) === b.slice(i + 1) ||
+    a.slice(i) === b.slice(i + 1) ||
+    a.slice(i + 1) === b.slice(i)
+  );
+}
 
 /**
  * Catalog entries ranked for a query: every word (or a synonym, such as
- * hall/dormitory) must appear; exact and leading label matches rank first.
+ * hall/dormitory) must appear; exact names and campus codes rank first.
+ * When nothing matches, a word of four or more letters may be one typo off.
  */
 export function rankDestinations(catalog: Destination[], query: string) {
   const terms = words(query);
   if (!terms.length) return [];
-  const phrase = terms.join(" ");
-  return catalog
-    .flatMap((d) => {
-      if (
-        !terms.every((t) => searchVariants(t).some((v) => d.search.includes(v)))
-      )
-        return [];
-      const label = d.label.toLowerCase();
-      const score =
-        (label === phrase ? 4 : 0) +
-        (label.startsWith(phrase) || label.endsWith(phrase) ? 2 : 0) +
-        (label.includes(phrase) ? 1 : 0) +
-        (d.search.includes(phrase) ? 1 : 0);
-      return [{ d, score }];
-    })
-    .sort((a, b) => b.score - a.score || a.d.label.length - b.d.label.length)
-    .map((m) => m.d);
+  const found = rank(catalog, terms);
+  if (found.length) return found;
+  const vocab = vocabulary(catalog);
+  const corrected = terms.map((t) =>
+    t.length >= 4 && !vocab.includes(t)
+      ? (vocab.find((w) => w[0] === t[0] && oneEdit(t, w)) ?? t)
+      : t,
+  );
+  return corrected.join(" ") === terms.join(" ")
+    ? []
+    : rank(catalog, corrected);
 }
 
 export function searchDestinations(

@@ -1722,6 +1722,17 @@ footer {
   letter-spacing: 1px;
   color: #8b9080;
 }
+.timeline-credit {
+  display: none;
+  margin-top: 6px;
+  font-size: 9px;
+  color: #7f876f;
+  text-align: right;
+}
+.section-label {
+  display: block;
+  margin: 14px 0;
+}
 
 /* ===== Full-screen map with a floating panel (desktop) ===== */
 .app > main {
@@ -2033,8 +2044,21 @@ footer {
   display: none;
 }
 @media (max-width: 650px) {
+  /* The map takes exactly the height under the header (which wraps to two
+     rows on phones), so overlays measured from its bottom line up with the
+     sheet. */
+  .app {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .app > header {
+    flex: none;
+  }
   .app > main {
-    height: calc(100dvh - 65px);
+    flex: 1 1 auto;
+    height: auto;
     min-height: 0;
     display: block;
   }
@@ -2111,16 +2135,22 @@ footer {
     left: 12px !important;
     bottom: calc(var(--sheet-height, 46dvh) + 120px);
   }
-  /* Above the time-of-day card, so the credit stays visible on phones. */
+  /* With a time-of-day card, the credit moves into it (see below). */
+  .app > main .map-credit.has-timeline {
+    display: none;
+  }
   .app > main .map-credit {
-    bottom: calc(var(--sheet-height, 46dvh) + 64px);
+    top: 160px;
+    bottom: auto;
     right: 12px;
     max-width: calc(100% - 24px);
-    white-space: nowrap;
     font-size: 9px;
   }
   .app > main .map-credit span {
     display: none;
+  }
+  .app > main .timeline-credit {
+    display: block;
   }
 }
 @media (max-width: 650px) {

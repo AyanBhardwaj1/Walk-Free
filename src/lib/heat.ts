@@ -65,7 +65,12 @@ export function heatConditions(
 ): HeatConditions {
   const sun = sunDirection(env, origin);
   const shadeFeelsC =
-    heatIndexC(env.temperatureC, env.humidity) ?? env.temperatureC;
+    // The NWS index dips below the air temperature in very dry heat; shade
+    // never feels cooler than the air itself.
+    Math.max(
+      env.temperatureC,
+      heatIndexC(env.temperatureC, env.humidity) ?? env.temperatureC,
+    );
   const cloud = Math.min(1, Math.max(0, env.cloudCover / 100));
   // Live weather measures sunlight directly; scenarios estimate it from the
   // sun's height and the cloud cover.
@@ -288,15 +293,25 @@ export function localHour(iso: string, timeZone: string) {
 }
 
 /** Forecast values for the hour containing `iso`, when a forecast exists. */
+/** A forecast hour applies up to this far from the moment asked about. */
+const FORECAST_REACH_MS = 60 * 60 * 1000;
+
 export function weatherAt(
   env: Environment,
   iso: string,
   forecast?: WeatherForecast | null,
 ): Environment {
   const t = Date.parse(iso);
-  const hour = forecast?.hours.find(
-    (h) => Math.abs(Date.parse(h.time) - t) < 30 * 60 * 1000,
-  );
+  // The nearest forecast hour; at half past, the earlier hour wins a tie.
+  let hour: WeatherForecast["hours"][number] | undefined;
+  let gap = FORECAST_REACH_MS;
+  for (const h of forecast?.hours ?? []) {
+    const d = Math.abs(Date.parse(h.time) - t);
+    if (d < gap) {
+      hour = h;
+      gap = d;
+    }
+  }
   return hour
     ? {
         ...env,
@@ -322,24 +337,39 @@ export function dailyProfile(
   const ids = new Set(place.edgeIds);
   const chosen = w.graph.edges.filter((e) => ids.has(e.id));
   const length = chosen.reduce((s, e) => s + e.distance, 0);
+  // Shade depends on the map and the moment only, so weather edits reuse it.
+  let cache = profileShade.get(w);
+  if (!cache) profileShade.set(w, (cache = new Map()));
+  const placeKey = place.edgeIds.length
+    ? place.edgeIds.join(",")
+    : place.samples.map((p) => p.join(":")).join(",");
   return hours.map((hour) => {
     const at = weatherAt(
       env,
       atLocalHour(env.dateTime, w.timezone, hour),
       forecast,
     );
-    const shadedAt = createShadeTester(w, at);
-    const shade = length
-      ? chosen.reduce(
-          (s, e) => s + e.distance * edgeShadeFraction(e, shadedAt),
-          0,
-        ) / length
-      : place.samples.length
-        ? place.samples.filter(shadedAt).length / place.samples.length
-        : 0;
+    const key = `${placeKey}@${at.dateTime}`;
+    let shade = cache.get(key);
+    if (shade === undefined) {
+      const shadedAt = createShadeTester(w, at);
+      shade = length
+        ? chosen.reduce(
+            (s, e) => s + e.distance * edgeShadeFraction(e, shadedAt),
+            0,
+          ) / length
+        : place.samples.length
+          ? place.samples.filter(shadedAt).length / place.samples.length
+          : 0;
+      if (cache.size > PROFILE_CACHE_SIZE) cache.clear();
+      cache.set(key, shade);
+    }
     return { hour, ...readHeat(heatConditions(at, w.origin), shade) };
   });
 }
+/** Shade per place and moment, per world (worlds are replaced, not mutated). */
+const profileShade = new WeakMap<World, Map<string, number>>();
+const PROFILE_CACHE_SIZE = 2000;
 
 /** A single unnamed path, for clicks on paths without a street name. */
 export function edgePlace(

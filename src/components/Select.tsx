@@ -62,36 +62,37 @@ export default function Select<T extends string>({
     setOpen(false);
   }
   return (
-    <div
-      className={`select${open ? " open" : ""}`}
-      ref={root}
-      onKeyDown={(e) => {
-        if (disabled) return;
-        if (e.key === "Escape") setOpen(false);
-        else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          if (!open) show();
-          else
-            setActive((a) =>
-              Math.min(
-                options.length - 1,
-                Math.max(0, a + (e.key === "ArrowDown" ? 1 : -1)),
-              ),
-            );
-        } else if ((e.key === "Enter" || e.key === " ") && open) {
-          e.preventDefault();
-          pick(active);
-        }
-      }}
-    >
+    <div className={`select${open ? " open" : ""}`} ref={root}>
       <button
         type="button"
         className="select-trigger"
+        // WAI-ARIA "select-only combobox": focus stays here and the
+        // highlighted option is announced through aria-activedescendant.
+        role="combobox"
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={id}
+        aria-activedescendant={open ? `${id}-${active}` : undefined}
         disabled={disabled}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === "Escape") setOpen(false);
+          else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!open) show();
+            else
+              setActive((a) =>
+                Math.min(
+                  options.length - 1,
+                  Math.max(0, a + (e.key === "ArrowDown" ? 1 : -1)),
+                ),
+              );
+          } else if ((e.key === "Enter" || e.key === " ") && open) {
+            e.preventDefault();
+            pick(active);
+          }
+        }}
         onClick={() => (open ? setOpen(false) : show())}
       >
         <span className={current ? "" : "placeholder"}>
@@ -110,6 +111,7 @@ export default function Select<T extends string>({
           {options.map((o, i) => (
             <li
               key={o.value}
+              id={`${id}-${i}`}
               role="option"
               data-index={i}
               aria-selected={o.value === value}

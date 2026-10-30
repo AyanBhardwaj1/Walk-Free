@@ -11,7 +11,7 @@ vi.mock("../server/network.js", async (original) => ({
 }));
 const { chargeAiCall, memoryUsage, setUsageStore, aiConfig } =
   await import("../server/ai");
-const { agentRouter, toolRounds, recentTurns } =
+const { agentRouter, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
   await import("../server/agent");
 
 afterEach(() => {
@@ -24,11 +24,15 @@ async function post(
   path: string,
   body: unknown,
   headers: Record<string, string> = {},
+  account: { id: string; emailVerified: boolean } = {
+    id: "walker-1",
+    emailVerified: true,
+  },
 ) {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "2mb" }));
   app.use((_q, r, next) => {
-    r.locals.account = { id: "walker-1" };
+    r.locals.account = account;
     next();
   });
   app.use("/api/agent", agentRouter);
@@ -412,5 +416,128 @@ describe("testing a person's own key", () => {
     });
     expect(JSON.stringify(result.body)).not.toContain("sk-site");
     expect(requestJson.mock.calls[0][1].errorReason).toBeFalsy();
+  });
+});
+
+describe("bounding what reaches the model", () => {
+  const toolTurn = (i: number, size: number) => [
+    {
+      role: "assistant",
+      content: null,
+      tool_calls: Array.from({ length: 8 }, (_, j) => ({
+        id: `c${i}-${j}`,
+        type: "function",
+        function: { name: "heat_ranking", arguments: "{}" },
+      })),
+    },
+    ...Array.from({ length: 8 }, (_, j) => ({
+      role: "tool",
+      tool_call_id: `c${i}-${j}`,
+      content: "x".repeat(size),
+    })),
+  ];
+
+  it("keeps the prompt under a size budget, starting at a question", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: "Done." } }],
+    });
+    const messages = [
+      { role: "user", content: "Old question" },
+      ...toolTurn(0, 11000),
+      { role: "assistant", content: "Old answer" },
+      { role: "user", content: "New question" },
+      ...toolTurn(1, 3000),
+    ];
+    const result = await post("/api/agent/chat", { messages, context });
+    expect(result.status).toBe(200);
+    const sent = JSON.parse(requestJson.mock.calls[0][1].body);
+    const history = sent.messages.slice(2);
+    expect(history[0]).toEqual({ role: "user", content: "New question" });
+    expect(JSON.stringify(history).length).toBeLessThan(MAX_PROMPT_CHARS);
+  });
+
+  it("refuses a single turn that is too large to send", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    const messages = [
+      { role: "user", content: "Question" },
+      ...toolTurn(0, 11000),
+    ];
+    const result = await post("/api/agent/chat", { messages, context });
+    expect(result.status).toBe(400);
+    expect(result.body.code).toBe("CHAT_TOO_LONG");
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it("refuses tool results that answer no tool call", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    const result = await post("/api/agent/chat", {
+      messages: [
+        { role: "user", content: "Hi" },
+        { role: "tool", tool_call_id: "made-up", content: "{}" },
+      ],
+      context,
+    });
+    expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it("caps the size of scene names sent for a design proposal", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    const object = {
+      id: "b1",
+      name: "x".repeat(6000),
+      kind: "building",
+      position: [0, 0],
+      height: 10,
+      width: 10,
+      depth: 10,
+      rotation: 0,
+    };
+    const result = await post("/api/agent/propose", {
+      prompt: "Add trees",
+      extent: 1000,
+      scene: [object],
+    });
+    expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared assistant and email verification", () => {
+  it("asks unverified accounts to verify before using the shared key", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    const result = await post(
+      "/api/agent/chat",
+      { messages: [{ role: "user", content: "Hi" }], context },
+      {},
+      { id: "new-walker", emailVerified: false },
+    );
+    expect(result.status).toBe(403);
+    expect(result.body.code).toBe("EMAIL_UNVERIFIED");
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it("lets unverified accounts use their own key", async () => {
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: "Hi" } }],
+    });
+    const result = await post(
+      "/api/agent/chat",
+      { messages: [{ role: "user", content: "Hi" }], context },
+      {
+        "x-walk-free-ai-key": "sk-user-own-key-123",
+        "x-walk-free-ai-provider": "openai",
+        "x-walk-free-ai-model": "gpt-5-mini",
+      },
+      { id: "new-walker", emailVerified: false },
+    );
+    expect(result.status).toBe(200);
   });
 });

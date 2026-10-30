@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Environment, GraphEdge, World } from "../shared/types";
 import { destinationCatalog } from "../src/lib/destinations";
+import { snapWalkPosition } from "../src/lib/walk-location";
 import {
   matchDestinations,
   runTool,
   type ToolHost,
 } from "../src/lib/assistant-tools";
-import { converse, trimHistory } from "../src/lib/assistant-client";
+import {
+  converse,
+  PartialChatError,
+  trimHistory,
+} from "../src/lib/assistant-client";
 
 const env: Environment = {
   dateTime: "2026-07-15T20:00:00Z",
@@ -205,6 +210,32 @@ describe("assistant planting", () => {
   });
 });
 
+describe("planting with a GPS fix", () => {
+  it("plants in the saved scene, never the copy split at the walker", async () => {
+    const base = host();
+    const [a, b] = base.world.graph.edges[0].points;
+    const middle: [number, number] = [(a[0] + b[0]) / 2 + 2, (a[1] + b[1]) / 2];
+    const snapped = snapWalkPosition(base.world, middle, {
+      avoidStairs: false,
+      allowHypothetical: false,
+    })!;
+    expect(snapped.world).not.toBe(base.world);
+    const h = host({ world: snapped.world, scene: base.world });
+    await runTool(
+      h,
+      "plant_shade_trees",
+      JSON.stringify({ street: "speedway" }),
+    );
+    const [result, before] = vi.mocked(h.applyPlanting).mock.calls[0];
+    expect(before).toBe(base.world);
+    expect(
+      result.world.graph.nodes.some((n) =>
+        n.id.startsWith("walk-free:location"),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("assistant conversation loop", () => {
   it("runs requested tools in the browser and returns the final answer", async () => {
     const h = host();
@@ -246,5 +277,65 @@ describe("assistant conversation loop", () => {
     const kept = trimHistory(turns);
     expect(kept[0]).toEqual({ role: "user", content: "q2" });
     expect(kept).toHaveLength(12);
+  });
+});
+
+describe("assistant failures midway", () => {
+  it("keeps actions already taken when a later round fails", async () => {
+    const h = host();
+    const post = vi
+      .fn()
+      .mockResolvedValueOnce({
+        reply: "",
+        toolCalls: [
+          {
+            id: "t1",
+            type: "function",
+            function: { name: "set_time", arguments: '{"hour":15}' },
+          },
+        ],
+      })
+      .mockRejectedValueOnce(new Error("The AI provider is rate-limiting."));
+    const failure = await converse(
+      [{ role: "user", content: "Show 3pm" }],
+      () => ({ area: "A", localTime: "", weather: "", canBuildAreas: false }),
+      () => h,
+      post,
+    ).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PartialChatError);
+    const { messages, message } = failure as PartialChatError;
+    expect(message).toMatch(/rate-limiting/);
+    expect(messages.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+    expect(h.setDateTime).toHaveBeenCalled();
+  });
+
+  it("stays inside the server's limits for replies and tool calls", async () => {
+    const h = host();
+    const calls = Array.from({ length: 10 }, (_, i) => ({
+      id: `t${i}`,
+      type: "function" as const,
+      function: { name: "set_time", arguments: '{"hour":15}' },
+    }));
+    const post = vi
+      .fn()
+      .mockResolvedValueOnce({ reply: "", toolCalls: calls })
+      .mockResolvedValueOnce({ reply: "x".repeat(9000), toolCalls: [] });
+    const { messages } = await converse(
+      [{ role: "user", content: "Show 3pm" }],
+      () => ({ area: "A", localTime: "", weather: "", canBuildAreas: false }),
+      () => h,
+      post,
+    );
+    const asked = messages[1] as { tool_calls: unknown[] };
+    expect(asked.tool_calls).toHaveLength(8);
+    expect(messages.filter((m) => m.role === "tool")).toHaveLength(8);
+    expect((messages.at(-1)!.content as string).length).toBeLessThanOrEqual(
+      6000,
+    );
   });
 });

@@ -207,7 +207,8 @@ export function canopyTrees(
     }));
 }
 
-function inside(polygon: number[][], x: number, y: number) {
+/** Even-odd test: is (x, y) inside the polygon? */
+export function inside(polygon: number[][], x: number, y: number) {
   let hit = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const [xi, yi] = polygon[i];

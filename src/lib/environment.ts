@@ -36,7 +36,8 @@ export function createShadeTester(
     .filter((o) => o.height > 1.5)
     .map((o) => {
       const max = (o.height - 1.5) / s.y;
-      const a = (o.rotation * Math.PI) / 180,
+      // The scene and 2D map turn objects by -rotation about the vertical.
+      const a = (-o.rotation * Math.PI) / 180,
         c = Math.cos(a),
         sn = Math.sin(a);
       const poly: Point[] = (o.kind !== "tree" && o.footprint) || [
@@ -133,11 +134,22 @@ export function createShadeTester(
 export function isShaded(p: Point, w: World, e: Environment) {
   return createShadeTester(w, e)(p);
 }
-/** NOAA Rothfusz heat-index approximation; shade/light-wind conditions only. */
+/** Below this the heat index means little; air temperature is used instead. */
+const HEAT_INDEX_MIN_F = 68;
+
+/**
+ * Heat index by the US National Weather Service method: Steadman's simple
+ * formula, or the Rothfusz regression with its low- and high-humidity
+ * adjustments once the simple value reaches 80 °F. No cutoffs on humidity
+ * or temperature; the method's own small steps (about 1 °C, near saturation)
+ * remain. Shade and light-wind conditions; null in cool air.
+ */
 export function heatIndexC(c: number, r: number): number | null {
-  if (c < 27 || r < 40) return null;
   const t = (c * 9) / 5 + 32;
-  const f =
+  if (t < HEAT_INDEX_MIN_F) return null;
+  const simple = 0.5 * (t + 61 + (t - 68) * 1.2 + r * 0.094);
+  if ((simple + t) / 2 < 80) return ((simple - 32) * 5) / 9;
+  let f =
     -42.379 +
     2.04901523 * t +
     10.14333127 * r -
@@ -147,5 +159,8 @@ export function heatIndexC(c: number, r: number): number | null {
     0.00122874 * t * t * r +
     0.00085282 * t * r * r -
     0.00000199 * t * t * r * r;
+  if (r < 13 && t >= 80 && t <= 112)
+    f -= ((13 - r) / 4) * Math.sqrt((17 - Math.abs(t - 95)) / 17);
+  else if (r > 85 && t >= 80 && t <= 87) f += ((r - 85) / 10) * ((87 - t) / 5);
   return ((f - 32) * 5) / 9;
 }
