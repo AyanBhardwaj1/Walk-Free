@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Palette } from "lucide-react";
-import { THEMES, themeColor, type ThemeName } from "../lib/theme";
+import {
+  THEMES,
+  themeColor,
+  type ColorRole,
+  type ThemeName,
+} from "../lib/theme";
 
 /** Colours each swatch previews: paper, panel, accent and ink. */
-const SWATCH = ["#f5f3ec", "#fffdf6", "#3f5938", "#313b30"];
+const SWATCH: [string, ColorRole][] = [
+  ["#f5f3ec", "bg"],
+  ["#fffdf6", "bg"],
+  ["#3f5938", "bg"],
+  ["#313b30", "fg"],
+];
 
 /** A header button that opens the interface styles. */
 export default function ThemePicker({
@@ -61,10 +71,10 @@ export default function ThemePicker({
                 onChange={() => onChange(t.name)}
               />
               <span className="theme-swatch" aria-hidden>
-                {SWATCH.map((hex) => (
+                {SWATCH.map(([hex, role]) => (
                   <i
                     key={hex}
-                    style={{ background: themeColor(hex, t.name) }}
+                    style={{ background: themeColor(hex, t.name, role) }}
                   />
                 ))}
               </span>

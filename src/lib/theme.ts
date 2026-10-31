@@ -118,46 +118,80 @@ const NEUTRAL_CHROMA = 0.1;
 const invert = (l: number, floor: number, span: number) =>
   floor + span * (1 - l) ** 0.75;
 
-const TRANSFORMS: Record<ThemeName, (c: Hsl, neutral: boolean) => Hsl> = {
+/** What a colour does where it's used: fill, text, line or shadow. */
+export type ColorRole = "bg" | "fg" | "line" | "shadow";
+
+/** A strong, dark accent or ink, as Sunlight draws it. */
+const strong = ([h, s, l]: Hsl): Hsl => [
+  h,
+  Math.max(s, 0.6),
+  Math.min(l, 0.3) * 0.8,
+];
+
+const TRANSFORMS: Record<
+  ThemeName,
+  (c: Hsl, neutral: boolean, role: ColorRole) => Hsl
+> = {
   editorial: (c) => c,
   // Lightness inverted, so dark ink on light paper becomes light on dark.
-  night: ([h, s, l], neutral) =>
-    neutral
-      ? [h, Math.min(s, 0.12), invert(l, 0.07, 0.86)]
-      : [h, s * 0.85, clamp(1 - l * 0.92, 0.18, 0.78)],
-  // Paper goes white; lines (light greys) go dark so fields keep their
-  // edges; ink goes near-black and accents get stronger.
-  sunlight: ([h, s, l], neutral) =>
-    neutral
-      ? l > 0.9
+  // Shadows stay dark.
+  night: ([h, s, l], neutral, role) =>
+    role === "shadow"
+      ? [h, s, Math.min(l, 0.05)]
+      : neutral
+        ? [h, Math.min(s, 0.12), invert(l, 0.07, 0.86)]
+        : [h, s * 0.85, clamp(1 - l * 0.92, 0.18, 0.78)],
+  // Fills go white (or a light tint), text near-black (white on dark
+  // fills), lines dark so fields keep their edges, accents strong.
+  sunlight: (c, neutral, role) => {
+    const [h, , l] = c;
+    if (role === "shadow") return c;
+    if (role === "line")
+      return neutral ? (l > 0.95 ? [h, 0, 1] : [h, 0, 0.32]) : strong(c);
+    if (role === "fg")
+      return l > 0.75
+        ? neutral
+          ? [h, 0, 1]
+          : [h, 0.3, 0.97]
+        : neutral
+          ? [h, 0, l * 0.22]
+          : strong(c);
+    return neutral
+      ? l > 0.6
         ? [h, 0, 1]
-        : l > 0.6
-          ? [h, 0, 0.32]
-          : [h, 0, l * 0.22]
-      : l > 0.8
-        ? [h, 0.55, 0.92]
-        : [h, Math.max(s, 0.6), Math.min(l, 0.3) * 0.8],
-  // Navy paper, pale blue lines, cyan accents.
-  blueprint: ([, , l], neutral) =>
-    neutral
-      ? [213, 0.5, invert(l, 0.12, 0.8)]
-      : [190, 0.65, clamp(1 - l * 0.85, 0.3, 0.8)],
+        : [h, 0, l * 0.22]
+      : l > 0.75
+        ? [h, 0.55, 0.9]
+        : strong(c);
+  },
+  // Navy paper, pale blue lines, cyan accents; shadows stay dark.
+  blueprint: ([, , l], neutral, role) =>
+    role === "shadow"
+      ? [213, 0.6, Math.min(l, 0.06)]
+      : neutral
+        ? [213, 0.5, invert(l, 0.12, 0.8)]
+        : [190, 0.65, clamp(1 - l * 0.85, 0.3, 0.8)],
 };
 
-/** A colour as the given style shows it. */
-export function themeColor(hex: string, theme: ThemeName): string {
+/** A colour as the given style shows it, for the role it plays. */
+export function themeColor(
+  hex: string,
+  theme: ThemeName,
+  role: ColorRole = "bg",
+): string {
   if (theme === "editorial") return hex;
   const { hsl, alpha, chroma } = parse(hex);
-  return format(TRANSFORMS[theme](hsl, chroma < NEUTRAL_CHROMA), alpha);
+  return format(TRANSFORMS[theme](hsl, chroma < NEUTRAL_CHROMA, role), alpha);
 }
 
 /** CSS that sets every colour token (and fonts) for a style. */
 export function themeCss(theme: ThemeName): string {
   if (theme === "editorial") return "";
   const t = THEMES.find((x) => x.name === theme)!;
-  const tokens = THEME_COLORS.map(
-    (hex) => `--c-${hex.slice(1)}: ${themeColor(hex, theme)};`,
-  );
+  const tokens = THEME_COLORS.map((token) => {
+    const [role, hex] = token.split("-") as [ColorRole, string];
+    return `--c-${token}: ${themeColor(`#${hex}`, theme, role)};`;
+  });
   if (t.fonts)
     tokens.push(
       `--font-body: ${t.fonts.body};`,
@@ -181,7 +215,7 @@ export function applyTheme(theme: ThemeName) {
   style.textContent = themeCss(theme);
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", themeColor("#f3f0e8", theme));
+    ?.setAttribute("content", themeColor("#f3f0e8", theme, "bg"));
 }
 
 const STORAGE_KEY = "walk-free-theme";
