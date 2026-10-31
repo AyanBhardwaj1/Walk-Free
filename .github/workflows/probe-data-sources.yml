@@ -34,3 +34,21 @@ jobs:
           probe "NWS HeatRisk identify (Phoenix)" "https://mapservices.weather.noaa.gov/experimental/rest/services/NWS_HeatRisk/ImageServer/identify?geometry=%7B%22x%22%3A-111.94%2C%22y%22%3A33.4255%2C%22spatialReference%22%3A%7B%22wkid%22%3A4326%7D%7D&geometryType=esriGeometryPoint&returnGeometry=false&f=json"
           probe "Meta Model API (no key; expect 401)" "https://api.meta.ai/v1/models"
           probe "Old Llama API (no key)" "https://api.llama.com/compat/v1/models"
+      - name: Check the production site
+        shell: bash
+        run: |
+          SITE=https://walk-free.vercel.app
+          check() {
+            code=$(curl -sS -o body.txt -w "%{http_code}" --max-time 30 "$SITE$2" || echo "curl-failed")
+            echo "=== $1: HTTP $code (expect $3)"
+            head -c 300 body.txt | tr '\n' ' '; echo
+          }
+          check "Health" "/api/health" 200
+          check "Guest demo page" "/demo" 200
+          check "Outlook without a session (guests use the providers directly)" "/api/outlook?lat=30.29&lon=-97.73" 401
+          # The deployed app bundle should contain tonight's features.
+          curl -sS --max-time 30 "$SITE/demo" -o page.html
+          for js in $(grep -oE '/assets/[^"]+\.js' page.html | sort -u); do curl -sS --max-time 30 "$SITE$js" >> bundle.js; done
+          for word in "SUN AVERSION" "outlook-notice" "air-quality-api.open-meteo.com" "muse-spark-1.3"; do
+            if grep -q "$word" bundle.js; then echo "bundle has: $word"; else echo "bundle MISSING: $word"; fi
+          done
