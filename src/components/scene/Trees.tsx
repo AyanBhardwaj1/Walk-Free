@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { SceneObject, Terrain } from "../../../shared/types";
 import { terrainHeight } from "../../lib/geo";
 import { hash } from "./geometry";
+import { sc, sceneTheme } from "../../lib/scene-theme";
 
 interface Props {
   objects: SceneObject[];
@@ -50,6 +51,7 @@ function CanopyCrowns({ objects, terrain, selectedId, onPointerDown }: Props) {
   const crowns = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
+  const theme = sceneTheme();
   useLayoutEffect(() => {
     const mesh = crowns.current;
     if (!mesh) return;
@@ -68,15 +70,16 @@ function CanopyCrowns({ objects, terrain, selectedId, onPointerDown }: Props) {
         i,
         color.set(
           tree.id === selectedId
-            ? "#b1c28b"
-            : greens[hash(tree.id) % greens.length],
+            ? sc("#b1c28b")
+            : sc(greens[hash(tree.id) % greens.length]),
         ),
       );
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [objects, terrain, selectedId, color, dummy]);
+    // Instance colours depend on the style too.
+  }, [objects, terrain, selectedId, color, dummy, theme]);
   if (!objects.length) return null;
   return (
     <instancedMesh
@@ -105,6 +108,7 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const color = useMemo(() => new THREE.Color(), []);
+  const theme = sceneTheme();
   useLayoutEffect(() => {
     if (!crowns.current || !trunks.current) return;
     objects.forEach((tree, i) => {
@@ -143,8 +147,8 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
           i * 3 + j,
           color.set(
             tree.id === selectedId
-              ? "#b1c28b"
-              : tree.color || greens[(hash(tree.id) + j) % greens.length],
+              ? sc("#b1c28b")
+              : tree.color || sc(greens[(hash(tree.id) + j) % greens.length]),
           ),
         );
       }
@@ -155,7 +159,8 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
     trunks.current.instanceMatrix.needsUpdate = true;
     crowns.current.computeBoundingSphere();
     trunks.current.computeBoundingSphere();
-  }, [objects, terrain, selectedId, color, dummy]);
+    // Instance colours depend on the style too.
+  }, [objects, terrain, selectedId, color, dummy, theme]);
   if (!objects.length) return null;
   const selected = objects.find((tree) => tree.id === selectedId);
   return (
@@ -197,7 +202,7 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
         }
       >
         <cylinderGeometry args={[0.75, 1, 1, 6]} />
-        <meshStandardMaterial color="#91836a" roughness={0.96} />
+        <meshStandardMaterial color={sc("#91836a")} roughness={0.96} />
       </instancedMesh>
       {selected && (
         <mesh
@@ -212,7 +217,7 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
             args={[selected.width * 0.6, selected.width * 0.6 + 1.1, 48]}
           />
           <meshBasicMaterial
-            color="#385948"
+            color={sc("#385948")}
             transparent
             opacity={0.8}
             depthWrite={false}

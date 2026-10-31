@@ -111,6 +111,8 @@ import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
+import ThemePicker from "./components/ThemePicker";
+import { applyTheme, loadTheme, saveTheme, type ThemeName } from "./lib/theme";
 import WalkMap2D from "./components/WalkMap2D";
 import { toF } from "./lib/heat";
 import type { Account } from "./lib/account";
@@ -206,6 +208,12 @@ export default function App({
   const [world, setWorld] = useState<World>(createStudyWorld);
   // Saving waits until the stored scene has been read back.
   const [hydrated, setHydrated] = useState(false);
+  // Interface style (see lib/theme.ts); remembered in this browser.
+  const [theme, setTheme] = useState<ThemeName>(loadTheme);
+  useEffect(() => {
+    applyTheme(theme);
+    saveTheme(theme);
+  }, [theme]);
   // Set when the saved scene couldn't be read, so it is never overwritten.
   const saveBlocked = useRef(false);
   const firstWorld = useRef(world);
@@ -1251,7 +1259,8 @@ export default function App({
             <div className="account-controls">
               <a href="/login">Log in</a>
               <a className="account-cta" href="/signup">
-                Create free account
+                <span className="long-label">Create free account</span>
+                <span className="short-label">Sign up</span>
               </a>
             </div>
           ) : (
@@ -1268,6 +1277,7 @@ export default function App({
               </button>
             </div>
           )}
+          <ThemePicker value={theme} onChange={setTheme} />
           <button
             className="icon-button"
             aria-label="Export project"
@@ -2127,6 +2137,7 @@ export default function App({
               end={endNode?.point}
               edgeColors={heatOverlay?.colors}
               insets={mapInsets}
+              theme={theme}
             />
           ) : (
             <WorldCanvas
@@ -2146,6 +2157,7 @@ export default function App({
               showBuildings={buildings}
               heat={heatOverlay}
               insets={mapInsets}
+              theme={theme}
               onHeatSelect={
                 mode === "explore" || tool === "shaderow"
                   ? selectHeatEdge

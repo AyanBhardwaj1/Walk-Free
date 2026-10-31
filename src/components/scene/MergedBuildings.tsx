@@ -4,6 +4,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { SceneObject, Terrain } from "../../../shared/types";
 import { terrainHeight } from "../../lib/geo";
 import { buildingGeometry, hash } from "./geometry";
+import { sc, sceneTheme } from "../../lib/scene-theme";
 
 const wallColors = [
   "#d8d0bd",
@@ -13,8 +14,6 @@ const wallColors = [
   "#e1d9ca",
   "#c9c4af",
 ];
-const ROOF = new THREE.Color("#e9e3d5");
-const GLASS = new THREE.Color("#abbcb4");
 
 /**
  * All mapped buildings as one mesh: a real campus has thousands, and one
@@ -30,7 +29,10 @@ export default function MergedBuildings({
   terrain?: Terrain;
   onPick?: (object: SceneObject) => void;
 }) {
+  const theme = sceneTheme();
   const { geometry, ranges } = useMemo(() => {
+    const ROOF = new THREE.Color(sc("#e9e3d5"));
+    const GLASS = new THREE.Color(sc("#abbcb4"));
     const parts: THREE.BufferGeometry[] = [];
     const ranges: { end: number; object: SceneObject }[] = [];
     let triangles = 0;
@@ -50,7 +52,7 @@ export default function MergedBuildings({
       const wall =
         object.kind === "skyscraper"
           ? GLASS
-          : color.set(wallColors[hash(object.id) % wallColors.length]);
+          : color.set(sc(wallColors[hash(object.id) % wallColors.length]));
       const colors = new Float32Array(g.attributes.position.count * 3);
       for (const group of g.groups) {
         const c = group.materialIndex === 0 ? ROOF : wall;
@@ -70,7 +72,9 @@ export default function MergedBuildings({
     parts.forEach((p) => p.dispose());
     geometry.computeBoundingSphere();
     return { geometry, ranges };
-  }, [objects, terrain]);
+    // The colours are baked into the mesh, so a new style rebuilds it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects, terrain, theme]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh
