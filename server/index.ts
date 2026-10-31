@@ -1,7 +1,7 @@
 import express from "express";
 import { ZodError } from "zod";
 import { resolve } from "node:path";
-import { getCanopy, getWorld, getWeather } from "./data.js";
+import { getCanopy, getOutlook, getWorld, getWeather } from "./data.js";
 import { CANOPY_ATTRIBUTION } from "../shared/canopy.js";
 import { findCities } from "./geocode.js";
 import { clientKey, perAccount, rateLimiter } from "./rate-limit.js";
@@ -111,6 +111,14 @@ app.get("/api/weather", perAccount(40, "weather"), async (q, r, next) => {
   try {
     const { lat, lon } = coordinates(q.query.lat, q.query.lon);
     r.json(await getWeather(lat, lon));
+  } catch (e) {
+    next(e);
+  }
+});
+app.get("/api/outlook", perAccount(40, "outlook"), async (q, r, next) => {
+  try {
+    const { lat, lon } = coordinates(q.query.lat, q.query.lon);
+    r.json(await getOutlook(lat, lon));
   } catch (e) {
     next(e);
   }

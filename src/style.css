@@ -2561,3 +2561,38 @@ footer {
   margin-top: 8px;
   font-size: 10px;
 }
+.outlook-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-line-e4c48a, #e4c48a);
+  background: var(--c-bg-fbf1dc, #fbf1dc);
+  color: var(--c-fg-8a5a17, #8a5a17);
+}
+.outlook-notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+.outlook-notice p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.outlook-notice small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+}
+.outlook-notice a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.outlook-notice a svg {
+  display: inline;
+  margin: 0 0 0 2px;
+  vertical-align: -1px;
+}

@@ -18,6 +18,29 @@ export const routePreferences: RoutePreference[] = [
   "night",
 ];
 
+/**
+ * Sun aversion α: a metre in the sun costs α metres of shade (as in
+ * CoolWalks). 1 ignores the sun; 3 was the fixed value before it was a
+ * setting; 6 avoids the sun at almost any cost, within the detour budget.
+ */
+export const DEFAULT_SUN_AVERSION = 3;
+export const SUN_AVERSION_RANGE = [1, 6] as const;
+export function clampSunAversion(v: number | undefined) {
+  if (v === undefined || !Number.isFinite(v)) return DEFAULT_SUN_AVERSION;
+  return Math.min(SUN_AVERSION_RANGE[1], Math.max(SUN_AVERSION_RANGE[0], v));
+}
+export function sunAversionLabel(v: number) {
+  return v < 1.75
+    ? "Sun doesn't bother me"
+    : v < 2.5
+      ? "Shade is nice"
+      : v < 4
+        ? "Prefer shade"
+        : v < 5.5
+          ? "Strongly prefer shade"
+          : "Avoid sun at almost any cost";
+}
+
 /** After dark: lit and busier streets cost less than dark or unknown paths. */
 export function nightMultiplier(e: GraphEdge) {
   if (e.lit === true) return e.roadClass === "path" ? 1.15 : 1;
@@ -124,6 +147,8 @@ function planner(
 ) {
   const adjacency = new Map<string, GraphEdge[]>();
   const shade = new Map<string, number>();
+  // Extra cost per sunny metre; exactly 2 at the default, as before.
+  const sunPenalty = clampSunAversion(o.sunAversion) - 1;
   const shadedAt = createShadeTester(w, o.environment);
   const nodeIds = new Set(w.graph.nodes.map((n) => n.id));
   for (const e of w.graph.edges) {
@@ -180,7 +205,7 @@ function planner(
         if (pref === "stepfree" && !stepFree(e)) continue;
         const multiplier =
           pref === "shade"
-            ? 1 + (1 - edgeShade(e)) * 2
+            ? 1 + (1 - edgeShade(e)) * sunPenalty
             : pref === "indoors"
               ? e.indoor === "no"
                 ? 4

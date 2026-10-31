@@ -3,7 +3,14 @@
  * requests. Walk-Free's server uses it for that request and never stores it.
  */
 export type AiProvider =
-  "openai" | "meta" | "fireworks" | "baseten" | "openrouter" | "together";
+  | "meta-model"
+  | "openai"
+  | "meta"
+  | "deepinfra"
+  | "fireworks"
+  | "baseten"
+  | "openrouter"
+  | "together";
 export interface OwnAiKey {
   provider: AiProvider;
   model: string;
@@ -17,6 +24,12 @@ export const AI_PROVIDERS: {
   keysUrl: string;
 }[] = [
   {
+    value: "meta-model",
+    label: "Meta Model API",
+    model: "muse-spark-1.3",
+    keysUrl: "https://ai.developer.meta.com/",
+  },
+  {
     value: "openai",
     label: "OpenAI",
     model: "gpt-5-mini",
@@ -24,20 +37,26 @@ export const AI_PROVIDERS: {
   },
   {
     value: "meta",
-    label: "Meta Llama API",
+    label: "Meta Llama API (legacy)",
     model: "Llama-4-Maverick-17B-128E-Instruct-FP8",
     keysUrl: "https://llama.developer.meta.com/",
   },
   {
+    value: "deepinfra",
+    label: "DeepInfra",
+    model: "meta-models/Muse-Glimmer-30B",
+    keysUrl: "https://deepinfra.com/dash/api_keys",
+  },
+  {
     value: "fireworks",
     label: "Fireworks",
-    model: "accounts/fireworks/models/llama4-maverick-instruct-basic",
+    model: "accounts/fireworks/models/muse-spark-open",
     keysUrl: "https://fireworks.ai/account/api-keys",
   },
   {
     value: "baseten",
     label: "Baseten",
-    model: "meta-models/muse-spark-open-1026",
+    model: "meta-models/muse-spark-open",
     keysUrl: "https://app.baseten.co/settings/api_keys",
   },
   {
@@ -49,7 +68,7 @@ export const AI_PROVIDERS: {
   {
     value: "together",
     label: "Together AI",
-    model: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    model: "meta-models/Muse-Glimmer-30B",
     keysUrl: "https://api.together.ai/settings/api-keys",
   },
 ];

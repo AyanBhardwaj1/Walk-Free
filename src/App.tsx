@@ -91,7 +91,14 @@ import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
-import { compareRoutes, nearestWalkNode } from "./lib/routing";
+import {
+  clampSunAversion,
+  compareRoutes,
+  DEFAULT_SUN_AVERSION,
+  nearestWalkNode,
+  SUN_AVERSION_RANGE,
+  sunAversionLabel,
+} from "./lib/routing";
 import { brushTerrain, toLatLon, toLocal } from "./lib/geo";
 import { addCanopy, loadWorld } from "./lib/world-source";
 import { hasCanopy } from "../shared/canopy";
@@ -105,6 +112,9 @@ import {
 import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
+import { loadOutlook } from "./lib/outlook-source";
+import { outlookContext, type Outlook } from "../shared/outlook";
+import OutlookNotice from "./components/OutlookNotice";
 import {
   uvLabel,
   describeConditions,
@@ -284,6 +294,23 @@ export default function App({
   const [hypothetical, setHypothetical] = useState(false);
   const [stairs, setStairs] = useState(false);
   const [detour, setDetour] = useState(1.8);
+  // How much this person avoids the sun; kept on this device.
+  const [sunAversion, setSunAversion] = useState(() => {
+    try {
+      return clampSunAversion(
+        Number(localStorage.getItem("walk-free-sun-aversion") ?? undefined),
+      );
+    } catch {
+      return DEFAULT_SUN_AVERSION;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("walk-free-sun-aversion", String(sunAversion));
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+  }, [sunAversion]);
   const [trees, setTrees] = useState(true);
   const [buildings, setBuildings] = useState(true);
   const [prompt, setPrompt] = useState("");
@@ -294,6 +321,11 @@ export default function App({
   } | null>(null);
   const [roadStart, setRoadStart] = useState<Point | null>(null);
   const [forecast, setForecast] = useState<WeatherForecast | null>(null);
+  /** Air quality and official alerts near the area; null until loaded. */
+  const [outlook, setOutlook] = useState<Outlook | null>(null);
+  // The assistant reads the latest outlook when it is asked, not a stale one.
+  const outlookRef = useRef(outlook);
+  outlookRef.current = outlook;
   const location = useWalkLocation();
   const tracking = location.mode === "walking";
   const locating = location.mode === "locating";
@@ -413,6 +445,7 @@ export default function App({
         maxDetour: detour,
         environment: routeEnv,
         coolStops,
+        sunAversion,
       }),
     [
       routeWorld,
@@ -423,6 +456,7 @@ export default function App({
       detour,
       routeEnv,
       coolStops,
+      sunAversion,
       tracking,
     ],
   );
@@ -777,6 +811,7 @@ export default function App({
     scene: world,
     env,
     forecast,
+    sunAversion,
     catalog: endpointCatalog,
     myLocationNodeId: snappedLocation?.nodeId ?? null,
     showRoute({ start: from, end: to, preference, avoidStairs, dateTime }) {
@@ -850,6 +885,7 @@ export default function App({
             route: quick
               ? `${pref} route, ${Math.round(quick.durationMinutes)} min`
               : undefined,
+            ...outlookContext(outlookRef.current),
             canBuildAreas: true,
           };
         },
@@ -1141,6 +1177,7 @@ export default function App({
         };
       });
       setForecast(null);
+      setOutlook(null);
       void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
         from && to
@@ -1276,6 +1313,13 @@ export default function App({
   ) {
     const working = "Getting live weather…";
     if (!quiet) setBusy(working);
+    // Air quality and alerts load beside the weather and never block it.
+    void loadOutlook(origin, {
+      fetch: window.fetch.bind(window),
+      apiBase: API_BASE,
+    }).then((o) => {
+      if (request === buildRequest.current) setOutlook(o);
+    });
     try {
       const f = await loadWeather(origin, {
         fetch: window.fetch.bind(window),
@@ -1633,6 +1677,7 @@ export default function App({
             tab !== "ask" &&
             tab !== "transit" && (
               <section>
+                <OutlookNotice outlook={outlook} timeZone={world.timezone} />
                 <div className="section-title">
                   <Route size={17} /> Your next walk
                 </div>
@@ -1830,6 +1875,19 @@ export default function App({
                     step=".1"
                     value={detour}
                     onChange={(e) => setDetour(+e.target.value)}
+                  />
+                </label>
+                <label>
+                  SUN AVERSION · {sunAversionLabel(sunAversion)}
+                  <input
+                    type="range"
+                    min={SUN_AVERSION_RANGE[0]}
+                    max={SUN_AVERSION_RANGE[1]}
+                    step=".5"
+                    value={sunAversion}
+                    aria-valuetext={`${sunAversionLabel(sunAversion)}: a metre in the sun counts as ${sunAversion} metres in shade`}
+                    title="How much longer a walk you'd take to stay out of the sun. Shapes the Shade route."
+                    onChange={(e) => setSunAversion(+e.target.value)}
                   />
                 </label>
                 {!currentRoute &&
@@ -2356,7 +2414,12 @@ export default function App({
           {!atlas && tab === "data" && (
             <section>
               <div className="section-title">Know your ground</div>
-              <DataLayers world={world} env={env} forecast={forecast} />
+              <DataLayers
+                world={world}
+                env={env}
+                forecast={forecast}
+                outlook={outlook}
+              />
               <p>{world.provenance.source}</p>
               <p className="fine">{world.provenance.attribution}</p>
               {world.provenance.notes.map((n) => (
@@ -2527,6 +2590,14 @@ export default function App({
                     title="UV index from Open-Meteo"
                   >
                     {uvLabel(env.uvIndex)!.text}
+                  </small>
+                )}
+                {outlook?.air && (
+                  <small
+                    className={`uv-badge ${outlook.air.level >= 2 ? "high" : ""}`}
+                    title={`Area air quality (US AQI) from Open-Meteo · PM2.5 ${outlook.air.pm25 ?? "n/a"} µg/m³`}
+                  >
+                    AQI {outlook.air.usAqi} · {outlook.air.category}
                   </small>
                 )}
               </div>

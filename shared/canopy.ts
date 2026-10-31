@@ -6,7 +6,7 @@ import type { Point, SceneObject } from "./types.js";
  * used to fill in shade where OpenStreetMap has few mapped trees.
  */
 export const CANOPY_ATTRIBUTION =
-  "Tree canopy: Meta & World Resources Institute, High Resolution Canopy Height Maps v2 (CC BY 4.0)";
+  "Tree canopy: Meta & World Resources Institute, High Resolution Canopy Height Maps v2, built with DINOv3 (CC BY 4.0)";
 
 /** Heights in metres on a Web Mercator (EPSG:3857) grid. */
 export interface CanopyRaster {

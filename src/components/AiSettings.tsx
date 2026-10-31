@@ -34,11 +34,9 @@ export default function AiSettings({
 }) {
   const [editing, setEditing] = useState(false);
   const [provider, setProvider] = useState<AiProvider>(
-    value?.provider ?? "openai",
+    value?.provider ?? AI_PROVIDERS[0].value,
   );
-  const [model, setModel] = useState(
-    value?.model ?? AI_PROVIDERS.find((p) => p.value === "openai")!.model,
-  );
+  const [model, setModel] = useState(value?.model ?? AI_PROVIDERS[0].model);
   const [key, setKey] = useState("");
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<
