@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, Palette } from "lucide-react";
 import {
   THEMES,
@@ -26,6 +26,7 @@ export default function ThemePicker({
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => {
@@ -36,13 +37,19 @@ export default function ThemePicker({
       setOpen(false);
       button.current?.focus();
     };
+    // Tabbing out of the picker closes it too.
+    const leave = (e: FocusEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", escape);
+    document.addEventListener("focusin", leave);
     // Focus the chosen style so arrow keys work straight away.
     root.current?.querySelector<HTMLInputElement>("input:checked")?.focus();
     return () => {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", escape);
+      document.removeEventListener("focusin", leave);
     };
   }, [open]);
   return (
@@ -52,14 +59,14 @@ export default function ThemePicker({
         className="icon-button"
         aria-label="Interface style"
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-controls={menuId}
         title="Interface style (S)"
         onClick={() => setOpen(!open)}
       >
         <Palette size={18} aria-hidden />
       </button>
       {open && (
-        <fieldset className="theme-menu">
+        <fieldset className="theme-menu" id={menuId}>
           <legend>Interface style</legend>
           {THEMES.map((t) => (
             <label key={t.name} className={t.name === value ? "chosen" : ""}>

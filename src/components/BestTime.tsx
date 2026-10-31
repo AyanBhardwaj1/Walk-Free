@@ -14,19 +14,29 @@ export default function BestTime({
   onPick,
 }: {
   plan: Plan | null;
-  onPick: (hour: number) => void;
+  /** Moves the time to this hour, on the day shown or the next one. */
+  onPick: (hour: number, dayOffset: 0 | 1) => void;
 }) {
   if (!plan) return null;
   const temps = plan.hours.map((h) => toF(h.feelsLikeC));
   const [low, high] = [Math.min(...temps), Math.max(...temps)];
-  const later = plan.best.hour !== plan.now.hour && plan.savingF >= 2;
+  const tomorrow = plan.dayOffset === 1;
+  const later =
+    !tomorrow && plan.best.hour !== plan.now.hour && plan.savingF >= 2;
   return (
     <section className="best-time" aria-labelledby="best-time-title">
       <div className="section-title" id="best-time-title">
         <Clock size={17} aria-hidden /> Best time to go
+        {tomorrow ? " tomorrow" : ""}
       </div>
       <p className="best-time-summary">
-        {later ? (
+        {tomorrow ? (
+          <>
+            Leave at <strong>{clock(plan.best.hour)}</strong> tomorrow: about{" "}
+            {Math.round(toF(plan.best.feelsLikeC))}°F, the coolest walk of the
+            day.
+          </>
+        ) : later ? (
           <>
             Leave at <strong>{clock(plan.best.hour)}</strong>: about{" "}
             {Math.round(toF(plan.best.feelsLikeC))}°F, {plan.savingF}° cooler
@@ -48,9 +58,9 @@ export default function BestTime({
             <button
               key={h.hour}
               className={h.hour === plan.best.hour ? "best" : ""}
-              aria-label={`Leave at ${clock(h.hour)}: about ${Math.round(f)}°F, ${Math.round(h.shade * 100)}% shade`}
+              aria-label={`Leave at ${clock(h.hour)}${tomorrow ? " tomorrow" : ""}: about ${Math.round(f)}°F, ${Math.round(h.shade * 100)}% shade${h.hour === plan.best.hour ? ", the coolest time still ahead" : ""}`}
               title={`${clock(h.hour)} · ${Math.round(f)}°F`}
-              onClick={() => onPick(h.hour)}
+              onClick={() => onPick(h.hour, plan.dayOffset)}
             >
               <i
                 style={{

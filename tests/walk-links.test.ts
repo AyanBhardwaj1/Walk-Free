@@ -61,6 +61,7 @@ describe("saved walks", () => {
     });
   });
   const walk = {
+    worldId: "osm-30.28500--97.73410-1000",
     areaName: "UT Austin, TX",
     from: "a",
     to: "b",
@@ -77,6 +78,18 @@ describe("saved walks", () => {
     expect(saved.map((w) => w.toLabel)).toEqual(["GDC", "PCL"]);
     removeSavedWalk(saved[0].id);
     expect(loadSavedWalks().map((w) => w.toLabel)).toEqual(["PCL"]);
+  });
+
+  it("drops malformed entries instead of crashing on them", () => {
+    localStorage.setItem(
+      "walk-free-saved-walks",
+      JSON.stringify([
+        { id: "x", from: "a" },
+        { ...walk, id: "y", savedAt: "", pref: "teleport" },
+        { ...walk, id: "z", savedAt: "" },
+      ]),
+    );
+    expect(loadSavedWalks().map((w) => w.id)).toEqual(["z"]);
   });
 
   it("keeps at most twelve", () => {

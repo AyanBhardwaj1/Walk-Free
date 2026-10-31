@@ -129,7 +129,10 @@ import {
   type BestTime as BestTimePlan,
 } from "./lib/best-time";
 import ThemePicker from "./components/ThemePicker";
-import Shortcuts, { ignoreShortcut } from "./components/Shortcuts";
+import Shortcuts, {
+  ignoreShortcut,
+  loadShortcutsOn,
+} from "./components/Shortcuts";
 import {
   THEMES,
   applyTheme,
@@ -250,9 +253,12 @@ export default function App({
   const [hydrated, setHydrated] = useState(false);
   // Interface style (see lib/theme.ts); remembered in this browser.
   const [theme, setTheme] = useState<ThemeName>(loadTheme);
-  useEffect(() => {
+  // Before the workspace paints (no flash), and only while it's open: the
+  // landing, login and loading screens keep their own look.
+  useLayoutEffect(() => {
     applyTheme(theme);
     saveTheme(theme);
+    return () => applyTheme("editorial");
   }, [theme]);
   // Set when the saved scene couldn't be read, so it is never overwritten.
   const saveBlocked = useRef(false);
@@ -449,7 +455,6 @@ export default function App({
   const [bestTime, setBestTime] = useState<BestTimePlan | null>(null);
   const routeKey = currentRoute?.edges.map((e) => e.id).join(",") ?? "";
   const bestTimeDay = [
-    world.id,
     new Date(env.dateTime).toLocaleDateString("en-CA", {
       timeZone: world.timezone,
     }),
@@ -457,19 +462,29 @@ export default function App({
     env.weatherMode,
     env.temperatureC,
     env.humidity,
+    env.windMps,
+    env.cloudCover,
+    env.solarWm2,
   ].join("|");
   useEffect(() => {
     if (!currentRoute || mode !== "explore" || tab !== "route" || atlas) {
       setBestTime(null);
       return;
     }
-    const timer = setTimeout(() => {
+    // The first rating of a new route takes a few hundred milliseconds, so
+    // wait for an idle moment (repeat ratings reuse cached shade).
+    const run = () =>
       setBestTime(bestTimeToLeave(world, env, currentRoute, forecast));
-    }, 120);
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 1000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(run, 120);
     return () => clearTimeout(timer);
-    // routeKey and bestTimeDay stand in for the route and environment.
+    // routeKey and bestTimeDay stand in for the route and environment;
+    // world changes too when canopy arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, bestTimeDay, forecast, mode, tab, atlas]);
+  }, [routeKey, bestTimeDay, world, forecast, mode, tab, atlas]);
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
   const heatActive = !atlas && (heatMap || tab === "heat");
@@ -550,9 +565,12 @@ export default function App({
     }
     return length ? { feelsC: feels / length, shade: shade / length } : null;
   }, [currentRoute, edgeHeat]);
-  function setLocalHour(hour: number) {
+  function setLocalHour(hour: number, dayOffset = 0) {
     setEnv((previous) => {
-      const dateTime = atLocalHour(previous.dateTime, world.timezone, hour);
+      const day = new Date(
+        Date.parse(previous.dateTime) + dayOffset * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const dateTime = atLocalHour(day, world.timezone, hour);
       // In forecast mode, temperature and cloud follow the chosen hour.
       return previous.weatherMode === "forecast" && forecast
         ? weatherAt(previous, dateTime, forecast)
@@ -562,6 +580,10 @@ export default function App({
   // "Play the day": the sun sweeps from morning to evening.
   const [playing, setPlaying] = useState(false);
   const hourRef = useRef(0);
+  const setLocalHourRef = useRef(setLocalHour);
+  setLocalHourRef.current = setLocalHour;
+  // A new area ends the day being played.
+  useEffect(() => setPlaying(false), [world.id]);
   hourRef.current = localHour(env.dateTime, world.timezone);
   useEffect(() => {
     if (!playing) return;
@@ -573,13 +595,13 @@ export default function App({
       () => {
         const next = Math.round((hourRef.current + step) / step) * step;
         if (next >= DAY_END_HOUR) setPlaying(false);
-        setLocalHour(Math.min(next, DAY_END_HOUR));
+        // Through a ref: the latest time zone and forecast, not the ones
+        // from when play began.
+        setLocalHourRef.current(Math.min(next, DAY_END_HOUR));
       },
       reduced ? 800 : DAY_STEP_MS,
     );
     return () => clearInterval(timer);
-    // setLocalHour reads the latest world and forecast each time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
   const [savedWalks, setSavedWalks] = useState<SavedWalk[]>(loadSavedWalks);
   const labelOf = (id: string) =>
@@ -622,6 +644,7 @@ export default function App({
   function saveCurrentWalk() {
     setSavedWalks(
       saveWalk({
+        worldId: world.id,
         areaName: world.name,
         from: start,
         to: end,
@@ -632,12 +655,13 @@ export default function App({
     );
     flash("Walk saved. It's listed under Saved walks for this area.");
   }
-  const areaWalks = savedWalks.filter((w) => w.areaName === world.name);
+  const areaWalks = savedWalks.filter((w) => w.worldId === world.id);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [shortcutsOn, setShortcutsOn] = useState(loadShortcutsOn);
   // Keyboard shortcuts (listed in components/Shortcuts.tsx).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (ignoreShortcut(e)) return;
+      if (!shortcutsOn || ignoreShortcut(e)) return;
       if (e.key === "/") {
         e.preventDefault();
         document
@@ -659,7 +683,7 @@ export default function App({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [theme, atlas, mode]);
+  }, [theme, atlas, mode, shortcutsOn]);
   const playDayRef = useRef(() => {});
   playDayRef.current = playDay;
   function playDay() {
@@ -934,8 +958,6 @@ export default function App({
   }, [projectKey]);
   // Landing-page campus links open that campus directly (/demo?area=ut-austin).
   const openedArea = useRef(false);
-  // A shared walk waits here until its area has opened.
-  const pendingWalk = useRef<WalkLink | null>(null);
   useEffect(() => {
     // Wait for the saved scene, so building pushes it onto undo history.
     if (!hydrated || openedArea.current) return;
@@ -971,23 +993,9 @@ export default function App({
           }
         : null;
     if (!city) return;
-    pendingWalk.current = link;
-    void loadCity(city, true, area?.radius ?? link.radius ?? 800);
+    void loadCity(city, true, area?.radius ?? link.radius ?? 800, link);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
-  useEffect(() => {
-    const link = pendingWalk.current;
-    if (!link || world.id === firstWorld.current.id) return;
-    pendingWalk.current = null;
-    const has = (id?: string) =>
-      !!id && world.graph.nodes.some((n) => n.id === id);
-    if (has(link.from)) setStart(link.from!);
-    if (has(link.to)) setEnd(link.to!);
-    if (link.pref) setPref(link.pref);
-    if (link.hour !== undefined) setLocalHour(link.hour);
-    // Runs when a new area opens; the rest is read fresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world.id]);
   // Keep live weather fresh while the tab is visible.
   useEffect(() => {
     if (env.weatherMode !== "forecast" || atlas) return;
@@ -1035,6 +1043,8 @@ export default function App({
     c: City,
     build = false,
     radius = 800,
+    /** A shared walk to open in this area once it's built. */
+    link?: WalkLink,
   ): Promise<boolean> {
     const request = ++buildRequest.current;
     if (!build) {
@@ -1106,8 +1116,12 @@ export default function App({
           }).quickest;
         if (linked) [from, to] = [a, b];
       }
-      setStart(from);
-      setEnd(to);
+      // A shared walk's points win when they exist in this area.
+      const has = (id?: string) =>
+        !!id && w.graph.nodes.some((n) => n.id === id);
+      setStart(has(link?.from) ? link!.from! : from);
+      setEnd(has(link?.to) ? link!.to! : to);
+      if (link?.pref) setPref(link.pref);
       setHypothetical(false);
       setMode("explore");
       setTab("route");
@@ -1115,11 +1129,17 @@ export default function App({
       setTrees(true);
       setBuildings(true);
       setShowPaths(true);
-      setEnv((previous) => ({
-        ...previous,
-        dateTime: new Date().toISOString(),
-        weatherMode: "scenario",
-      }));
+      setEnv((previous) => {
+        const now = new Date().toISOString();
+        return {
+          ...previous,
+          dateTime:
+            link?.hour !== undefined
+              ? atLocalHour(now, w.timezone, link.hour)
+              : now,
+          weatherMode: "scenario",
+        };
+      });
       setForecast(null);
       void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
@@ -1777,7 +1797,13 @@ export default function App({
                   environment={env}
                   origin={world.origin}
                 />
-                <BestTime plan={bestTime} onPick={setLocalHour} />
+                <BestTime
+                  plan={bestTime}
+                  onPick={(hour, dayOffset) => {
+                    setPlaying(false);
+                    setLocalHour(hour, dayOffset);
+                  }}
+                />
                 <label className="check">
                   <input
                     type="checkbox"
@@ -2357,6 +2383,12 @@ export default function App({
           <footer>
             <span className="tiny-symbol">✳</span> Built for the journey, not
             just the destination.
+            <button
+              className="text-button footer-shortcuts"
+              onClick={() => setShowShortcuts(true)}
+            >
+              Keyboard shortcuts
+            </button>
           </footer>
         </aside>
         <div
@@ -2651,7 +2683,12 @@ export default function App({
           )}
         </div>
       </main>
-      <Shortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <Shortcuts
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        enabled={shortcutsOn}
+        onEnabled={setShortcutsOn}
+      />
       <input
         hidden
         ref={upload}

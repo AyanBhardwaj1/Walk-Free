@@ -2409,8 +2409,8 @@ footer {
   outline-offset: 1px;
 }
 .best-time-bars small {
-  height: 11px;
-  font-size: 9px;
+  height: 12px;
+  font-size: 10px;
   color: var(--c-fg-6f7964, #6f7964);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -2422,7 +2422,8 @@ footer {
   align-items: center;
   gap: 5px;
   margin-left: 10px;
-  padding: 3px 9px;
+  min-height: 32px;
+  padding: 4px 12px;
   border: 1px solid var(--c-line-d5d8cb, #d5d8cb);
   border-radius: 999px;
   background: var(--c-bg-fffdf6, #fffdf6);
@@ -2485,7 +2486,8 @@ footer {
   color: var(--c-fg-5d6853, #5d6853);
 }
 .saved-walks .remove {
-  padding: 0 10px;
+  min-width: 40px;
+  padding: 0 12px;
   background: none;
   color: var(--c-fg-6f7964, #6f7964);
 }
@@ -2538,4 +2540,24 @@ footer {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 12px;
   text-align: center;
+}
+
+/* Bigger hit areas where the pointer is a finger. */
+@media (pointer: coarse) {
+  .header-right .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.shortcuts-toggle {
+  margin: 0 0 16px;
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--c-fg-313b30, #313b30);
+}
+.footer-shortcuts {
+  display: block;
+  margin-top: 8px;
+  font-size: 10px;
 }

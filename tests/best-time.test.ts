@@ -28,25 +28,58 @@ const route = compareRoutes(world, from, to, {
   environment: env,
 }).quickest!;
 
+// "Now" for these tests: 9 AM in Austin that day.
+const nine = "2026-07-15T14:00:00Z";
+
 describe("best time to leave", () => {
-  it("rates the rest of today's daytime hours and picks the coolest", () => {
-    const plan = bestTimeToLeave(world, env, route, null)!;
-    expect(plan.hours[0].hour).toBe(9);
+  it("shows the whole walking day and picks the coolest hour still ahead", () => {
+    const plan = bestTimeToLeave(world, env, route, null, nine)!;
+    expect(plan.hours[0].hour).toBe(6);
     expect(plan.hours.at(-1)!.hour).toBe(20);
-    const coolest = Math.min(...plan.hours.map((h) => h.feelsLikeC));
-    expect(plan.best.feelsLikeC).toBe(coolest);
+    const ahead = plan.hours.filter((h) => h.hour >= 9);
+    expect(plan.best.feelsLikeC).toBe(
+      Math.min(...ahead.map((h) => h.feelsLikeC)),
+    );
+    expect(plan.best.hour).toBeGreaterThanOrEqual(9);
     expect(plan.now.hour).toBe(9);
+    expect(plan.dayOffset).toBe(0);
     expect(plan.savingF).toBeGreaterThanOrEqual(0);
   });
 
+  it("keeps the whole day when an hour is picked, comparing with that hour", () => {
+    const three = { ...env, dateTime: "2026-07-15T20:00:00Z" };
+    const plan = bestTimeToLeave(world, three, route, null, nine)!;
+    expect(plan.hours).toHaveLength(15);
+    expect(plan.now.hour).toBe(15);
+  });
+
+  it("lets any hour count on another day", () => {
+    const tomorrow = { ...env, dateTime: "2026-07-16T14:00:00Z" };
+    const plan = bestTimeToLeave(world, tomorrow, route, null, nine)!;
+    expect(plan.best.feelsLikeC).toBe(
+      Math.min(...plan.hours.map((h) => h.feelsLikeC)),
+    );
+  });
+
   it("feels hotter in the afternoon sun than early evening", () => {
-    const plan = bestTimeToLeave(world, env, route, null)!;
+    const plan = bestTimeToLeave(world, env, route, null, nine)!;
     const at = (h: number) => plan.hours.find((x) => x.hour === h)!;
     expect(at(14).feelsLikeC).toBeGreaterThan(at(20).feelsLikeC);
   });
 
-  it("has nothing to suggest late at night", () => {
-    const late = { ...env, dateTime: "2026-07-16T04:30:00Z" }; // 11:30 PM
-    expect(bestTimeToLeave(world, late, route, null)).toBeNull();
+  it("plans tomorrow once today's walking day is over", () => {
+    const late = "2026-07-16T04:30:00Z"; // 11:30 PM
+    const plan = bestTimeToLeave(
+      world,
+      { ...env, dateTime: late },
+      route,
+      null,
+      late,
+    )!;
+    expect(plan.dayOffset).toBe(1);
+    expect(plan.hours).toHaveLength(15);
+    expect(plan.best.feelsLikeC).toBe(
+      Math.min(...plan.hours.map((h) => h.feelsLikeC)),
+    );
   });
 });

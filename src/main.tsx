@@ -8,11 +8,7 @@ import { createRoot } from "react-dom/client";
 import Website from "./Website";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./style.css";
-import { applyTheme, loadTheme } from "./lib/theme";
 
-// The workspace shows its saved style before the first paint (no flash).
-if (/^\/(app|demo)(\/|$)/.test(window.location.pathname))
-  applyTheme(loadTheme());
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
