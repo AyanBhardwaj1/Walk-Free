@@ -30,6 +30,8 @@ import {
   Compass,
   Check,
   X,
+  Share2,
+  Bookmark,
   Thermometer,
   Map as MapIcon,
   Box,
@@ -38,6 +40,8 @@ import {
   LocateFixed,
   PanelLeftClose,
   PanelLeftOpen,
+  Pause,
+  Play,
 } from "lucide-react";
 import type {
   World,
@@ -111,8 +115,28 @@ import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
+import BestTime from "./components/BestTime";
+import { routeLabels } from "./components/RouteChoices";
+import { parseWalkLink, walkLinkUrl, type WalkLink } from "./lib/walk-links";
+import {
+  loadSavedWalks,
+  removeSavedWalk,
+  saveWalk,
+  type SavedWalk,
+} from "./lib/saved-walks";
+import {
+  bestTimeToLeave,
+  type BestTime as BestTimePlan,
+} from "./lib/best-time";
 import ThemePicker from "./components/ThemePicker";
-import { applyTheme, loadTheme, saveTheme, type ThemeName } from "./lib/theme";
+import Shortcuts, { ignoreShortcut } from "./components/Shortcuts";
+import {
+  THEMES,
+  applyTheme,
+  loadTheme,
+  saveTheme,
+  type ThemeName,
+} from "./lib/theme";
 import WalkMap2D from "./components/WalkMap2D";
 import { toF } from "./lib/heat";
 import type { Account } from "./lib/account";
@@ -131,6 +155,22 @@ const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
+/** Query parameters a shared walk link uses (lib/walk-links.ts). */
+const WALK_LINK_PARAMS = [
+  "area",
+  "lat",
+  "lon",
+  "radius",
+  "from",
+  "to",
+  "pref",
+  "t",
+];
+/** "Play the day": from this hour to that, in steps this long and fast. */
+const DAY_START_HOUR = 6;
+const DAY_END_HOUR = 20;
+const DAY_STEP_HOURS = 0.25;
+const DAY_STEP_MS = 220;
 const SHEET_DRAG_PX = 30;
 const SERVER_MAX_RADIUS = 800;
 async function api(
@@ -404,6 +444,32 @@ export default function App({
       setWalkStop({ ...walkStop, reached: true });
   }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
+  // Best hour to set off: computed when the browser is idle, and only when
+  // the walk itself (not just its id) or the day's weather changes.
+  const [bestTime, setBestTime] = useState<BestTimePlan | null>(null);
+  const routeKey = currentRoute?.edges.map((e) => e.id).join(",") ?? "";
+  const bestTimeDay = [
+    world.id,
+    new Date(env.dateTime).toLocaleDateString("en-CA", {
+      timeZone: world.timezone,
+    }),
+    Math.floor(localHour(env.dateTime, world.timezone)),
+    env.weatherMode,
+    env.temperatureC,
+    env.humidity,
+  ].join("|");
+  useEffect(() => {
+    if (!currentRoute || mode !== "explore" || tab !== "route" || atlas) {
+      setBestTime(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setBestTime(bestTimeToLeave(world, env, currentRoute, forecast));
+    }, 120);
+    return () => clearTimeout(timer);
+    // routeKey and bestTimeDay stand in for the route and environment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, bestTimeDay, forecast, mode, tab, atlas]);
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
   const heatActive = !atlas && (heatMap || tab === "heat");
@@ -492,6 +558,119 @@ export default function App({
         ? weatherAt(previous, dateTime, forecast)
         : { ...previous, dateTime, weatherMode: "scenario" };
     });
+  }
+  // "Play the day": the sun sweeps from morning to evening.
+  const [playing, setPlaying] = useState(false);
+  const hourRef = useRef(0);
+  hourRef.current = localHour(env.dateTime, world.timezone);
+  useEffect(() => {
+    if (!playing) return;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const step = reduced ? 1 : DAY_STEP_HOURS;
+    const timer = setInterval(
+      () => {
+        const next = Math.round((hourRef.current + step) / step) * step;
+        if (next >= DAY_END_HOUR) setPlaying(false);
+        setLocalHour(Math.min(next, DAY_END_HOUR));
+      },
+      reduced ? 800 : DAY_STEP_MS,
+    );
+    return () => clearInterval(timer);
+    // setLocalHour reads the latest world and forecast each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
+  const [savedWalks, setSavedWalks] = useState<SavedWalk[]>(loadSavedWalks);
+  const labelOf = (id: string) =>
+    endpointCatalog.find((d) => d.id === id)?.label ?? "Mapped point";
+  /** A link anyone can open (no account) to this walk at this hour. */
+  async function shareWalk() {
+    const area = prebuiltAreaFor(
+      world.origin.lat,
+      world.origin.lon,
+      world.extent / 2,
+    );
+    const url = walkLinkUrl(window.location.origin, {
+      ...(area
+        ? { area: area.slug }
+        : {
+            lat: world.origin.lat,
+            lon: world.origin.lon,
+            radius: world.extent / 2,
+          }),
+      // A GPS start can't be shared; the chosen start can.
+      from: start,
+      to: end,
+      pref,
+      hour: Math.round(currentHour * 4) / 4,
+    });
+    const text = `A cooler walk on ${world.name}: ${labelOf(start)} to ${labelOf(end)}`;
+    try {
+      if (navigator.share)
+        await navigator.share({ title: "Walk-Free", text, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        flash("Link copied. Anyone can open it, no account needed.");
+      }
+    } catch (e) {
+      // Closing the share sheet isn't an error.
+      if ((e as Error).name !== "AbortError")
+        setMessage(`Couldn't share automatically. Copy this link: ${url}`);
+    }
+  }
+  function saveCurrentWalk() {
+    setSavedWalks(
+      saveWalk({
+        areaName: world.name,
+        from: start,
+        to: end,
+        fromLabel: labelOf(start),
+        toLabel: labelOf(end),
+        pref,
+      }),
+    );
+    flash("Walk saved. It's listed under Saved walks for this area.");
+  }
+  const areaWalks = savedWalks.filter((w) => w.areaName === world.name);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Keyboard shortcuts (listed in components/Shortcuts.tsx).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (ignoreShortcut(e)) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        document
+          .querySelector<HTMLInputElement>(
+            'input[aria-label="Search places, buildings or cities"]',
+          )
+          ?.focus();
+      } else if (e.key === "?") setShowShortcuts(true);
+      else if (e.key.toLowerCase() === "p" && !atlas) playDayRef.current();
+      else if (e.key.toLowerCase() === "s") {
+        const next =
+          THEMES[
+            (THEMES.findIndex((t) => t.name === theme) + 1) % THEMES.length
+          ];
+        setTheme(next.name);
+        flash(`Style: ${next.label}`);
+      } else if (e.key.toLowerCase() === "v" && !atlas && mode === "explore")
+        setView((v) => (v === "3d" ? "2d" : "3d"));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [theme, atlas, mode]);
+  const playDayRef = useRef(() => {});
+  playDayRef.current = playDay;
+  function playDay() {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    // Start at sunrise-ish when the day is over or not yet begun.
+    if (currentHour < DAY_START_HOUR || currentHour >= DAY_END_HOUR)
+      setLocalHour(DAY_START_HOUR);
+    setPlaying(true);
   }
   function selectHeatPlace(id: string) {
     setTab("heat");
@@ -755,38 +934,60 @@ export default function App({
   }, [projectKey]);
   // Landing-page campus links open that campus directly (/demo?area=ut-austin).
   const openedArea = useRef(false);
+  // A shared walk waits here until its area has opened.
+  const pendingWalk = useRef<WalkLink | null>(null);
   useEffect(() => {
     // Wait for the saved scene, so building pushes it onto undo history.
     if (!hydrated || openedArea.current) return;
     openedArea.current = true;
+    const link = parseWalkLink(window.location.search);
+    // Use the link once; reloading shouldn't replace the scene again.
     const params = new URLSearchParams(window.location.search);
-    const slug = params.get("area");
-    if (slug) {
-      // Use the link once; reloading shouldn't replace the scene again.
-      params.delete("area");
-      const rest = params.toString();
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + (rest ? `?${rest}` : ""),
-      );
-    }
-    const area = PREBUILT_AREAS.find((a) => a.slug === slug);
-    if (area)
-      void loadCity(
-        {
+    for (const key of WALK_LINK_PARAMS) params.delete(key);
+    const rest = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (rest ? `?${rest}` : ""),
+    );
+    const area = PREBUILT_AREAS.find((a) => a.slug === link.area);
+    const city: City | null = area
+      ? {
           id: area.slug,
           name: area.name.replace(/, [A-Z]{2}$/, ""),
           state: area.name.match(/, ([A-Z]{2})$/)?.[1] ?? "",
           lat: area.lat,
           lon: area.lon,
           timezone: "",
-        },
-        true,
-        area.radius,
-      );
+        }
+      : link.lat !== undefined && link.lon !== undefined
+        ? {
+            id: "shared-walk",
+            name: "Shared walk",
+            state: "",
+            lat: link.lat,
+            lon: link.lon,
+            timezone: "",
+          }
+        : null;
+    if (!city) return;
+    pendingWalk.current = link;
+    void loadCity(city, true, area?.radius ?? link.radius ?? 800);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
+  useEffect(() => {
+    const link = pendingWalk.current;
+    if (!link || world.id === firstWorld.current.id) return;
+    pendingWalk.current = null;
+    const has = (id?: string) =>
+      !!id && world.graph.nodes.some((n) => n.id === id);
+    if (has(link.from)) setStart(link.from!);
+    if (has(link.to)) setEnd(link.to!);
+    if (link.pref) setPref(link.pref);
+    if (link.hour !== undefined) setLocalHour(link.hour);
+    // Runs when a new area opens; the rest is read fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world.id]);
   // Keep live weather fresh while the tab is visible.
   useEffect(() => {
     if (env.weatherMode !== "forecast" || atlas) return;
@@ -1491,6 +1692,51 @@ export default function App({
                     </button>
                   )}
                 </div>
+                {world.provenance.live && start && end && start !== end && (
+                  <div className="walk-actions">
+                    <button
+                      className="text-button"
+                      onClick={() => void shareWalk()}
+                    >
+                      <Share2 size={14} aria-hidden /> Share walk
+                    </button>
+                    <button className="text-button" onClick={saveCurrentWalk}>
+                      <Bookmark size={14} aria-hidden /> Save walk
+                    </button>
+                  </div>
+                )}
+                {areaWalks.length > 0 && (
+                  <div className="saved-walks">
+                    <div className="field-label">SAVED WALKS</div>
+                    <ul>
+                      {areaWalks.map((w) => (
+                        <li key={w.id}>
+                          <button
+                            onClick={() => {
+                              location.reset();
+                              setStart(w.from);
+                              setEnd(w.to);
+                              setPref(w.pref);
+                            }}
+                          >
+                            <span>
+                              {w.fromLabel.replace(/^Path near /, "")} →{" "}
+                              {w.toLabel.replace(/^Path near /, "")}
+                            </span>
+                            <small>{routeLabels[w.pref]}</small>
+                          </button>
+                          <button
+                            className="remove"
+                            aria-label={`Remove saved walk ${w.fromLabel} to ${w.toLabel}`}
+                            onClick={() => setSavedWalks(removeSavedWalk(w.id))}
+                          >
+                            <X size={13} aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {(location.status || gpsRouteStatus) && (
                   <p className="location-status" role="status">
                     {gpsRouteStatus || location.status}
@@ -1531,6 +1777,7 @@ export default function App({
                   environment={env}
                   origin={world.origin}
                 />
+                <BestTime plan={bestTime} onPick={setLocalHour} />
                 <label className="check">
                   <input
                     type="checkbox"
@@ -2340,6 +2587,16 @@ export default function App({
               <div>
                 <Sun size={18} />
                 <strong>Time of day</strong>
+                <button
+                  className="play-day"
+                  aria-pressed={playing}
+                  aria-label={playing ? "Pause the day" : "Play the day"}
+                  title={`${playing ? "Pause" : "Play"} the day (P)`}
+                  onClick={playDay}
+                >
+                  {playing ? <Pause size={14} /> : <Play size={14} />}
+                  {playing ? "Pause" : "Play the day"}
+                </button>
                 <span>
                   {new Date(env.dateTime).toLocaleString("en-US", {
                     timeZone: world.timezone,
@@ -2357,7 +2614,10 @@ export default function App({
                 max="23.75"
                 step=".25"
                 value={currentHour}
-                onChange={(e) => setLocalHour(+e.target.value)}
+                onChange={(e) => {
+                  setPlaying(false);
+                  setLocalHour(+e.target.value);
+                }}
               />
               <div className="timeline-labels">
                 {[0, 6, 12, 18, 23.75].map((h) => (
@@ -2391,6 +2651,7 @@ export default function App({
           )}
         </div>
       </main>
+      <Shortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <input
         hidden
         ref={upload}

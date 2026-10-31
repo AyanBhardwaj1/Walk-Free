@@ -2363,3 +2363,179 @@ footer {
     display: inline;
   }
 }
+
+/* ===== Best time to go ===== */
+.best-time {
+  margin: 18px 0 6px;
+}
+.best-time-summary {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-36412f, #36412f);
+}
+.best-time-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 78px;
+}
+.best-time-bars button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  background: none;
+}
+.best-time-bars i {
+  display: block;
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.best-time-bars button:hover i,
+.best-time-bars button:focus-visible i,
+.best-time-bars button.best i {
+  opacity: 1;
+}
+.best-time-bars button.best i {
+  outline: 2px solid var(--c-313b30, #313b30);
+  outline-offset: 1px;
+}
+.best-time-bars small {
+  height: 11px;
+  font-size: 9px;
+  color: var(--c-6f7964, #6f7964);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Play the day */
+.play-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  padding: 3px 9px;
+  border: 1px solid var(--c-d5d8cb, #d5d8cb);
+  border-radius: 999px;
+  background: var(--c-fffdf6, #fffdf6);
+  color: var(--c-3f5938, #3f5938);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+}
+.play-day[aria-pressed="true"] {
+  background: var(--c-3f5938, #3f5938);
+  border-color: var(--c-3f5938, #3f5938);
+  color: var(--c-fffdf6, #fffdf6);
+}
+
+/* ===== Share and saved walks ===== */
+.walk-actions {
+  display: flex;
+  gap: 16px;
+  margin: 10px 0 4px;
+}
+.walk-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.saved-walks {
+  margin: 12px 0 4px;
+}
+.saved-walks ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.saved-walks li {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--c-dedfd0, #dedfd0);
+  background: var(--c-fcfaf5, #fcfaf5);
+}
+.saved-walks li > button:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  color: var(--c-313b30, #313b30);
+}
+.saved-walks li > button:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-walks small {
+  flex: none;
+  color: var(--c-5d6853, #5d6853);
+}
+.saved-walks .remove {
+  padding: 0 10px;
+  background: none;
+  color: var(--c-6f7964, #6f7964);
+}
+.saved-walks li > button:hover {
+  background: var(--c-efeee5, #efeee5);
+}
+
+/* ===== Keyboard shortcuts ===== */
+.shortcuts {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px 24px;
+  border: 1px solid var(--c-dcded3, #dcded3);
+  background: var(--c-fffdf6, #fffdf6);
+  color: var(--c-313b30, #313b30);
+  box-shadow: 0 20px 50px var(--c-24382026, #24382026);
+}
+.shortcuts::backdrop {
+  background: rgba(20, 28, 18, 0.35);
+}
+.shortcuts h2 {
+  margin: 0 0 14px;
+  font-family: var(--font-display, "Playfair Display", Georgia, serif);
+  font-weight: 400;
+  font-size: 24px;
+}
+.shortcuts dl {
+  margin: 0 0 18px;
+  display: grid;
+  gap: 8px;
+}
+.shortcuts dl > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.shortcuts dt {
+  width: 36px;
+}
+.shortcuts dd {
+  margin: 0;
+  font-size: 13px;
+}
+.shortcuts kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 3px 7px;
+  border: 1px solid var(--c-d5d8cb, #d5d8cb);
+  border-bottom-width: 2px;
+  background: var(--c-efeee5, #efeee5);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  text-align: center;
+}
