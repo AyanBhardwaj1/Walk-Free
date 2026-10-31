@@ -1,10 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { AddressInfo } from "node:net";
 
 const requestJson = vi.fn();
 vi.mock("../server/network.js", async (original) => ({
   ...(await original<typeof import("../server/network")>()),
   requestJson: (...args: unknown[]) => requestJson(...args),
 }));
+// A private cache folder, so tests never evict (or read) real cached maps.
+vi.stubEnv(
+  "WALK_FREE_CACHE_DIR",
+  mkdtempSync(join(tmpdir(), "walk-free-outlook-")),
+);
 const { getOutlook } = await import("../server/data");
 
 afterEach(() => requestJson.mockReset());
@@ -86,6 +95,24 @@ describe("outlook endpoint data", () => {
     for (const [url] of requestJson.mock.calls) {
       expect(url).toContain(`${Math.floor(lat)}.29`);
       expect(url).not.toMatch(/\.285|\.7345/);
+    }
+  });
+});
+
+describe("/api/outlook", () => {
+  it("asks guests to sign in, so the browser uses the providers directly", async () => {
+    vi.stubEnv("VERCEL", "1");
+    const { app } = await import("../server/index");
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(
+        `http://127.0.0.1:${port}/api/outlook?lat=30.29&lon=-97.73`,
+      );
+      expect(response.status).toBe(401);
+      expect(requestJson).not.toHaveBeenCalled();
+    } finally {
+      server.close();
     }
   });
 });

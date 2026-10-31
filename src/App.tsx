@@ -113,7 +113,7 @@ import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { loadOutlook } from "./lib/outlook-source";
-import { outlookContext, type Outlook } from "../shared/outlook";
+import { activeOutlook, outlookContext, type Outlook } from "../shared/outlook";
 import OutlookNotice from "./components/OutlookNotice";
 import {
   uvLabel,
@@ -326,6 +326,28 @@ export default function App({
   // The assistant reads the latest outlook when it is asked, not a stale one.
   const outlookRef = useRef(outlook);
   outlookRef.current = outlook;
+  const [lat, lon] = [world.origin.lat, world.origin.lon];
+  // Air quality and official alerts for the area shown, whatever the weather
+  // mode, refreshed every 10 minutes. A new area (or undo to another one)
+  // clears the old area's outlook first.
+  useEffect(() => {
+    if (atlas) return;
+    let current = true;
+    setOutlook(null);
+    const refresh = () =>
+      void loadOutlook(
+        { lat, lon },
+        { fetch: window.fetch.bind(window), apiBase: API_BASE },
+      ).then((o) => {
+        if (current) setOutlook(o);
+      });
+    refresh();
+    const timer = window.setInterval(refresh, 10 * 60 * 1000);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+    };
+  }, [lat, lon, atlas]);
   const location = useWalkLocation();
   const tracking = location.mode === "walking";
   const locating = location.mode === "locating";
@@ -885,7 +907,10 @@ export default function App({
             route: quick
               ? `${pref} route, ${Math.round(quick.durationMinutes)} min`
               : undefined,
-            ...outlookContext(outlookRef.current),
+            ...outlookContext(
+              activeOutlook(outlookRef.current),
+              t.world.timezone,
+            ),
             canBuildAreas: true,
           };
         },
@@ -1177,7 +1202,6 @@ export default function App({
         };
       });
       setForecast(null);
-      setOutlook(null);
       void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
         from && to
@@ -1313,13 +1337,6 @@ export default function App({
   ) {
     const working = "Getting live weather…";
     if (!quiet) setBusy(working);
-    // Air quality and alerts load beside the weather and never block it.
-    void loadOutlook(origin, {
-      fetch: window.fetch.bind(window),
-      apiBase: API_BASE,
-    }).then((o) => {
-      if (request === buildRequest.current) setOutlook(o);
-    });
     try {
       const f = await loadWeather(origin, {
         fetch: window.fetch.bind(window),
@@ -1677,7 +1694,11 @@ export default function App({
             tab !== "ask" &&
             tab !== "transit" && (
               <section>
-                <OutlookNotice outlook={outlook} timeZone={world.timezone} />
+                <OutlookNotice
+                  outlook={outlook}
+                  timeZone={world.timezone}
+                  origin={world.origin}
+                />
                 <div className="section-title">
                   <Route size={17} /> Your next walk
                 </div>

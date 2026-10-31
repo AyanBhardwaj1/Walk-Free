@@ -91,14 +91,19 @@ interface AirResponse {
 }
 export function parseAirQuality(data: unknown): AirQuality | null {
   const d = (data ?? {}) as AirResponse;
-  const usAqi = finiteIn(d.current?.us_aqi, 0, 500);
+  // Heavy smoke can push the model past the index's top; that is Hazardous.
+  const aqi = (v: unknown) => {
+    const n = finiteIn(v, 0, 5000);
+    return n === null ? null : Math.min(500, n);
+  };
+  const usAqi = aqi(d.current?.us_aqi);
   const time = gmt(d.current?.time);
   if (usAqi === null || !time) return null;
   const times = Array.isArray(d.hourly?.time) ? d.hourly.time : [];
   const values = Array.isArray(d.hourly?.us_aqi) ? d.hourly.us_aqi : [];
   const hours = times.flatMap((t, i) => {
     const at = gmt(t),
-      v = finiteIn(values[i], 0, 500);
+      v = aqi(values[i]);
     return at && v !== null ? [{ time: at, usAqi: Math.round(v) }] : [];
   });
   const { level, label } = aqiCategory(usAqi);
@@ -160,7 +165,11 @@ export function parseWalkAlerts(data: unknown, now = new Date()) {
 export function outlookAdvice(o: Pick<Outlook, "air" | "alerts">) {
   const heat = o.alerts?.find((a) => a.kind === "heat");
   if (heat)
-    return `${heat.event} in effect from the National Weather Service: walk early or late, take the shadiest or indoor route, and carry water.`;
+    return `${heat.event} in effect from the National Weather Service: walk early or late, take the shadiest or indoor route, and carry water.${
+      o.air && o.air.level >= 3
+        ? ` Air quality is also ${o.air.category.toLowerCase()} (AQI ${o.air.usAqi}).`
+        : ""
+    }`;
   if (o.air && o.air.level >= 3)
     return `Air quality is ${o.air.category.toLowerCase()} (AQI ${o.air.usAqi}): keep walks short and prefer the indoor route.`;
   if (o.air && o.air.level === 2)
@@ -171,8 +180,31 @@ export function outlookAdvice(o: Pick<Outlook, "air" | "alerts">) {
   return null;
 }
 
+/** The outlook without alerts that have ended since it was loaded. */
+export function activeOutlook(o: Outlook | null, now = new Date()) {
+  if (!o?.alerts) return o;
+  return {
+    ...o,
+    alerts: o.alerts.filter(
+      (a) => !a.ends || Date.parse(a.ends) > now.getTime(),
+    ),
+  };
+}
+
+/** An alert's end, in the area's time zone, such as "Wed, Jul 15, 3:00 AM". */
+export function alertEnd(iso: string, timeZone: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 /** Short situation fields for the assistant (bounded like its schema). */
-export function outlookContext(o: Outlook | null) {
+export function outlookContext(o: Outlook | null, timeZone = "UTC") {
   if (!o) return {};
   return {
     ...(o.air
@@ -183,7 +215,10 @@ export function outlookContext(o: Outlook | null) {
     ...(o.alerts?.length
       ? {
           alerts: o.alerts
-            .map((a) => `${a.event}${a.ends ? ` until ${a.ends}` : ""}`)
+            .map(
+              (a) =>
+                `${a.event}${a.ends ? ` until ${alertEnd(a.ends, timeZone)}` : ""}`,
+            )
             .join("; ")
             .slice(0, 400),
         }

@@ -192,6 +192,7 @@ function planner(
     pref: RoutePreference,
     start = from,
     end = to,
+    penalty = sunPenalty,
   ): GraphEdge[] | null {
     if (start === end || !nodeIds.has(start) || !nodeIds.has(end)) return null;
     const d = new Map([[start, 0]]),
@@ -205,7 +206,7 @@ function planner(
         if (pref === "stepfree" && !stepFree(e)) continue;
         const multiplier =
           pref === "shade"
-            ? 1 + (1 - edgeShade(e)) * sunPenalty
+            ? 1 + (1 - edgeShade(e)) * penalty
             : pref === "indoors"
               ? e.indoor === "no"
                 ? 4
@@ -294,7 +295,16 @@ function planner(
         warnings.push("Longer than your detour budget to stay step-free.");
     } else {
       edges ??= quick;
-      if (length(edges) > length(quick) * o.maxDetour) {
+      // A strong sun aversion can push the shade route past the budget; the
+      // default weighting often still fits, which beats the sunniest route.
+      const over = (e: GraphEdge[]) => length(e) > length(quick) * o.maxDetour;
+      if (
+        preference === "shade" &&
+        over(edges) &&
+        sunPenalty > DEFAULT_SUN_AVERSION - 1
+      )
+        edges = solve("shade", from, to, DEFAULT_SUN_AVERSION - 1) ?? edges;
+      if (over(edges)) {
         edges = quick;
         coolStop = undefined;
         warnings.push(

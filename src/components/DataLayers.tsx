@@ -84,7 +84,7 @@ export default function DataLayers({
       detail: outlook?.alerts
         ? outlook.alerts.length
           ? outlook.alerts.map((a) => a.event).join(" · ")
-          : "No heat or air-quality alerts in effect"
+          : "No NWS heat or air-quality alerts in effect (US coverage only)"
         : "Unavailable here or right now",
       ok: !!outlook?.alerts,
     },

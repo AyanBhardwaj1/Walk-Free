@@ -48,9 +48,11 @@ export {
   type OsmResponse,
 } from "../shared/osm.js";
 
-const CACHE_ROOT = process.env.VERCEL
-  ? join(tmpdir(), "walk-free-cache")
-  : join(process.cwd(), ".cache", "walk-free");
+const CACHE_ROOT =
+  process.env.WALK_FREE_CACHE_DIR ||
+  (process.env.VERCEL
+    ? join(tmpdir(), "walk-free-cache")
+    : join(process.cwd(), ".cache", "walk-free"));
 const pending = new Map<string, Promise<unknown>>();
 let activeMapRequests = 0;
 const MAX_MAP_REQUESTS = 2;

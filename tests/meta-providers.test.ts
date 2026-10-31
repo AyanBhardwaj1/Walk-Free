@@ -57,7 +57,7 @@ describe("Meta model providers", () => {
       "accounts/fireworks/models/muse-spark-open",
     );
     expect(model("baseten")).toBe("meta-models/muse-spark-open");
-    expect(model("together")).toBe("meta-models/Muse-Glimmer-30B");
+    expect(model("together")).toBe("meta-models/Muse-Spark-Open-816B-A42B");
     expect(model("deepinfra")).toBe("meta-models/Muse-Glimmer-30B");
   });
 

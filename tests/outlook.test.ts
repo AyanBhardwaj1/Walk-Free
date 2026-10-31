@@ -315,8 +315,51 @@ describe("assistant context", () => {
       PHOENIX_ALERTS,
       new Date("2026-07-14T12:00:00-07:00"),
     );
-    expect(outlookContext({ air: null, alerts }).alerts).toBe(
-      "Extreme Heat Warning until 2026-07-15T10:00:00.000Z; Air Quality Alert until 2026-07-15T07:00:00.000Z",
+    // End times in the area's own time zone, as the assistant speaks them.
+    expect(
+      outlookContext({ air: null, alerts }, "America/Phoenix").alerts,
+    ).toBe(
+      "Extreme Heat Warning until Wed, Jul 15, 3:00 AM; Air Quality Alert until Wed, Jul 15, 12:00 AM",
     );
+  });
+});
+
+describe("review fixes", () => {
+  it("shows AQI past the index as Hazardous instead of hiding it", () => {
+    const air = parseAirQuality({
+      current: { time: "2026-10-31T09:00", us_aqi: 640 },
+      hourly: { time: ["2026-10-31T10:00"], us_aqi: [700] },
+    })!;
+    expect(air).toMatchObject({ usAqi: 500, category: "Hazardous", level: 5 });
+    expect(air.hours[0].usAqi).toBe(500);
+  });
+
+  it("mentions unhealthy air alongside a heat warning", () => {
+    const air = parseAirQuality({
+      current: { time: "2026-10-31T09:00", us_aqi: 180 },
+    });
+    const alerts = parseWalkAlerts(
+      PHOENIX_ALERTS,
+      new Date("2026-07-14T12:00:00-07:00"),
+    );
+    const advice = outlookAdvice({ air, alerts })!;
+    expect(advice).toMatch(/Extreme Heat Warning/);
+    expect(advice).toMatch(/AQI 180/);
+  });
+
+  it("drops alerts that ended since they were loaded", async () => {
+    const { activeOutlook } = await import("../shared/outlook");
+    const alerts = parseWalkAlerts(
+      PHOENIX_ALERTS,
+      new Date("2026-07-14T12:00:00-07:00"),
+    );
+    const later = activeOutlook(
+      { air: null, alerts },
+      new Date("2026-07-15T08:00:00Z"),
+    );
+    expect(later?.alerts?.map((a) => a.event)).toEqual([
+      "Extreme Heat Warning",
+    ]);
+    expect(activeOutlook(null, new Date())).toBeNull();
   });
 });

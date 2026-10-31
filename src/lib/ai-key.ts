@@ -68,7 +68,7 @@ export const AI_PROVIDERS: {
   {
     value: "together",
     label: "Together AI",
-    model: "meta-models/Muse-Glimmer-30B",
+    model: "meta-models/Muse-Spark-Open-816B-A42B",
     keysUrl: "https://api.together.ai/settings/api-keys",
   },
 ];

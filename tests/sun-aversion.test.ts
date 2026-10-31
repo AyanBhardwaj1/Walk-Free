@@ -76,6 +76,47 @@ describe("sun aversion", () => {
     }
   });
 
+  it("never shows a sunnier shade route than the default because of the detour budget", () => {
+    for (const [t, a, b] of pairs)
+      for (const maxDetour of [1.2, 1.5, 1.8])
+        for (const strongAversion of [4, 5, 6]) {
+          const at = (sunAversion: number) =>
+            compareRoutes(w, a, b, {
+              ...base,
+              maxDetour,
+              environment: env(t),
+              sunAversion,
+            }).shade;
+          const strong = at(strongAversion),
+            normal = at(3);
+          if (!strong || !normal) continue;
+          expect(
+            strong.distance * (1 - strong.shadeFraction),
+          ).toBeLessThanOrEqual(
+            normal.distance * (1 - normal.shadeFraction) + 1e-6,
+          );
+        }
+  });
+
+  it("uses the default shade route, not the quickest, when a strong one is too long", () => {
+    // At the default budget this walk's strong-aversion route is too long.
+    const at = (sunAversion: number) =>
+      compareRoutes(w, "market-gate", "pond-deck", {
+        ...base,
+        maxDetour: 1.8,
+        environment: env("2026-06-21T15:00:00Z"),
+        sunAversion,
+      }).shade!;
+    const normal = at(3);
+    expect(normal.warnings).toEqual([]);
+    for (const strong of [4, 6]) {
+      expect(at(strong).warnings).toEqual([]);
+      expect(at(strong).edges.map((e) => e.id)).toEqual(
+        normal.edges.map((e) => e.id),
+      );
+    }
+  });
+
   it("keeps the setting in range", () => {
     expect(clampSunAversion(0)).toBe(1);
     expect(clampSunAversion(-5)).toBe(1);
