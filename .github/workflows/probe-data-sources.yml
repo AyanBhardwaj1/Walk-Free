@@ -4,6 +4,10 @@ name: Probe data sources
 # answer, and prints each response's shape. Run by hand from the Actions tab.
 on:
   workflow_dispatch:
+  # Also when this file changes, so a branch can run it before main has it.
+  push:
+    paths:
+      - .github/workflows/probe-data-sources.yml
 
 jobs:
   probe:
