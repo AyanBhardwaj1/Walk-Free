@@ -7,7 +7,7 @@ import type {
 import { routePreferences } from "../lib/routing";
 import { routeHeat, toF } from "../lib/heat";
 
-const labels: Record<RoutePreference, string> = {
+export const routeLabels: Record<RoutePreference, string> = {
   quickest: "Quickest",
   shade: "More shade",
   scenic: "Scenic",
@@ -73,7 +73,7 @@ export default function RouteChoices({
             onClick={() => onSelect(preference)}
             disabled={!route}
           >
-            <strong>{labels[preference]}</strong>
+            <strong>{routeLabels[preference]}</strong>
             {route ? (
               <>
                 <span className="choice-time">

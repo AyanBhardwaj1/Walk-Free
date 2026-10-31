@@ -14,6 +14,8 @@ import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
+import { sc, sceneTheme, setSceneTheme } from "../lib/scene-theme";
+import type { ThemeName } from "../lib/theme";
 /** Screen space covered by panels, in CSS pixels, so the map frames around it. */
 export interface MapInsets {
   left: number;
@@ -132,7 +134,7 @@ function WalkingPaths({
         onClick([e.point.x, e.point.z]);
       }}
     >
-      <lineBasicMaterial color="#699271" transparent opacity={0.65} />
+      <lineBasicMaterial color={sc("#699271")} transparent opacity={0.65} />
     </lineSegments>
   );
 }
@@ -193,7 +195,7 @@ function HeatPaths({
         }}
       />
       {highlight.length > 0 && (
-        <Line points={highlight} segments color="#1f2a1c" lineWidth={7} />
+        <Line points={highlight} segments color={sc("#1f2a1c")} lineWidth={7} />
       )}
     </>
   );
@@ -215,10 +217,20 @@ function Roads({ world }: { world: World }) {
   return (
     <>
       {batches.road.length > 0 && (
-        <Line points={batches.road} segments color="#faf7ed" lineWidth={5} />
+        <Line
+          points={batches.road}
+          segments
+          color={sc("#faf7ed")}
+          lineWidth={5}
+        />
       )}
       {batches.path.length > 0 && (
-        <Line points={batches.path} segments color="#dfd4bd" lineWidth={2} />
+        <Line
+          points={batches.path}
+          segments
+          color={sc("#dfd4bd")}
+          lineWidth={2}
+        />
       )}
     </>
   );
@@ -255,7 +267,7 @@ function Ground({
         onClick([e.point.x, e.point.z]);
       }}
     >
-      <meshStandardMaterial color="#e5e1d5" roughness={1} />
+      <meshStandardMaterial color={sc("#e5e1d5")} roughness={1} />
     </mesh>
   );
 }
@@ -288,14 +300,14 @@ function Endpoint({
     canvas.width = 256;
     canvas.height = 112;
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = label === "Start" ? "#3f5938" : "#a55c32";
-    ctx.strokeStyle = "#fffdf4";
+    ctx.fillStyle = label === "Start" ? sc("#3f5938") : sc("#a55c32");
+    ctx.strokeStyle = sc("#fffdf4");
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.roundRect(4, 4, 248, 104, 48);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = sc("#ffffff");
     ctx.font = "500 48px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -303,14 +315,16 @@ function Endpoint({
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
     return map;
-  }, [label]);
+    // The label is drawn in the scene's colours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [label, sceneTheme()]);
   useEffect(() => () => texture.dispose(), [texture]);
   return (
     <group position={[point[0], terrainHeight(point, terrain) + 4, point[1]]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[5, 9, 32]} />
         <meshBasicMaterial
-          color={label === "Start" ? "#3f5938" : "#b46539"}
+          color={label === "Start" ? sc("#3f5938") : sc("#b46539")}
           depthTest={false}
         />
       </mesh>
@@ -349,6 +363,7 @@ export default function WorldCanvas({
   heat,
   onHeatSelect,
   insets = NO_INSETS,
+  theme = "editorial",
 }: {
   world: World;
   environment: Environment;
@@ -367,7 +382,11 @@ export default function WorldCanvas({
   onHeatSelect?: (edgeId: string, point: Point) => void;
   /** Panels over the map; the camera frames the area beside them. */
   insets?: MapInsets;
+  /** Interface style; the scene's colours follow it. */
+  theme?: ThemeName;
 }) {
+  // Children read the scene style while rendering (see lib/scene-theme).
+  setSceneTheme(theme);
   const sun = sunDirection(environment, world.origin);
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
@@ -402,7 +421,7 @@ export default function WorldCanvas({
         insets={insets}
         focus={startPoint && endPoint ? [startPoint, endPoint] : []}
       />
-      <color attach="background" args={["#eeece3"]} />
+      <color attach="background" args={[sc("#eeece3")]} />
       <ambientLight intensity={1.1} />
       <hemisphereLight args={["#fff7e2", "#9aab91", 1.2]} />
       <directionalLight
@@ -422,7 +441,7 @@ export default function WorldCanvas({
         <Area
           key={l.id}
           points={l.points}
-          color={l.kind === "water" ? "#a5bcba" : "#bdc6a0"}
+          color={l.kind === "water" ? sc("#a5bcba") : sc("#bdc6a0")}
         />
       ))}
       <Roads world={world} />
@@ -501,7 +520,7 @@ export default function WorldCanvas({
                 terrainHeight(p, world.terrain) + 3,
                 p[1],
               ])}
-              color="#fffdf4"
+              color={sc("#fffdf4")}
               lineWidth={10}
             />
             <Line
@@ -510,7 +529,7 @@ export default function WorldCanvas({
                 terrainHeight(p, world.terrain) + 3.2,
                 p[1],
               ])}
-              color="#1d3557"
+              color={sc("#1d3557")}
               lineWidth={5}
             />
           </>
@@ -521,7 +540,7 @@ export default function WorldCanvas({
               terrainHeight(p, world.terrain) + 3,
               p[1],
             ])}
-            color="#d57b48"
+            color={sc("#d57b48")}
             lineWidth={5}
           />
         ))}
@@ -542,7 +561,7 @@ export default function WorldCanvas({
           renderOrder={11}
         >
           <circleGeometry args={[6, 24]} />
-          <meshBasicMaterial color="#3479bf" depthTest={false} />
+          <meshBasicMaterial color={sc("#3479bf")} depthTest={false} />
         </mesh>
       )}
       <OrbitControls

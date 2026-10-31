@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import Website from "./Website";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./style.css";
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>

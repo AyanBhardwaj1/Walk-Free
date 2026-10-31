@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import type { Point, RouteResult, World } from "../../shared/types";
 import { baseEdgeId } from "../lib/walk-location";
+import { sc, setSceneTheme } from "../lib/scene-theme";
+import type { ThemeName } from "../lib/theme";
 
 /**
  * A flat, north-up walking map: lighter on battery than the 3D scene and
  * easy to read in sunlight. Follows the walker when a location is known.
  */
 const ZOOMS = [0.6, 1, 1.6, 2.6, 4];
-const COLORS = {
+const PALETTE = {
   ground: "#f3f1e8",
   building: "#dcd6c6",
   road: "#ffffff",
@@ -31,6 +33,7 @@ export default function WalkMap2D({
   end,
   edgeColors,
   insets,
+  theme = "editorial",
 }: {
   world: World;
   route: RouteResult | null;
@@ -42,7 +45,10 @@ export default function WalkMap2D({
   edgeColors?: Map<string, string> | null;
   /** Panels over the map; the route centres in the space beside them. */
   insets?: { left: number; bottom: number; top: number };
+  /** Interface style; the map's colours follow it. */
+  theme?: ThemeName;
 }) {
+  setSceneTheme(theme);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(2);
@@ -78,6 +84,12 @@ export default function WalkMap2D({
     c.height = size.height * dpr;
     const g = c.getContext("2d");
     if (!g) return;
+    const COLORS = Object.fromEntries(
+      Object.entries(PALETTE).map(([k, v]) => [
+        k,
+        v.startsWith("#") ? sc(v) : v,
+      ]),
+    ) as typeof PALETTE;
     const scale = ZOOMS[zoom] * dpr;
     const shiftX = ((insets?.left ?? 0) / 2) * dpr;
     const shiftY = (((insets?.top ?? 0) - (insets?.bottom ?? 0)) / 2) * dpr;
@@ -157,7 +169,7 @@ export default function WalkMap2D({
       if (!p) return;
       const [x, y] = toScreen(p);
       g.fillStyle = color;
-      g.strokeStyle = "#ffffff";
+      g.strokeStyle = sc("#ffffff");
       g.lineWidth = 3 * dpr;
       g.beginPath();
       g.arc(x, y, radius * dpr, 0, Math.PI * 2);
@@ -188,6 +200,7 @@ export default function WalkMap2D({
     zoom,
     size,
     insets,
+    theme,
   ]);
   return (
     <div className="walk-map">
