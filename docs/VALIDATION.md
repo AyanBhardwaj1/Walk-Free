@@ -107,3 +107,9 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - `npm test`: 170 pass; `npm run lint`, `npm run build` clean. Coverage of the changed modules is 82–100% of lines, including the canopy reader (tested with an in-memory GeoTIFF served over HTTP ranges).
 - Independent review of the round (verdict WARNING, all addressed): an unreadable saved scene is now set aside once and saving resumes; sign-in and code checks count only failed attempts per client and email, so no one can lock someone else out (verified: 7 good sign-ins in a row succeed, the 6th wrong password gets 429); search counts names a result isn't about at half weight, so Berkeley "durant", "bancroft" and "college" return only places named for the query; shade never feels cooler than the air in very dry heat. One result per street label is kept on purpose; intersections still list separately.
 - Not verified here: live provider calls, Neon Auth's own throttling and whether it issues sessions before email verification, and real GPS walking.
+
+## Interface styles and new walking features — 2026-10-31
+
+- Styles: Editorial (unchanged), Night, Sunlight and Blueprint. `npm test` holds every style to WCAG AA for body text, secondary text, button labels and the selected route card, and Sunlight to AAA; Editorial's colours are checked identical. Chromium screenshots at 1440 px and 390 px in each style showed no overflow or page errors; a first version made Sunlight's selected route card unreadable (a pale grey was both a border and a fill), fixed by giving colour tokens roles.
+- Best time to go, Play the day, Save walk, Share walk (link opened in a fresh browser restores the campus, endpoints, route type and hour, then clears itself from the address bar) and the shortcuts (/, P, S, V, ?; none fire while typing) were exercised in Chromium against the dev server.
+- `npm test`: 185 pass; lint and build clean.
