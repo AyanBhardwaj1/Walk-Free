@@ -20,6 +20,14 @@ import {
   type OpenMeteoResponse,
 } from "../shared/weather.js";
 import {
+  airQualityUrl,
+  coarse,
+  nwsAlertsUrl,
+  parseAirQuality,
+  parseWalkAlerts,
+  type Outlook,
+} from "../shared/outlook.js";
+import {
   MAX_TILED_ELEMENTS,
   areaTiles,
   mergeOsm,
@@ -40,9 +48,11 @@ export {
   type OsmResponse,
 } from "../shared/osm.js";
 
-const CACHE_ROOT = process.env.VERCEL
-  ? join(tmpdir(), "walk-free-cache")
-  : join(process.cwd(), ".cache", "walk-free");
+const CACHE_ROOT =
+  process.env.WALK_FREE_CACHE_DIR ||
+  (process.env.VERCEL
+    ? join(tmpdir(), "walk-free-cache")
+    : join(process.cwd(), ".cache", "walk-free"));
 const pending = new Map<string, Promise<unknown>>();
 let activeMapRequests = 0;
 const MAX_MAP_REQUESTS = 2;
@@ -489,4 +499,62 @@ export async function getCanopy(
   } finally {
     canopyPending.delete(key);
   }
+}
+
+const OUTLOOK_TTL_MS = 10 * 60 * 1000;
+/** Loads one outlook part, caching only real answers (a failure is retried). */
+async function outlookPart<T>(
+  key: string,
+  load: () => Promise<T | null>,
+): Promise<T | null> {
+  try {
+    return await cached(key, OUTLOOK_TTL_MS, async () => {
+      const value = await load();
+      if (value === null)
+        throw new ServiceError("NO_DATA", "No usable answer.");
+      return value;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Air quality and active NWS heat/air alerts near a point. Each part is
+ * fetched and cached on its own, so one failing source never hides the other.
+ */
+export async function getOutlook(
+  lat: number,
+  lon: number,
+  now = new Date(),
+): Promise<Outlook> {
+  const at = `${coarse(lat)}-${coarse(lon)}`;
+  const [air, alerts] = await Promise.all([
+    outlookPart(`air-v1-${at}`, async () =>
+      parseAirQuality(
+        await requestJson(airQualityUrl(lat, lon), {
+          timeoutMs: 10_000,
+          maxBytes: 200_000,
+        }),
+      ),
+    ),
+    outlookPart(`alerts-v1-${at}`, async () =>
+      parseWalkAlerts(
+        await requestJson(nwsAlertsUrl(lat, lon), {
+          timeoutMs: 10_000,
+          maxBytes: 2_000_000,
+          headers: { Accept: "application/geo+json" },
+        }),
+        now,
+      ),
+    ),
+  ]);
+  return {
+    air,
+    // Cached alerts can run out while cached.
+    alerts:
+      alerts?.filter((a) => !a.ends || Date.parse(a.ends) > now.getTime()) ??
+      null,
+    fetchedAt: now.toISOString(),
+  };
 }

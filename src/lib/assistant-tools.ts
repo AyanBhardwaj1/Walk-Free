@@ -32,6 +32,8 @@ export interface ToolHost {
   forecast: WeatherForecast | null;
   catalog: Destination[];
   myLocationNodeId: string | null;
+  /** The person's sun-aversion setting, so tool routes match the map's. */
+  sunAversion?: number;
   showRoute(r: {
     start: string;
     end: string;
@@ -178,6 +180,7 @@ export async function runTool(
         maxDetour: 1.8,
         environment: env,
         coolStops: openCoolStops(host.world, env),
+        sunAversion: host.sunAversion,
       });
       if (!options.quickest)
         return { error: "Those places are not connected by mapped paths." };

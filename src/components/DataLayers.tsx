@@ -1,5 +1,6 @@
 import { CheckCircle2, CircleDashed } from "lucide-react";
 import type { Environment, WeatherForecast, World } from "../../shared/types";
+import type { Outlook } from "../../shared/outlook";
 
 /**
  * Every source behind the current map, with what it contributed, so people
@@ -9,10 +10,12 @@ export default function DataLayers({
   world,
   env,
   forecast,
+  outlook = null,
 }: {
   world: World;
   env: Environment;
   forecast: WeatherForecast | null;
+  outlook?: Outlook | null;
 }) {
   const count = (n: number) => new Intl.NumberFormat("en-US").format(n);
   const trees = world.objects.filter((o) => o.kind === "tree");
@@ -41,7 +44,7 @@ export default function DataLayers({
     },
     {
       name: "Tree canopy",
-      source: "Meta & WRI canopy height map (1 m)",
+      source: "Meta & WRI canopy height map (1 m, from Meta's DINOv3)",
       detail: canopy
         ? `${count(canopy)} crowns where no tree is mapped`
         : world.provenance.live
@@ -66,6 +69,24 @@ export default function DataLayers({
           : "Sunlight estimated from sun height and cloud"
         : "Set by hand on the Climate tab",
       ok: !!live,
+    },
+    {
+      name: "Air quality",
+      source: "Open-Meteo air quality (CAMS model, about 40 km grid)",
+      detail: outlook?.air
+        ? `US AQI ${outlook.air.usAqi} · ${outlook.air.category}${outlook.air.pm25 !== null ? ` · PM2.5 ${outlook.air.pm25} µg/m³` : ""}`
+        : "Unavailable right now",
+      ok: !!outlook?.air,
+    },
+    {
+      name: "Official heat and air alerts",
+      source: "National Weather Service (US only)",
+      detail: outlook?.alerts
+        ? outlook.alerts.length
+          ? outlook.alerts.map((a) => a.event).join(" · ")
+          : "No NWS heat or air-quality alerts in effect (US coverage only)"
+        : "Unavailable here or right now",
+      ok: !!outlook?.alerts,
     },
   ];
   return (

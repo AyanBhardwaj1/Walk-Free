@@ -11,7 +11,7 @@ const examplePath = fileURLToPath(new URL("../.env.example", import.meta.url));
 try {
   copyFileSync(examplePath, envPath, constants.COPYFILE_EXCL);
   if (process.platform !== "win32") chmodSync(envPath, 0o600);
-  console.log("Created private .env configuration. Set WALK_FREE_OPENAI_API_KEY there to enable the assistant.");
+  console.log("Created private .env configuration. Set WALK_FREE_OPENAI_API_KEY (OpenAI) or WALK_FREE_AI_API_KEY with WALK_FREE_AI_BASE_URL=https://api.meta.ai/v1 (Meta Muse Spark) there to enable the assistant.");
 } catch (error) {
   if (error.code !== "EEXIST") throw error;
   console.log("Kept your existing .env unchanged.");

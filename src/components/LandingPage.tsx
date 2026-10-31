@@ -438,7 +438,7 @@ const FAQ = [
   },
   {
     q: "Can I use my own AI key?",
-    a: "Yes. Add an OpenAI, Meta Llama API, Fireworks, Baseten, OpenRouter or Together key in the assistant's settings. It stays in your browser and is used only for your requests; it's never saved on our servers.",
+    a: "Yes. Add a Meta Model API (Muse Spark), OpenAI, DeepInfra, Fireworks, Baseten, OpenRouter, Together or legacy Meta Llama API key in the assistant's settings. It stays in your browser and is used only for your requests; it's never saved on our servers.",
   },
   {
     q: "What happens to my location?",
@@ -688,8 +688,8 @@ export default function LandingPage({
               trees, then explains in a sentence or two, out loud if you like.
             </p>
             <p className="ask-key">
-              <KeyRound size={16} /> Bring your own AI key (OpenAI, Meta Llama
-              API and others). It stays in your browser.
+              <KeyRound size={16} /> Bring your own AI key (Meta Model API,
+              OpenAI and others). It stays in your browser.
             </p>
           </div>
           <ChatDemo />

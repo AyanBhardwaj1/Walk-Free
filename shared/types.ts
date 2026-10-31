@@ -144,6 +144,11 @@ export interface RouteOptions {
   environment: Environment;
   /** Air-conditioned buildings (by nearest path node) the walk may pass through. */
   coolStops?: { nodeId: string; name: string }[];
+  /**
+   * How many metres of sun one metre of shade is worth avoiding, 1-6
+   * (CoolWalks' "sun aversion"); 3 when unset.
+   */
+  sunAversion?: number;
 }
 export interface RouteResult {
   id: string;

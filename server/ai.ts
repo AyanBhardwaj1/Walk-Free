@@ -3,8 +3,9 @@ import { requestJson, ServiceError } from "./network.js";
 
 /**
  * One OpenAI-compatible chat endpoint for every assistant feature. OpenAI is
- * the default; pointing WALK_FREE_AI_BASE_URL and WALK_FREE_AI_MODEL at another
- * compatible provider (such as Meta's Model API) needs no code change.
+ * the default; pointing WALK_FREE_AI_BASE_URL at another compatible provider
+ * (such as Meta's Model API, https://api.meta.ai/v1, which then defaults to
+ * Muse Spark) needs no code change.
  */
 export interface AiConfig {
   baseUrl: string;
@@ -19,15 +20,18 @@ export function aiConfig(): AiConfig | null {
     process.env.WALK_FREE_OPENAI_API_KEY ||
     process.env.OPENAI_API_KEY;
   if (!key) return null;
+  const baseUrl = (
+    process.env.WALK_FREE_AI_BASE_URL || "https://api.openai.com/v1"
+  ).replace(/\/$/, "");
   return {
     key,
-    baseUrl: (
-      process.env.WALK_FREE_AI_BASE_URL || "https://api.openai.com/v1"
-    ).replace(/\/$/, ""),
+    baseUrl,
     model:
       process.env.WALK_FREE_AI_MODEL ||
       process.env.WALK_FREE_OPENAI_MODEL ||
-      "gpt-5-mini",
+      (baseUrl === USER_AI_PROVIDERS["meta-model"]
+        ? "muse-spark-1.3"
+        : "gpt-5-mini"),
   };
 }
 
@@ -36,8 +40,12 @@ export function aiConfig(): AiConfig | null {
  * server from being pointed at arbitrary (or internal) addresses.
  */
 export const USER_AI_PROVIDERS = {
+  /** Meta Model API: Muse Spark and the other Muse models. */
+  "meta-model": "https://api.meta.ai/v1",
   openai: "https://api.openai.com/v1",
+  /** Meta's earlier Llama API, which Meta is winding down. */
   meta: "https://api.llama.com/compat/v1",
+  deepinfra: "https://api.deepinfra.com/v1/openai",
   fireworks: "https://api.fireworks.ai/inference/v1",
   baseten: "https://inference.baseten.co/v1",
   openrouter: "https://openrouter.ai/api/v1",
@@ -369,7 +377,7 @@ export function requireAi(): AiConfig {
   if (!config)
     throw new ServiceError(
       "KEY_REQUIRED",
-      "The assistant isn't configured yet. Set WALK_FREE_OPENAI_API_KEY on the server.",
+      "The assistant isn't configured yet. Set WALK_FREE_AI_API_KEY (and WALK_FREE_AI_BASE_URL for a provider other than OpenAI) on the server.",
       503,
     );
   return config;
