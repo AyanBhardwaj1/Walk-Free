@@ -113,7 +113,7 @@ nav button {
   background: none;
   position: relative;
   padding: 0 3px;
-  color: var(--c-fg-8b9085, #8b9085);
+  color: var(--c-fg-5d6853, #5d6853);
 }
 nav button.active {
   color: var(--c-fg-314730, #314730);

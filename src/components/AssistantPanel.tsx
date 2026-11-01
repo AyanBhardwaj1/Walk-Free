@@ -139,7 +139,15 @@ export default function AssistantPanel({
         Plan a cooler walk, find out where and when it gets hot, or sketch a
         greener street — in plain words or by voice.
       </p>
-      <div className="chat-log" aria-live="polite">
+      <div
+        className="chat-log"
+        aria-live="polite"
+        aria-label="Conversation"
+        role="log"
+        // Scrollable, so keyboard users can reach and scroll it.
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
+      >
         {shown.length === 0 && (
           <div className="chat-suggestions">
             {suggestions.map((s) => (

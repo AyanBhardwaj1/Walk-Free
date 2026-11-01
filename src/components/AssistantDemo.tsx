@@ -63,7 +63,15 @@ export default function AssistantDemo({
             : "Watch what it does"}
       </button>
       {turns.length > 0 && (
-        <div className="chat-log" aria-live="polite">
+        <div
+          className="chat-log"
+          aria-live="polite"
+          aria-label="Demo conversation"
+          role="log"
+          // Scrollable, so keyboard users can reach and scroll it.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+        >
           {turns.map((t, i) => (
             <div key={i}>
               <p className="chat-user">{t.ask}</p>

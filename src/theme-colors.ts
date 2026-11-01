@@ -92,7 +92,6 @@ export const THEME_COLORS = [
   "fg-8a5a17",
   "fg-8a5f35",
   "fg-8b9080",
-  "fg-8b9085",
   "fg-8b9182",
   "fg-8b9381",
   "fg-8b967e",
