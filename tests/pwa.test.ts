@@ -26,6 +26,14 @@ describe("installable app", () => {
       );
   });
 
+  it("has a link preview image that exists", () => {
+    const html = read("index.html");
+    expect(html).toContain(
+      'property="og:image" content="https://walk-free.vercel.app/og.png"',
+    );
+    expect(existsSync(new URL("../public/og.png", import.meta.url))).toBe(true);
+  });
+
   it("links the manifest and icons from the page", () => {
     const html = read("index.html");
     expect(html).toContain('rel="manifest" href="/manifest.webmanifest"');
