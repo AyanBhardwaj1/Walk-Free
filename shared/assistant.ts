@@ -115,6 +115,23 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "compare_walks",
+      description:
+        "How much shade routing helps in the loaded area at an hour: over a fixed sample of walks, the share of the sun the shade route avoids, minutes saved and extra distance. Use for 'how shade-friendly is this campus?'.",
+      parameters: {
+        type: "object",
+        properties: {
+          hour: {
+            type: "number",
+            description: "Local hour 0-23.75; the time shown if omitted.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "set_time",
       description: "Move the time-of-day slider to a local hour (0-23.75).",
       parameters: {

@@ -937,6 +937,7 @@ export default function App({
             {
               plan_route: "Planning routes…",
               best_time_to_leave: "Finding the coolest hour…",
+              compare_walks: "Comparing walks…",
               heat_ranking: "Ranking heat…",
               place_heat: "Checking the heat…",
               build_area: "Building the area…",

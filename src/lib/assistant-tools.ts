@@ -10,6 +10,7 @@ import { searchVariants } from "../../shared/aliases.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
 import { bestTimeToLeave } from "./best-time.js";
+import { coolWalkability } from "./cool-walkability.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -72,6 +73,7 @@ const schemas = {
     hour: hour.optional(),
   }),
   set_time: z.object({ hour }),
+  compare_walks: z.object({ hour: hour.optional() }),
   best_time_to_leave: z.object({
     from: z.string().min(1).max(120),
     to: z.string().min(1).max(120),
@@ -321,6 +323,23 @@ export async function runTool(
           leave_at: at(h.hour),
           feels_like_f: deg(h.feelsLikeC),
         })),
+      };
+    }
+    case "compare_walks": {
+      const env = envAt(host, a.hour as number | undefined);
+      const r = await coolWalkability(host.scene ?? host.world, env, {
+        pairs: 16,
+        sunAversion: host.sunAversion,
+      });
+      if (!r) return { error: "This map has no connected walks to compare." };
+      return {
+        at: clockLabel(env.dateTime, host.world.timezone),
+        sample_walks: r.walks,
+        sun_avoided_percent: r.score,
+        shaded_percent_quickest: Math.round(r.quickShare * 100),
+        shaded_percent_shade_route: Math.round(r.shadeShare * 100),
+        sun_minutes_saved_per_walk: Math.round(r.sunMinutesSaved * 10) / 10,
+        extra_distance_percent: Math.max(0, Math.round(r.extraDistance * 100)),
       };
     }
     case "set_time": {

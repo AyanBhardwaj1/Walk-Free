@@ -99,3 +99,23 @@ describe("best_time_to_leave tool", () => {
     expect(r.error).toMatch(/No start matching/);
   });
 });
+
+describe("compare_walks tool", () => {
+  it("reports how much sun shade routing avoids here", async () => {
+    const { h } = host("2026-07-15T16:00:00Z");
+    const r = (await runTool(
+      h,
+      "compare_walks",
+      JSON.stringify({ hour: 15 }),
+    )) as {
+      at: string;
+      sample_walks: number;
+      sun_avoided_percent: number;
+      sun_minutes_saved_per_walk: number;
+    };
+    expect(r.at).toMatch(/3:00 PM/);
+    expect(r.sample_walks).toBeGreaterThan(10);
+    expect(r.sun_avoided_percent).toBeGreaterThan(0);
+    expect(r.sun_minutes_saved_per_walk).toBeGreaterThan(0);
+  }, 30000);
+});
