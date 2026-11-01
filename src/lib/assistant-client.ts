@@ -15,6 +15,11 @@ export interface ChatContext {
   localTime: string;
   weather: string;
   route?: string;
+  airQuality?: string;
+  alerts?: string;
+  heatRisk?: string;
+  /** The person's chosen unit, so replies match the screen. */
+  temperatureUnit?: "F" | "C";
   canBuildAreas: boolean;
 }
 type Post = (

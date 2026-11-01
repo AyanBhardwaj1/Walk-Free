@@ -43,6 +43,24 @@ describe("assistant language and outlook context", () => {
     ).toThrow();
   });
 
+  it("passes the person's temperature unit and tells the model to use it", () => {
+    expect(
+      chatRequestSchema.parse({
+        messages,
+        context: { ...context, temperatureUnit: "C" },
+      }).context.temperatureUnit,
+    ).toBe("C");
+    expect(() =>
+      chatRequestSchema.parse({
+        messages,
+        context: { ...context, temperatureUnit: "K" },
+      }),
+    ).toThrow();
+    expect(SYSTEM_PROMPT).toMatch(
+      /temperatureUnit is C, give temperatures in °C/,
+    );
+  });
+
   it("still accepts the old situation shape", () => {
     expect(chatRequestSchema.parse({ messages, context }).context).toEqual(
       context,
