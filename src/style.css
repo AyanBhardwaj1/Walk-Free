@@ -1114,7 +1114,7 @@ footer {
 .heat-hint {
   font-size: 11px;
   line-height: 1.6;
-  color: var(--c-fg-6f7964, #6f7964);
+  color: var(--c-fg-5d6853, #5d6853);
   background: var(--c-bg-efeee5, #efeee5);
   padding: 10px 12px;
   margin: 0 0 14px;
@@ -2706,10 +2706,33 @@ footer {
 .heatrisk-swatch {
   display: block;
   width: 100%;
-  height: 8px;
+  height: 10px;
 }
 .heatrisk-week small {
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--c-fg-5d6853, #5d6853);
   line-height: 1.2;
+}
+/* Numbers that sit side by side line up. */
+.heatrisk-week li,
+.coolwalk,
+.outlook-notice small {
+  font-variant-numeric: tabular-nums;
+}
+/* Scrolling inside a pane or dialog doesn't scroll the page behind it. */
+.chat-log,
+.proposal-text,
+dialog.shortcuts {
+  overscroll-behavior: contain;
+}
+dialog.shortcuts h2 {
+  text-wrap: balance;
+}
+
+.icon-button.unit-toggle {
+  color: var(--c-fg-313b30, #313b30);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }

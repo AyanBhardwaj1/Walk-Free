@@ -22,22 +22,25 @@ export default function HeatRiskWeek({
       </div>
       <ol>
         {risk.days.map((d) => (
-          <li key={d.day}>
+          <li
+            key={d.day}
+            aria-label={`${day(d.date)}: HeatRisk ${d.level}, ${d.label}`}
+            title={`${d.level} · ${d.label}`}
+          >
             <span
               className="heatrisk-swatch"
               style={{ background: HEAT_RISK_LEVELS[d.level].color }}
               aria-hidden
             />
-            <strong>{day(d.date)}</strong>
-            <small>
-              {d.level} · {d.label}
-            </small>
+            <strong aria-hidden>{day(d.date)}</strong>
+            <small aria-hidden>{d.level}</small>
           </li>
         ))}
       </ol>
       <p className="fine">
-        National Weather Service HeatRisk (experimental): 0 little to none, 4
-        extreme. It accounts for how unusual the heat is and for warm nights.
+        National Weather Service HeatRisk (experimental): 0 little to none, 1
+        minor, 2 moderate, 3 major, 4 extreme. It accounts for how unusual the
+        heat is and for warm nights.
       </p>
     </section>
   );

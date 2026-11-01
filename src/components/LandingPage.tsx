@@ -626,7 +626,7 @@ export default function LandingPage({
                 style={{ transitionDelay: `${i * 90}ms` }}
               >
                 <span className="step-number">0{i + 1}</span>
-                <s.icon size={24} />
+                <s.icon size={24} aria-hidden />
                 <h3>{s.title}</h3>
                 <p>{s.text}</p>
               </li>
@@ -644,7 +644,7 @@ export default function LandingPage({
                 className={`feature-visual tone-${f.tone}`}
                 aria-hidden="true"
               >
-                <f.icon size={46} strokeWidth={1.2} />
+                <f.icon size={46} strokeWidth={1.2} aria-hidden />
                 {f.tone === "routes" && (
                   <div className="feature-chips">
                     {ROUTE_TYPES.map((r) => (
@@ -751,7 +751,9 @@ export default function LandingPage({
 
         <section className="landing-how landing-meta" id="built-with-meta">
           <div className="section-intro reveal">
-            <span className="landing-eyebrow">BUILT WITH META AI</span>
+            <span className="landing-eyebrow" translate="no">
+              BUILT WITH META AI
+            </span>
             <h2>
               Meta's models and maps,
               <br />
@@ -777,7 +779,7 @@ export default function LandingPage({
                 key={s.title}
                 style={{ transitionDelay: `${i * 90}ms` }}
               >
-                <s.icon size={24} />
+                <s.icon size={24} aria-hidden />
                 <h3>{s.title}</h3>
                 <p>{s.text}</p>
               </li>
