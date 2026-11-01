@@ -36,3 +36,12 @@ export function sunAhead(
     sunMinutesLeft: Math.round((sun / WALK_M_PER_MIN) * 10) / 10,
   };
 }
+
+/** A short spoken hint to add to a turn, when shade is close ahead. */
+export function spokenShadeHint(ahead: ReturnType<typeof sunAhead>) {
+  if (!ahead || ahead.inShade || ahead.shadeInM === null) return "";
+  if (ahead.shadeInM > 300) return "";
+  return ahead.shadeInM < 20
+    ? " Shade just ahead."
+    : ` Shade in ${Math.round(ahead.shadeInM / 10) * 10} metres.`;
+}

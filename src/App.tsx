@@ -89,7 +89,7 @@ import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
-import { sunAhead } from "./lib/sun-ahead";
+import { spokenShadeHint, sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import {
@@ -1502,7 +1502,8 @@ export default function App({
     }
     if (voice && text !== lastSpoken.current) {
       lastSpoken.current = text;
-      speak(text);
+      // With each new turn, say when shade is close ahead.
+      speak(text + spokenShadeHint(ahead));
     }
     // `location` is a fresh object every render; its fix and stop are what
     // this effect uses.

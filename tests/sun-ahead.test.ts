@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sunAhead } from "../src/lib/sun-ahead";
+import { spokenShadeHint, sunAhead } from "../src/lib/sun-ahead";
 
 const edges = (...parts: [string, number][]) =>
   parts.map(([id, distance]) => ({ id, distance }));
@@ -48,5 +48,24 @@ describe("sun ahead on a walk", () => {
 
   it("returns nothing for an empty route", () => {
     expect(sunAhead([], shade({}))).toBeNull();
+  });
+});
+
+describe("spoken shade hint", () => {
+  const ahead = (inShade: boolean, shadeInM: number | null) => ({
+    inShade,
+    shadeInM,
+    shadeForM: null,
+    sunMinutesLeft: 1,
+  });
+  it("mentions close shade, rounded to 10 m", () => {
+    expect(spokenShadeHint(ahead(false, 84))).toBe(" Shade in 80 metres.");
+    expect(spokenShadeHint(ahead(false, 12))).toBe(" Shade just ahead.");
+  });
+  it("stays quiet in shade, with no shade ahead, or when it's far", () => {
+    expect(spokenShadeHint(ahead(true, null))).toBe("");
+    expect(spokenShadeHint(ahead(false, null))).toBe("");
+    expect(spokenShadeHint(ahead(false, 450))).toBe("");
+    expect(spokenShadeHint(null)).toBe("");
   });
 });
