@@ -41,12 +41,14 @@ export function heatBrief(b: BriefInput) {
     "",
     "Coolest walks:",
     ...byHeat.slice(-LIST).reverse().map(line),
-    ...(b.trees
-      ? [
-          "",
-          `Trees: ${n(b.trees.mapped)} trees mapped in OpenStreetMap, and ${n(b.trees.canopy)} more crowns from Meta and WRI's canopy map (DINOv3).`,
-        ]
-      : []),
+    ...(b.trees && b.trees.canopy === 0
+      ? ["", `Trees: ${n(b.trees.mapped)} trees mapped in OpenStreetMap.`]
+      : b.trees
+        ? [
+            "",
+            `Trees: ${n(b.trees.mapped)} trees mapped in OpenStreetMap, and ${n(b.trees.canopy)} more crowns from Meta and WRI's canopy map (DINOv3).`,
+          ]
+        : []),
     ...(b.walks
       ? [
           "",

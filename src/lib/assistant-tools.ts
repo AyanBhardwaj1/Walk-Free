@@ -328,6 +328,10 @@ export async function runTool(
       return {
         route: r.preference,
         minutes: Math.max(1, Math.round(r.durationMinutes)),
+        weather:
+          host.env.weatherMode === "forecast"
+            ? "live forecast"
+            : "the scenario on the Climate tab (not live)",
         day: plan.dayOffset ? "tomorrow" : "today",
         date: new Date(
           Date.parse(nowIso) + plan.dayOffset * 86_400_000,

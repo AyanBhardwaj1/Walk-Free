@@ -72,3 +72,11 @@ describe("campus heat brief", () => {
     expect(c.text).not.toMatch(/canopy map|shade route avoids/);
   });
 });
+
+describe("heat brief without canopy", () => {
+  it("doesn't claim 0 extra crowns when the canopy map wasn't used", () => {
+    const b = heatBrief({ ...input, trees: { mapped: 120, canopy: 0 } });
+    expect(b.text).toContain("Trees: 120 trees mapped in OpenStreetMap.");
+    expect(b.text).not.toMatch(/0 more crowns/);
+  });
+});

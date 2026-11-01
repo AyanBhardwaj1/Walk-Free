@@ -25,6 +25,7 @@ export default function AssistantDemo({
   const unit = useUnit();
   const [turns, setTurns] = useState<DemoTurn[]>([]);
   const [running, setRunning] = useState(false);
+  const [failed, setFailed] = useState(false);
   const abort = useRef<AbortController | null>(null);
   // A new area ends a demo that was running for the old one.
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function AssistantDemo({
     abort.current = controller;
     setTurns([]);
     setRunning(true);
+    setFailed(false);
     try {
       await runToolDemo(
         host(),
@@ -46,8 +48,9 @@ export default function AssistantDemo({
         controller.signal,
         unit,
       );
-    } catch {
-      /* Stopped by a new area or a replay. */
+    } catch (error) {
+      // A new area or a replay cancels quietly; anything else is shown.
+      if ((error as Error)?.name !== "AbortError") setFailed(true);
     } finally {
       if (abort.current === controller) setRunning(false);
     }
@@ -84,6 +87,11 @@ export default function AssistantDemo({
             </div>
           ))}
         </div>
+      )}
+      {failed && (
+        <p className="chat-error" role="alert">
+          The demo stopped with an error. Try it again.
+        </p>
       )}
       <p className="fine">
         Scripted demo: it runs the assistant's real tools on this map and writes

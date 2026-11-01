@@ -15,14 +15,20 @@ describe("speech language", () => {
       speechLang("La ruta con más sombra tarda 9 minutos y evita la calle 24."),
     ).toBe("es-ES");
     expect(
-      speechLang("Le chemin le plus ombragé prend 9 minutes, c'est par la rue Guadalupe."),
+      speechLang(
+        "Le chemin le plus ombragé prend 9 minutes, c'est par la rue Guadalupe.",
+      ),
     ).toBe("fr-FR");
-    expect(speechLang("Der schattigste Weg dauert 9 Minuten und ist kühler.")).toBe("de-DE");
+    expect(
+      speechLang("Der schattigste Weg dauert 9 Minuten und ist kühler."),
+    ).toBe("de-DE");
   });
 
   it("leaves English and unclear text to the default voice", () => {
     expect(
-      speechLang("The shade route takes 9 minutes with 45% shade. It's on the map."),
+      speechLang(
+        "The shade route takes 9 minutes with 45% shade. It's on the map.",
+      ),
     ).toBeNull();
     expect(speechLang("Speedway, 9 min")).toBeNull();
     expect(speechLang("")).toBeNull();

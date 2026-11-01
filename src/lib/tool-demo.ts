@@ -149,6 +149,7 @@ export async function runToolDemo(
       { from: a, to: b },
     );
     const r4 = when.result as Failed & {
+      weather?: string;
       day?: string;
       best?: { leave_at: string; feels_like_f: number };
       cooler_than_now_f?: number;
@@ -160,7 +161,7 @@ export async function runToolDemo(
             r4.cooler_than_now_f
               ? `, ${Math.round(unit === "F" ? r4.cooler_than_now_f : (r4.cooler_than_now_f * 5) / 9)}° cooler than now`
               : ""
-          }.`
+          }${r4.weather?.startsWith("live") ? "" : " (using the scenario weather, not a live forecast)"}.`
         : (r4.error ?? "I couldn't work out a time for that walk."),
     });
   }

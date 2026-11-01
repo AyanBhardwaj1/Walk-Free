@@ -534,7 +534,9 @@ async function outlookPart<T>(
       }
     }
     return value;
-  } catch {
+  } catch (error) {
+    // The part shows as unavailable; the reason stays in the server log.
+    console.warn(`[outlook] ${key} failed:`, (error as Error)?.message);
     return null;
   }
 }
@@ -572,15 +574,20 @@ export async function getOutlook(
     // other parts for long.
     outlookPart(
       `heatrisk-v2-${at}`,
-      async () =>
-        parseHeatRisk(
-          await requestJson(heatRiskUrl(lat, lon), {
-            timeoutMs: 6_000,
-            maxBytes: 200_000,
-          }),
-          now,
-          lon,
-        ),
+      async () => {
+        const data = await requestJson<{ error?: unknown }>(
+          heatRiskUrl(lat, lon),
+          { timeoutMs: 6_000, maxBytes: 200_000 },
+        );
+        // ArcGIS reports its own errors with HTTP 200: that is a failure to
+        // retry, not "no HeatRisk here".
+        if (data && typeof data === "object" && "error" in data)
+          throw new ServiceError(
+            "UPSTREAM_UNAVAILABLE",
+            "The HeatRisk service returned an error.",
+          );
+        return parseHeatRisk(data, now, lon);
+      },
       // Outside the US the service has no data: remember that too.
       true,
     ),

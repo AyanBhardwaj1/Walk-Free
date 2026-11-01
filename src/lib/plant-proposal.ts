@@ -15,6 +15,8 @@ export interface ProposalInput {
   canopy: boolean;
   /** Temperature unit for the letter; °F unless given. */
   unit?: TempUnit;
+  /** False when the numbers use the scenario weather, not a live forecast. */
+  liveWeather?: boolean;
   impact: { street: readonly Summary[]; area: readonly Summary[] };
 }
 
@@ -75,7 +77,7 @@ export function plantingProposal(p: ProposalInput) {
     "",
     "How these numbers were made: Walk-Free traces sunlight against mapped buildings and tree crowns for the chosen hour and combines it with the weather to estimate how hot each path feels. They are modeled estimates, not measurements, and assume the new trees have reached mature canopy (about 10 m wide, 12 m tall).",
     "",
-    `Data: OpenStreetMap contributors;${p.canopy ? " Meta and World Resources Institute 1 m canopy height map (built with DINOv3, CC BY 4.0);" : ""} Open-Meteo and the National Weather Service.`,
+    `Data: OpenStreetMap contributors;${p.canopy ? " Meta and World Resources Institute 1 m canopy height map (built with DINOv3, CC BY 4.0);" : ""} ${p.liveWeather === false ? " weather: a scenario set in Walk-Free, not a live forecast." : " Open-Meteo and the National Weather Service."}`,
     "Made with Walk-Free · https://walk-free.vercel.app",
   ].filter((l): l is string => l !== null);
   return { title, text: lines.join("\n") };

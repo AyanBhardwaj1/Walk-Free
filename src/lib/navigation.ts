@@ -74,7 +74,15 @@ export function speak(text: string, lang?: string | null) {
       lang: lang ?? "en-US",
       rate: 1,
       volume: 1,
-    });
+    }).catch(() =>
+      // No voice for that language on this device: read it in English rather
+      // than say nothing.
+      lang && lang !== "en-US"
+        ? TextToSpeech.speak({ text, lang: "en-US", rate: 1, volume: 1 }).catch(
+            () => undefined,
+          )
+        : undefined,
+    );
   else if ("speechSynthesis" in window) {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
