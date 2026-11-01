@@ -187,6 +187,7 @@ const WALK_LINK_PARAMS = [
   "to",
   "pref",
   "t",
+  "tab",
 ];
 /** "Play the day": from this hour to that, in steps this long and fast. */
 const DAY_START_HOUR = 6;
@@ -1204,7 +1205,7 @@ export default function App({
       if (link?.pref) setPref(link.pref);
       setHypothetical(false);
       setMode("explore");
-      setTab("route");
+      setTab(link?.tab ?? "route");
       setPicking(null);
       setTrees(true);
       setBuildings(true);
