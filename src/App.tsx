@@ -122,6 +122,7 @@ import {
 } from "../shared/outlook";
 import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
+import AssistantDemo from "./components/AssistantDemo";
 import {
   uvLabel,
   describeConditions,
@@ -2044,11 +2045,13 @@ export default function App({
               </div>
               <p>
                 Plan routes in plain words, ask why a street is hot, or plant
-                trees by asking. Create a free account to use the assistant.
+                trees by asking. Create a free account to use the assistant,
+                or watch what it does on this map first.
               </p>
               <a className="primary" href="/signup">
                 Create free account <ArrowUpRight size={16} />
               </a>
+              <AssistantDemo host={() => toolHost.current} area={world.id} />
             </section>
           )}
           {!atlas && mode === "explore" && tab === "ask" && !guest && (

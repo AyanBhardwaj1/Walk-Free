@@ -2660,3 +2660,21 @@ footer {
   font-weight: 600;
   color: var(--c-fg-fffdf2, #fffdf2);
 }
+.assistant-demo {
+  margin-top: 16px;
+}
+.assistant-demo > .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.assistant-demo .chat-log {
+  margin-top: 12px;
+}
+/* Inside the guest panel, chat bubbles keep their own colours. */
+.guest-lock .assistant-demo p.chat-user {
+  color: var(--c-fg-fffdf2, #fffdf2);
+}
+.guest-lock .assistant-demo p.chat-reply {
+  color: var(--c-fg-313b30, #313b30);
+}
