@@ -45,6 +45,12 @@ describe("plant-here proposal", () => {
     expect(p.text).toMatch(/mature canopy/);
   });
 
+  it("writes temperatures in °C when asked", () => {
+    const c = plantingProposal({ ...input, unit: "C" }).text;
+    expect(c).toMatch(/41°C → 36°C/);
+    expect(c).toMatch(/about 4\.8°C cooler/);
+  });
+
   it("credits the canopy map only when it was used", () => {
     expect(plantingProposal({ ...input, canopy: false }).text).not.toMatch(
       /DINOv3/,

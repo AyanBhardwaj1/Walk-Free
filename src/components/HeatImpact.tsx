@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { FileText, TreePine } from "lucide-react";
-import { toF } from "../lib/heat";
+import { formatTemp, tempDelta, useUnit, type TempUnit } from "../lib/units";
 import { plantingProposal } from "../lib/plant-proposal";
 import ProposalDialog from "./ProposalDialog";
 
 type Summary = { shade: number; feelsLikeC: number } | null;
 const pct = (x: number, fine = false) =>
   `${fine ? (x * 100).toFixed(1) : Math.round(x * 100)}%`;
-const deg = (c: number) => `${Math.round(toF(c))}°F`;
 
 function Row({ label, pair }: { label: string; pair: Summary[] }) {
+  const unit: TempUnit = useUnit();
+  const deg = (c: number) => formatTemp(c, unit);
   const [before, after] = pair;
   if (!before || !after) return null;
-  const cooler = toF(before.feelsLikeC) - toF(after.feelsLikeC);
+  const cooler = tempDelta(before.feelsLikeC - after.feelsLikeC, unit);
   // Small area-wide gains vanish when rounded, so show a decimal.
   const fine = Math.abs(after.shade - before.shade) < 0.01;
   return (
@@ -30,7 +31,10 @@ function Row({ label, pair }: { label: string; pair: Summary[] }) {
         </strong>{" "}
         feels like
         {cooler >= 0.05 && (
-          <span className="impact-gain"> · {cooler.toFixed(1)}°F cooler</span>
+          <span className="impact-gain">
+            {" "}
+            · {cooler.toFixed(1)}°{unit} cooler
+          </span>
         )}
       </p>
     </div>
@@ -62,6 +66,7 @@ export default function HeatImpact({
   sunUp: boolean;
   canopy: boolean;
 }) {
+  const unit = useUnit();
   const [proposal, setProposal] = useState<{
     title: string;
     text: string;
@@ -93,6 +98,7 @@ export default function HeatImpact({
                 timeZone,
                 sunUp,
                 canopy,
+                unit,
                 impact,
               }),
             )
