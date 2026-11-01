@@ -43,6 +43,13 @@ interface CampusStat {
   shaded_percent: number;
   hottest: { name: string; feels_f: number; shaded_percent: number };
   coolest: { name: string; feels_f: number; shaded_percent: number };
+  /** Sample walks: share of the sun the shade route avoids, and its cost. */
+  shade_route?: {
+    walks: number;
+    sun_avoided_percent: number;
+    sun_minutes_saved: number;
+    extra_distance_percent: number;
+  };
 }
 interface Preview {
   name: string;
@@ -688,6 +695,17 @@ export default function LandingPage({
                       {c.coolest.shaded_percent}% shade
                     </dd>
                   </div>
+                  {c.shade_route && (
+                    <div className="cool">
+                      <dt>Shade route on typical walks</dt>
+                      <dd>
+                        avoids{" "}
+                        <strong>{c.shade_route.sun_avoided_percent}%</strong>{" "}
+                        of the sun for {c.shade_route.extra_distance_percent}%
+                        more walking
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <p>
                   {c.buildings.toLocaleString()} buildings · {c.paths_km} km of
