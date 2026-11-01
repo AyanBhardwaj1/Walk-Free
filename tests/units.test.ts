@@ -8,6 +8,11 @@ describe("temperature units", () => {
     expect(defaultUnit("es-MX")).toBe("C");
     expect(defaultUnit("en-GB")).toBe("C");
     expect(defaultUnit("hi-IN")).toBe("C");
+    // Language-only and script-tagged locales use their likely region.
+    expect(defaultUnit("de")).toBe("C");
+    expect(defaultUnit("hi")).toBe("C");
+    expect(defaultUnit("en-Latn-US")).toBe("F");
+    expect(defaultUnit("")).toBe("F");
   });
 
   it("formats temperatures given in °C", () => {
