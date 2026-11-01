@@ -2678,3 +2678,9 @@ footer {
 .guest-lock .assistant-demo p.chat-reply {
   color: var(--c-fg-313b30, #313b30);
 }
+.heat-csv {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}

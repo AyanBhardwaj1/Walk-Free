@@ -16,7 +16,8 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
   - Live US AQI.
   - National Weather Service heat and air-quality alerts.
   - The NWS **HeatRisk** 7-day outlook.
-- **Plant trees, watch the heat drop.** A design tool lines a street with trees and shows shade and feels-like before and after.
+- **Plant trees, watch the heat drop.** A design tool lines a street with trees and shows shade and feels-like before and after. **Write a proposal** turns the result into a one-page letter for a campus planner or city council, and **Download street heat** exports every street's numbers as CSV.
+- **Compare walks:** how much of the sun the shade route avoids on this campus. On a July afternoon across the six campuses, it's 13–25% of the sun for 4–7% more walking.
 - **A 2D walking view** that follows you, with the next turn and the next block's heat.
 - **Four interface styles,** including a high-contrast Sunlight mode for outdoor glare.
 - **Share links** that reopen the exact walk, saved walks, and keyboard shortcuts.
@@ -37,7 +38,7 @@ Heat illness is preventable when people know where and when the heat is. Walk-Fr
 2. Compare **Quickest** with **More shade**. Push the **sun aversion** slider and watch the shade route change.
 3. Open **Best time to go** and tap the coolest hour.
 4. In Design studio, plant a row of trees on a hot street and read the before/after feels-like.
-5. Sign in (or add a Meta Model API key in AI settings) and ask: *"Plan me the coolest walk from UT Tower to Gregory Gym at 2 PM"*, or the same in Spanish.
+5. On the Ask tab, signed out, press **Watch what it does** to see the assistant's tools act on the map. Then sign in (or add a Meta Model API key in AI settings) and ask: *"Plan me the coolest walk from UT Tower to Gregory Gym at 2 PM"*, or the same in Spanish.
 6. Open **Data & Sources** to see every layer: OSM, Meta/WRI canopy, Open-Meteo weather and AQI, NWS alerts and HeatRisk.
 
 ## Built with
