@@ -10,11 +10,20 @@ export default function ProposalDialog({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const textArea = useRef<HTMLTextAreaElement>(null);
   const [note, setNote] = useState("");
   useEffect(() => {
     const d = dialog.current;
     if (!d) return;
-    if (proposal && !d.open) d.showModal();
+    if (proposal && !d.open) {
+      d.showModal();
+      // The dialog focuses the text; start reading from the top.
+      const t = textArea.current;
+      if (t) {
+        t.setSelectionRange(0, 0);
+        t.scrollTop = 0;
+      }
+    }
     if (!proposal && d.open) d.close();
     setNote("");
   }, [proposal]);
@@ -47,6 +56,7 @@ export default function ProposalDialog({
     >
       <h2 id="proposal-title">{proposal?.title ?? "Proposal"}</h2>
       <textarea
+        ref={textArea}
         className="proposal-text"
         readOnly
         aria-label="Proposal text"
