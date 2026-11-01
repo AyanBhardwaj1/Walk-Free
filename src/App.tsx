@@ -2201,7 +2201,7 @@ export default function App({
                   <p>
                     {heatIndexC(env.temperatureC, env.humidity) === null
                       ? "Heat index is outside the hot/humid range."
-                      : `Shade heat index ≈ ${Math.round(heatIndexC(env.temperatureC, env.humidity)!)}°C`}
+                      : `Shade heat index ≈ ${formatTemp(heatIndexC(env.temperatureC, env.humidity)!, unit)}`}
                   </p>
                   <small>
                     Click the ground to inspect another point. Heat index

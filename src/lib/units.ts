@@ -5,7 +5,13 @@ export type TempUnit = "F" | "C";
 
 /** °F in the US (and a few places that use it), °C everywhere else. */
 export function defaultUnit(locale: string | undefined): TempUnit {
-  const region = (locale ?? "").split(/[-_]/)[1]?.toUpperCase();
+  let region: string | undefined;
+  try {
+    // "de" → DE, "en-Latn-US" → US, "en" → US.
+    region = new Intl.Locale(locale || "en").maximize().region;
+  } catch {
+    region = undefined;
+  }
   return !region || ["US", "LR", "MM", "BS", "BZ", "KY", "PW"].includes(region)
     ? "F"
     : "C";

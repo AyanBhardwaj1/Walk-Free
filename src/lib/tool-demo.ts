@@ -158,7 +158,7 @@ export async function runToolDemo(
       reply: r4.best
         ? `Leave at ${r4.best.leave_at}${r4.day === "tomorrow" ? " tomorrow" : ""}: it should feel about ${t(r4.best.feels_like_f)}${
             r4.cooler_than_now_f
-              ? `, ${r4.cooler_than_now_f}° cooler than now`
+              ? `, ${Math.round(unit === "F" ? r4.cooler_than_now_f : (r4.cooler_than_now_f * 5) / 9)}° cooler than now`
               : ""
           }.`
         : (r4.error ?? "I couldn't work out a time for that walk."),
