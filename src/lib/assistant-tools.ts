@@ -142,6 +142,13 @@ function envAt(host: ToolHost, h?: number): Environment {
       };
 }
 
+/** Tools the browser can run, with their argument schemas. */
+export const TOOL_NAMES = Object.keys(schemas);
+export const toolSchema = (name: string) =>
+  Object.hasOwn(schemas, name)
+    ? schemas[name as keyof typeof schemas]
+    : undefined;
+
 const walkComparisons = new WeakMap<
   World,
   Map<string, Awaited<ReturnType<typeof coolWalkability>>>

@@ -110,6 +110,29 @@ export interface ToolSpec {
 
 const MAX_OUTPUT_TOKENS = 1800;
 const CALL_TIMEOUT_MS = 50_000;
+/** One retry, only for failures that came back fast enough to afford it. */
+const RETRY_DELAY_MS = 600;
+const RETRY_BUDGET_MS = 15_000;
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+
+/** A dropped connection or a gateway error: worth one more try. */
+function transient(error: unknown) {
+  if (!(error instanceof ServiceError) || error.code !== "UPSTREAM_UNAVAILABLE")
+    return false;
+  const status = Number(error.message.match(/HTTP (\d{3})/)?.[1]);
+  return !status || TRANSIENT_STATUSES.has(status);
+}
+async function withRetry<T>(call: () => Promise<T>): Promise<T> {
+  const started = Date.now();
+  try {
+    return await call();
+  } catch (error) {
+    if (!transient(error) || Date.now() - started > RETRY_BUDGET_MS)
+      throw error;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return call();
+  }
+}
 
 export async function chatCompletion(
   config: AiConfig,
@@ -122,40 +145,42 @@ export async function chatCompletion(
   } = {},
 ) {
   const openAi = config.baseUrl.includes("api.openai.com");
-  const result = await requestJson<{
-    choices?: {
-      message?: { content?: string | null; tool_calls?: ToolCall[] };
-      finish_reason?: string;
-    }[];
-  }>(`${config.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.key}`,
-      "Content-Type": "application/json",
-    },
-    timeoutMs: options.timeoutMs ?? CALL_TIMEOUT_MS,
-    maxBytes: 2_000_000,
-    // A person's own provider explains a rejected key or model; the shared
-    // key's reasons stay on the server (they can echo part of the key).
-    errorReason: config.own,
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      // OpenAI's reasoning models require the newer name; other compatible
-      // providers all accept the original one.
-      [openAi ? "max_completion_tokens" : "max_tokens"]:
-        options.maxTokens ?? MAX_OUTPUT_TOKENS,
-      ...(options.tools?.length
-        ? { tools: options.tools, tool_choice: "auto" }
-        : {}),
-      ...(options.json ? { response_format: { type: "json_object" } } : {}),
-      // Reasoning models answer much faster with low effort, which suits
-      // short walking questions.
-      ...(openAi && /^(gpt-5|o\d)/.test(config.model)
-        ? { reasoning_effort: "low" }
-        : {}),
+  const result = await withRetry(() =>
+    requestJson<{
+      choices?: {
+        message?: { content?: string | null; tool_calls?: ToolCall[] };
+        finish_reason?: string;
+      }[];
+    }>(`${config.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      timeoutMs: options.timeoutMs ?? CALL_TIMEOUT_MS,
+      maxBytes: 2_000_000,
+      // A person's own provider explains a rejected key or model; the shared
+      // key's reasons stay on the server (they can echo part of the key).
+      errorReason: config.own,
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        // OpenAI's reasoning models require the newer name; other compatible
+        // providers all accept the original one.
+        [openAi ? "max_completion_tokens" : "max_tokens"]:
+          options.maxTokens ?? MAX_OUTPUT_TOKENS,
+        ...(options.tools?.length
+          ? { tools: options.tools, tool_choice: "auto" }
+          : {}),
+        ...(options.json ? { response_format: { type: "json_object" } } : {}),
+        // Reasoning models answer much faster with low effort, which suits
+        // short walking questions.
+        ...(openAi && /^(gpt-5|o\d)/.test(config.model)
+          ? { reasoning_effort: "low" }
+          : {}),
+      }),
     }),
-  }).catch((error: unknown) => {
+  ).catch((error: unknown) => {
     // Turn provider HTTP errors into guidance about the key or model.
     const status = Number(
       (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
