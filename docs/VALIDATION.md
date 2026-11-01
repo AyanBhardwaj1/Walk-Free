@@ -147,3 +147,22 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - The landing page shows 4,375 OpenStreetMap trees against 62,748 DINOv3 canopy crowns across the six campuses (from `public/landing/campuses.json`).
   - `npm test`: 295 pass.
   - The production check on main confirmed health, the demo page, manifest, service worker, preview image, `/api/outlook` returning 401 for guests, and every new feature marker in the live bundle.
+
+## Performance, AI resilience, UI audit — 2026-11-01 (1:30–2:10 AM CST)
+
+- **Performance.** three.js/react-three (922 kB) and React (223 kB) are now cached vendor chunks, and the app chunk is 312 kB (was 1.2 MB).
+  - Checked in a production build: the landing page loads only the entry and React chunks.
+  - The production probe now fails if the landing page preloads the 3D chunk. The 08:05 UTC run reports "landing does not preload vendor-3d".
+- **AI.** A transient model failure gets one retry within a shared 50 s deadline (skipped if under 5 s remains or the failure took over 15 s).
+  - A contract test keeps the 10 tools offered to the model identical to the ones the browser runs.
+- **Silent-failure review (9 findings, all fixed):**
+  - Native speech falls back to English when the device has no voice for the reply's language.
+  - The service worker refreshes cache entries on use and shows the cached app after 3 s on weak signal.
+  - ArcGIS errors returned with HTTP 200 are retried rather than cached as "no data".
+  - Proposals mark scenario weather.
+- **UI.** Audited against Vercel's Web Interface Guidelines, then the taste-skill inspector on the landing page.
+  - axe: 0 WCAG A/AA violations on the Heat tab (Editorial at 1440 px, Night at 390 px).
+  - Landing page: no low-contrast text left, and paragraphs are capped at 68 characters.
+  - Brand-style rules (gradients, ivory palette, italic accents) are kept by design.
+- **Totals.** `npm test` 352 pass; lint and build clean. Coverage of tonight's new modules is 92.5%; `units.ts` was raised from 57%.
+- **Reviews.** Same-family independent reviewers (provisional): perf/retry 7/10 and the silent-failure pass, with findings fixed. The earlier security review of the night's work scored 8/10, "ready".
