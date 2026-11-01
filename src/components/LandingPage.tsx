@@ -381,8 +381,14 @@ const FEATURES = [
   {
     icon: Trees,
     title: "Plant trees, watch the heat drop",
-    text: "Line a street with trees in the design studio and see shade and feels-like change for that street and the whole campus.",
+    text: "Line a street with trees in the design studio and see shade and feels-like change for that street and the whole campus. Then turn it into a one-page proposal for your campus or city, or download every street's heat as a spreadsheet.",
     tone: "trees",
+  },
+  {
+    icon: AlertTriangle,
+    title: "Knows when the day turns dangerous",
+    text: "Live air quality, National Weather Service heat alerts and the week's HeatRisk change the advice, and the walking view tells you how far it is to the next shade.",
+    tone: "heat",
   },
 ];
 

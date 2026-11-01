@@ -138,6 +138,6 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - Proposal reasons based on the sun's position.
   - Walking-nudge distances include stretches without a reading.
 - Not verified here:
-  - The live order of HeatRisk catalog items. The parser assumes values follow catalog order, as ArcGIS identify documents; live values were all 0 in late October.
+  - Live HeatRisk values above 0 (all were 0 in late October). The parser maps each value to the catalog item at the same position, which the ArcGIS Identify (Image Service) reference documents ("pixel values … in the same order as the catalog items").
   - A real Muse Spark call.
   - Offline behaviour on iOS.
