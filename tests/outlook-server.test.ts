@@ -73,12 +73,15 @@ describe("outlook endpoint data", () => {
   it("caches answers and drops alerts that ran out while cached", async () => {
     const { lat, lon } = spot();
     requestJson.mockImplementation((url: string) =>
-      Promise.resolve(
-        url.includes("air-quality") ? air : alerts("2026-07-14T21:00:00Z"),
-      ),
+      url.includes("HeatRisk")
+        ? Promise.resolve({ value: "1" })
+        : Promise.resolve(
+            url.includes("air-quality") ? air : alerts("2026-07-14T21:00:00Z"),
+          ),
     );
     const first = await getOutlook(lat, lon, new Date("2026-07-14T20:00:00Z"));
     expect(first.alerts).toHaveLength(1);
+    expect(first.heatRisk?.today).toBe(1);
     const calls = requestJson.mock.calls.length;
     const later = await getOutlook(lat, lon, new Date("2026-07-14T21:30:00Z"));
     expect(requestJson.mock.calls.length).toBe(calls);
@@ -91,7 +94,7 @@ describe("outlook endpoint data", () => {
     // Random whole degrees too, so a cached answer from a recent run can't hit.
     const lon = -(60 + Math.floor(Math.random() * 60)) - 0.734567;
     await getOutlook(lat, lon);
-    expect(requestJson).toHaveBeenCalledTimes(2);
+    expect(requestJson).toHaveBeenCalledTimes(3);
     for (const [url] of requestJson.mock.calls) {
       expect(url).toContain(`${Math.floor(lat)}.29`);
       expect(url).not.toMatch(/\.285|\.7345/);

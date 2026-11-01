@@ -113,7 +113,12 @@ import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { loadOutlook } from "./lib/outlook-source";
-import { activeOutlook, outlookContext, type Outlook } from "../shared/outlook";
+import {
+  activeOutlook,
+  HEAT_RISK_LEVELS,
+  outlookContext,
+  type Outlook,
+} from "../shared/outlook";
 import OutlookNotice from "./components/OutlookNotice";
 import {
   uvLabel,
@@ -2619,6 +2624,15 @@ export default function App({
                     title={`Area air quality (US AQI) from Open-Meteo · PM2.5 ${outlook.air.pm25 ?? "n/a"} µg/m³`}
                   >
                     AQI {outlook.air.usAqi} · {outlook.air.category}
+                  </small>
+                )}
+                {outlook?.heatRisk && outlook.heatRisk.today >= 1 && (
+                  <small
+                    className={`uv-badge ${outlook.heatRisk.today >= 2 ? "high" : ""}`}
+                    title="National Weather Service HeatRisk for today (experimental, 0-4)"
+                  >
+                    HeatRisk {outlook.heatRisk.today} ·{" "}
+                    {HEAT_RISK_LEVELS[outlook.heatRisk.today].label}
                   </small>
                 )}
               </div>

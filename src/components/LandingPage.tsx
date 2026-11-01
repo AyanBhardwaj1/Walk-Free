@@ -16,6 +16,9 @@ import {
   Trees,
   Accessibility,
   Snowflake,
+  Languages,
+  Boxes,
+  AlertTriangle,
 } from "lucide-react";
 
 export function Brand() {
@@ -301,6 +304,30 @@ function HeatPreview({ preview }: { preview: Preview | null }) {
     </div>
   );
 }
+
+/** How Meta's models and data power Walk-Free. */
+const META_PARTS = [
+  {
+    icon: Sparkles,
+    title: "Muse Spark plans the walk",
+    text: "The assistant runs on Meta's Model API. It calls Walk-Free's own tools to plan routes, move the clock, rank hot streets and plant trees, then answers in a sentence.",
+  },
+  {
+    icon: Trees,
+    title: "DINOv3 finds the trees",
+    text: "Meta and WRI's 1 m canopy height map, built with DINOv3, fills in the trees nobody mapped: about 10,900 extra crowns at UC Berkeley alone.",
+  },
+  {
+    icon: Boxes,
+    title: "Open Muse models, any host",
+    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Keys stay in your browser.",
+  },
+  {
+    icon: Languages,
+    title: "Speaks your language",
+    text: "Ask in Spanish, Hindi or Mandarin and the assistant answers in kind, with the same map and numbers.",
+  },
+];
 
 const STEPS = [
   {
@@ -693,6 +720,35 @@ export default function LandingPage({
             </p>
           </div>
           <ChatDemo />
+        </section>
+
+        <section className="landing-how landing-meta" id="built-with-meta">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">BUILT WITH META AI</span>
+            <h2>
+              Meta's models and maps,
+              <br />
+              <em>pointed at the heat.</em>
+            </h2>
+            <p>
+              <AlertTriangle size={15} aria-hidden /> Live air quality and
+              National Weather Service heat alerts sit on top, so the advice
+              changes when the day turns dangerous.
+            </p>
+          </div>
+          <ol className="step-cards">
+            {META_PARTS.map((s, i) => (
+              <li
+                className="reveal"
+                key={s.title}
+                style={{ transitionDelay: `${i * 90}ms` }}
+              >
+                <s.icon size={24} />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="landing-faq" id="faq">

@@ -4,6 +4,8 @@ import {
   nwsAlertsUrl,
   parseAirQuality,
   parseWalkAlerts,
+  heatRiskUrl,
+  parseHeatRisk,
   type Outlook,
 } from "../../shared/outlook.js";
 
@@ -50,7 +52,7 @@ export async function loadOutlook(
   } catch {
     /* Fall through to the providers. */
   }
-  const [air, alerts] = await Promise.all([
+  const [air, alerts, heatRisk] = await Promise.all([
     direct(deps, airQualityUrl(origin.lat, origin.lon), parseAirQuality),
     direct(
       deps,
@@ -58,6 +60,7 @@ export async function loadOutlook(
       (d) => parseWalkAlerts(d),
       "application/geo+json",
     ),
+    direct(deps, heatRiskUrl(origin.lat, origin.lon), parseHeatRisk),
   ]);
-  return { air, alerts, fetchedAt: new Date().toISOString() };
+  return { air, alerts, heatRisk, fetchedAt: new Date().toISOString() };
 }
