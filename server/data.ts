@@ -25,6 +25,8 @@ import {
   nwsAlertsUrl,
   parseAirQuality,
   parseWalkAlerts,
+  heatRiskUrl,
+  parseHeatRisk,
   type Outlook,
 } from "../shared/outlook.js";
 import {
@@ -529,7 +531,7 @@ export async function getOutlook(
   now = new Date(),
 ): Promise<Outlook> {
   const at = `${coarse(lat)}-${coarse(lon)}`;
-  const [air, alerts] = await Promise.all([
+  const [air, alerts, heatRisk] = await Promise.all([
     outlookPart(`air-v1-${at}`, async () =>
       parseAirQuality(
         await requestJson(airQualityUrl(lat, lon), {
@@ -548,6 +550,18 @@ export async function getOutlook(
         now,
       ),
     ),
+    // An experimental service: a short timeout so it can't hold back the
+    // other parts for long.
+    outlookPart(`heatrisk-v2-${at}`, async () =>
+      parseHeatRisk(
+        await requestJson(heatRiskUrl(lat, lon), {
+          timeoutMs: 6_000,
+          maxBytes: 200_000,
+        }),
+        now,
+        lon,
+      ),
+    ),
   ]);
   return {
     air,
@@ -555,6 +569,7 @@ export async function getOutlook(
     alerts:
       alerts?.filter((a) => !a.ends || Date.parse(a.ends) > now.getTime()) ??
       null,
+    heatRisk,
     fetchedAt: now.toISOString(),
   };
 }

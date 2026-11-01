@@ -1476,3 +1476,19 @@
 .public-site button {
   touch-action: manipulation;
 }
+
+/* Built with Meta AI */
+.landing-v2 .landing-meta {
+  background: #fbfaf4;
+  border-top: 1px solid #e6e6da;
+}
+.landing-meta .section-intro p {
+  max-width: 560px;
+  color: #6f7964;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.landing-meta .section-intro p svg {
+  vertical-align: -2px;
+  color: #a3671c;
+}

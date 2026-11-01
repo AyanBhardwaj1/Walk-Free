@@ -16,6 +16,7 @@ import {
 import { plantShadeRow } from "../src/lib/planting.js";
 import { createShadeTester } from "../src/lib/environment.js";
 import { edgeShadeFraction } from "../src/lib/heat.js";
+import { coolWalkability } from "../src/lib/cool-walkability.js";
 
 // A clear, hot mid-July afternoon, the same scenario for every campus.
 const JULY: Environment = {
@@ -50,40 +51,50 @@ const load = (slug: string) =>
     readFileSync(join("public", "areas", `${slug}.json`), "utf8"),
   ) as World;
 
-const campuses = PREBUILT_AREAS.map((area) => {
-  const world = load(area.slug);
-  const env = {
-    ...summer(area.slug),
-    dateTime: atLocalHour(JULY.dateTime, world.timezone, AFTERNOON_HOUR),
-  };
-  const streets = placeHeat(world, env).filter(
-    (p) => p.kind === "street" && p.length >= 150,
-  );
-  const hottest = streets[0];
-  const coolest = streets.at(-1)!;
-  const all = areaHeat(world, edgeHeatMap(world, env))!;
-  return {
-    slug: area.slug,
-    name: area.name.replace(/, [A-Z]{2}$/, ""),
-    air_f: SUMMER[area.slug].highF,
-    buildings: world.objects.filter((o) => o.kind !== "tree").length,
-    paths_km: round(
-      world.graph.edges.reduce((s, e) => s + e.distance, 0) / 1000,
-      0,
-    ),
-    shaded_percent: Math.round(all.shade * 100),
-    hottest: {
-      name: hottest.name,
-      feels_f: Math.round(toF(hottest.feelsLikeC)),
-      shaded_percent: Math.round(hottest.shade * 100),
-    },
-    coolest: {
-      name: coolest.name,
-      feels_f: Math.round(toF(coolest.feelsLikeC)),
-      shaded_percent: Math.round(coolest.shade * 100),
-    },
-  };
-});
+const campuses = await Promise.all(
+  PREBUILT_AREAS.map(async (area) => {
+    const world = load(area.slug);
+    const env = {
+      ...summer(area.slug),
+      dateTime: atLocalHour(JULY.dateTime, world.timezone, AFTERNOON_HOUR),
+    };
+    const streets = placeHeat(world, env).filter(
+      (p) => p.kind === "street" && p.length >= 150,
+    );
+    const hottest = streets[0];
+    const coolest = streets.at(-1)!;
+    const all = areaHeat(world, edgeHeatMap(world, env))!;
+    // How much of the sun on typical walks the shade route avoids.
+    const routing = (await coolWalkability(world, env, { pairs: 40 }))!;
+    return {
+      slug: area.slug,
+      name: area.name.replace(/, [A-Z]{2}$/, ""),
+      air_f: SUMMER[area.slug].highF,
+      buildings: world.objects.filter((o) => o.kind !== "tree").length,
+      paths_km: round(
+        world.graph.edges.reduce((s, e) => s + e.distance, 0) / 1000,
+        0,
+      ),
+      shaded_percent: Math.round(all.shade * 100),
+      hottest: {
+        name: hottest.name,
+        feels_f: Math.round(toF(hottest.feelsLikeC)),
+        shaded_percent: Math.round(hottest.shade * 100),
+      },
+      coolest: {
+        name: coolest.name,
+        feels_f: Math.round(toF(coolest.feelsLikeC)),
+        shaded_percent: Math.round(coolest.shade * 100),
+      },
+      shade_route: {
+        walks: routing.walks,
+        sun_avoided_percent: routing.score,
+        sun_minutes_saved: round(routing.sunMinutesSaved),
+        extra_distance_percent: Math.round(routing.extraDistance * 100),
+      },
+    };
+  }),
+);
 
 // Interactive slice: the area around UT Austin's Speedway, with each path's
 // shade through the day before and after a planted row of trees.

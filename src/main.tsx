@@ -16,3 +16,12 @@ createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// Installable and usable offline in production builds (never in dev, where
+// a cached worker would serve stale modules).
+if (import.meta.env.PROD && "serviceWorker" in navigator)
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* The site works the same without it. */
+    });
+  });

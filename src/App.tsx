@@ -89,6 +89,7 @@ import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
+import { spokenShadeHint, sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import {
@@ -113,8 +114,15 @@ import { plantShadeRow } from "./lib/planting";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { loadOutlook } from "./lib/outlook-source";
-import { activeOutlook, outlookContext, type Outlook } from "../shared/outlook";
+import {
+  activeOutlook,
+  HEAT_RISK_LEVELS,
+  outlookContext,
+  type Outlook,
+} from "../shared/outlook";
 import OutlookNotice from "./components/OutlookNotice";
+import CoolWalkCard from "./components/CoolWalkCard";
+import AssistantDemo from "./components/AssistantDemo";
 import {
   uvLabel,
   describeConditions,
@@ -621,6 +629,14 @@ export default function App({
     }
     return length ? { feelsC: feels / length, shade: shade / length } : null;
   }, [currentRoute, edgeHeat]);
+  /** Shade on the rest of the walk, for "shade in 80 m" nudges. */
+  const ahead = useMemo(
+    () =>
+      currentRoute && edgeHeat
+        ? sunAhead(currentRoute.edges, (id) => edgeHeat.get(id))
+        : null,
+    [currentRoute, edgeHeat],
+  );
   function setLocalHour(hour: number, dayOffset = 0) {
     setEnv((previous) => {
       const day = new Date(
@@ -1487,7 +1503,8 @@ export default function App({
     }
     if (voice && text !== lastSpoken.current) {
       lastSpoken.current = text;
-      speak(text);
+      // With each new turn, say when shade is close ahead.
+      speak(text + spokenShadeHint(ahead));
     }
     // `location` is a fresh object every render; its fix and stop are what
     // this effect uses.
@@ -2028,11 +2045,13 @@ export default function App({
               </div>
               <p>
                 Plan routes in plain words, ask why a street is hot, or plant
-                trees by asking. Create a free account to use the assistant.
+                trees by asking. Create a free account to use the assistant, or
+                watch what it does on this map first.
               </p>
               <a className="primary" href="/signup">
                 Create free account <ArrowUpRight size={16} />
               </a>
+              <AssistantDemo host={() => toolHost.current} area={world.id} />
             </section>
           )}
           {!atlas && mode === "explore" && tab === "ask" && !guest && (
@@ -2258,6 +2277,11 @@ export default function App({
                   street={planting.street}
                   planted={planting.planted}
                   time={clockLabel(heatEnv.dateTime, world.timezone)}
+                  area={world.name}
+                  date={heatEnv.dateTime}
+                  timeZone={world.timezone}
+                  sunUp={sunDirection(heatEnv, world.origin).y > 0}
+                  canopy={world.objects.some((o) => o.source === "canopy")}
                   onReset={() => {
                     setHeatBaseline(null);
                     setPlanting(null);
@@ -2441,6 +2465,12 @@ export default function App({
                 forecast={forecast}
                 outlook={outlook}
               />
+              <CoolWalkCard
+                world={world}
+                env={routeEnv}
+                sunAversion={sunAversion}
+                timeLabel={clockLabel(routeEnv.dateTime, world.timezone)}
+              />
               <p>{world.provenance.source}</p>
               <p className="fine">{world.provenance.attribution}</p>
               {world.provenance.notes.map((n) => (
@@ -2540,6 +2570,17 @@ export default function App({
                 {nextStretch &&
                   ` · next stretch ~${Math.round(toF(nextStretch.feelsC))}°F, ${Math.round(nextStretch.shade * 100)}% shade`}
               </span>
+              {ahead && (
+                <span className="walk-shade">
+                  {ahead.inShade
+                    ? `In shade for ${ahead.shadeForM} m`
+                    : ahead.shadeInM !== null
+                      ? `Shade in ${ahead.shadeInM} m`
+                      : "No shade ahead: keep to the shady side"}
+                  {ahead.sunMinutesLeft > 0 &&
+                    ` · ${ahead.sunMinutesLeft} min in sun left`}
+                </span>
+              )}
             </div>
           )}
           {picking && (
@@ -2619,6 +2660,15 @@ export default function App({
                     title={`Area air quality (US AQI) from Open-Meteo · PM2.5 ${outlook.air.pm25 ?? "n/a"} µg/m³`}
                   >
                     AQI {outlook.air.usAqi} · {outlook.air.category}
+                  </small>
+                )}
+                {outlook?.heatRisk && outlook.heatRisk.today >= 1 && (
+                  <small
+                    className={`uv-badge ${outlook.heatRisk.today >= 2 ? "high" : ""}`}
+                    title="National Weather Service HeatRisk for today (experimental, 0-4)"
+                  >
+                    HeatRisk {outlook.heatRisk.today} ·{" "}
+                    {HEAT_RISK_LEVELS[outlook.heatRisk.today].label}
                   </small>
                 )}
               </div>

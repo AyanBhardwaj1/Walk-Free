@@ -29,12 +29,37 @@ export interface WalkAlert {
   sender: string;
   url?: string;
 }
+export interface HeatRiskDay {
+  /** 1 is today (the NWS's day 1). */
+  day: number;
+  date: string;
+  level: number;
+  label: string;
+}
+/** NWS HeatRisk: 0-4 risk of heat-related impacts, for today and 6 more days. */
+export interface HeatRisk {
+  today: number;
+  days: HeatRiskDay[];
+  /** The riskiest of the days, the earliest when tied. */
+  peak?: HeatRiskDay;
+}
 export interface Outlook {
   air: AirQuality | null;
   /** null when the alert service could not be reached (unknown, not "none"). */
   alerts: WalkAlert[] | null;
+  /** US only; missing or null when unavailable. */
+  heatRisk?: HeatRisk | null;
   fetchedAt?: string;
 }
+
+/** The NWS HeatRisk colour scale (experimental product). */
+export const HEAT_RISK_LEVELS = [
+  { label: "Little to none", color: "#4d9a4a" },
+  { label: "Minor", color: "#d8b11f" },
+  { label: "Moderate", color: "#e0791d" },
+  { label: "Major", color: "#c8312b" },
+  { label: "Extreme", color: "#9b2a8f" },
+] as const;
 
 /** A coordinate rounded to about a kilometre, as sent to these services. */
 export const coarse = (v: number) => (Math.round(v * 100) / 100 + 0).toFixed(2);
@@ -53,6 +78,90 @@ export function airQualityUrl(lat: number, lon: number) {
 
 export function nwsAlertsUrl(lat: number, lon: number) {
   return `https://api.weather.gov/alerts/active?point=${coarse(lat)},${coarse(lon)}&status=actual`;
+}
+
+/** NWS HeatRisk (experimental) at a point: today plus six days ahead. */
+export function heatRiskUrl(lat: number, lon: number) {
+  const params = new URLSearchParams({
+    geometry: JSON.stringify({
+      x: Number(coarse(lon)),
+      y: Number(coarse(lat)),
+      spatialReference: { wkid: 4326 },
+    }),
+    geometryType: "esriGeometryPoint",
+    returnGeometry: "false",
+    returnCatalogItems: "true",
+    f: "json",
+  });
+  return `https://mapservices.weather.noaa.gov/experimental/rest/services/NWS_HeatRisk/ImageServer/identify?${params}`;
+}
+
+const riskLevel = (v: unknown) => {
+  const n = typeof v === "string" && /^\d$/.test(v.trim()) ? Number(v) : NaN;
+  return n >= 0 && n <= 4 ? n : null;
+};
+/** Days since the epoch at a longitude's solar time (close to local date). */
+const localDay = (t: number, lon: number) =>
+  Math.floor((t + (lon / 15) * 3_600_000) / 86_400_000);
+
+/**
+ * HeatRisk at a point. Days already over at `lon` (by local date) are
+ * dropped, and "today" is the day whose date is today there; the service's
+ * single value is used only when it lists no days.
+ */
+export function parseHeatRisk(
+  data: unknown,
+  now = new Date(),
+  lon = 0,
+): HeatRisk | null {
+  const d = data as {
+    value?: unknown;
+    properties?: { Values?: unknown };
+    catalogItems?: { features?: unknown };
+  } | null;
+  const value = riskLevel(d?.value);
+  if (value === null) return null;
+  const values = Array.isArray(d?.properties?.Values)
+    ? d.properties.Values
+    : [];
+  const items = Array.isArray(d?.catalogItems?.features)
+    ? (d.catalogItems.features as {
+        attributes?: { name?: unknown; idp_validtime?: unknown };
+      }[])
+    : [];
+  const days: HeatRiskDay[] = [];
+  // Each value belongs to the catalog item at the same position.
+  if (values.length === items.length)
+    items.forEach((item, i) => {
+      const day = Number(
+        String(item.attributes?.name ?? "").match(/^HeatRisk_(\d)_/)?.[1],
+      );
+      const valid = Number(item.attributes?.idp_validtime);
+      const level = riskLevel(values[i]);
+      if (day >= 1 && day <= 7 && Number.isFinite(valid) && level !== null)
+        days.push({
+          day,
+          date: new Date(valid).toISOString(),
+          level,
+          label: HEAT_RISK_LEVELS[level].label,
+        });
+    });
+  days.sort((a, b) => a.day - b.day);
+  const listed = days.length > 0;
+  const thisDay = localDay(now.getTime(), lon);
+  const ahead = days.filter(
+    (d) => localDay(Date.parse(d.date), lon) >= thisDay,
+  );
+  const today = listed
+    ? (ahead.find((d) => localDay(Date.parse(d.date), lon) === thisDay)
+        ?.level ?? value)
+    : value;
+  days.splice(0, days.length, ...ahead);
+  const peak = days.reduce<HeatRiskDay | undefined>(
+    (best, d) => (!best || d.level > best.level ? d : best),
+    undefined,
+  );
+  return { today, days, ...(peak ? { peak } : {}) };
 }
 
 const AQI_LEVELS: [number, string][] = [
@@ -162,7 +271,7 @@ export function parseWalkAlerts(data: unknown, now = new Date()) {
 }
 
 /** One sentence to show above the route when something calls for it. */
-export function outlookAdvice(o: Pick<Outlook, "air" | "alerts">) {
+export function outlookAdvice(o: Pick<Outlook, "air" | "alerts" | "heatRisk">) {
   const heat = o.alerts?.find((a) => a.kind === "heat");
   if (heat)
     return `${heat.event} in effect from the National Weather Service: walk early or late, take the shadiest or indoor route, and carry water.${
@@ -172,6 +281,8 @@ export function outlookAdvice(o: Pick<Outlook, "air" | "alerts">) {
     }`;
   if (o.air && o.air.level >= 3)
     return `Air quality is ${o.air.category.toLowerCase()} (AQI ${o.air.usAqi}): keep walks short and prefer the indoor route.`;
+  if (o.heatRisk && o.heatRisk.today >= 3)
+    return `NWS HeatRisk is ${HEAT_RISK_LEVELS[o.heatRisk.today].label} today: heat can harm anyone without cooling or water. Walk early or late and take the shadiest route.`;
   if (o.air && o.air.level === 2)
     return `Air quality is unhealthy for sensitive groups (AQI ${o.air.usAqi}): if you have asthma or heart or lung conditions, keep this walk short.`;
   const air = o.alerts?.find((a) => a.kind === "air");
@@ -210,6 +321,23 @@ export function outlookContext(o: Outlook | null, timeZone = "UTC") {
     ...(o.air
       ? {
           airQuality: `US AQI ${o.air.usAqi} (${o.air.category})`.slice(0, 120),
+        }
+      : {}),
+    ...(o.heatRisk
+      ? {
+          heatRisk:
+            `Today ${o.heatRisk.today} (${HEAT_RISK_LEVELS[o.heatRisk.today].label})${
+              o.heatRisk.peak && o.heatRisk.peak.level > o.heatRisk.today
+                ? `; peak ${o.heatRisk.peak.level} (${o.heatRisk.peak.label}) on ${new Date(
+                    o.heatRisk.peak.date,
+                  ).toLocaleDateString("en-US", {
+                    timeZone,
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}`
+                : ""
+            }`.slice(0, 120),
         }
       : {}),
     ...(o.alerts?.length

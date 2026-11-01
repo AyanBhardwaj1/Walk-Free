@@ -16,6 +16,9 @@ import {
   Trees,
   Accessibility,
   Snowflake,
+  Languages,
+  Boxes,
+  AlertTriangle,
 } from "lucide-react";
 
 export function Brand() {
@@ -40,6 +43,13 @@ interface CampusStat {
   shaded_percent: number;
   hottest: { name: string; feels_f: number; shaded_percent: number };
   coolest: { name: string; feels_f: number; shaded_percent: number };
+  /** Sample walks: share of the sun the shade route avoids, and its cost. */
+  shade_route?: {
+    walks: number;
+    sun_avoided_percent: number;
+    sun_minutes_saved: number;
+    extra_distance_percent: number;
+  };
 }
 interface Preview {
   name: string;
@@ -301,6 +311,30 @@ function HeatPreview({ preview }: { preview: Preview | null }) {
     </div>
   );
 }
+
+/** How Meta's models and data power Walk-Free. */
+const META_PARTS = [
+  {
+    icon: Sparkles,
+    title: "Muse Spark plans the walk",
+    text: "The assistant is built for Meta's Model API and Muse Spark is its first choice. It calls Walk-Free's own tools to plan routes, move the clock, rank hot streets and plant trees, then answers in a sentence.",
+  },
+  {
+    icon: Trees,
+    title: "DINOv3 finds the trees",
+    text: "Meta and WRI's 1 m canopy height map, built with DINOv3, fills in the trees nobody mapped: about 10,900 extra crowns at UC Berkeley alone.",
+  },
+  {
+    icon: Boxes,
+    title: "Open Muse models, any host",
+    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Your key is saved only in your browser and sent just with your own requests.",
+  },
+  {
+    icon: Languages,
+    title: "Speaks your language",
+    text: "Ask in Spanish, Hindi or Mandarin and the assistant answers in kind, with the same map and numbers.",
+  },
+];
 
 const STEPS = [
   {
@@ -661,6 +695,17 @@ export default function LandingPage({
                       {c.coolest.shaded_percent}% shade
                     </dd>
                   </div>
+                  {c.shade_route && (
+                    <div className="cool">
+                      <dt>Shade route on typical walks</dt>
+                      <dd>
+                        avoids{" "}
+                        <strong>{c.shade_route.sun_avoided_percent}%</strong> of
+                        the sun for {c.shade_route.extra_distance_percent}% more
+                        walking
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <p>
                   {c.buildings.toLocaleString()} buildings · {c.paths_km} km of
@@ -693,6 +738,35 @@ export default function LandingPage({
             </p>
           </div>
           <ChatDemo />
+        </section>
+
+        <section className="landing-how landing-meta" id="built-with-meta">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">BUILT WITH META AI</span>
+            <h2>
+              Meta's models and maps,
+              <br />
+              <em>pointed at the heat.</em>
+            </h2>
+            <p>
+              <AlertTriangle size={15} aria-hidden /> Live air quality and
+              National Weather Service heat alerts sit on top, so the advice
+              changes when the day turns dangerous.
+            </p>
+          </div>
+          <ol className="step-cards">
+            {META_PARTS.map((s, i) => (
+              <li
+                className="reveal"
+                key={s.title}
+                style={{ transitionDelay: `${i * 90}ms` }}
+              >
+                <s.icon size={24} />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="landing-faq" id="faq">

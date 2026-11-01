@@ -1,6 +1,6 @@
 import { CheckCircle2, CircleDashed } from "lucide-react";
 import type { Environment, WeatherForecast, World } from "../../shared/types";
-import type { Outlook } from "../../shared/outlook";
+import { HEAT_RISK_LEVELS, type Outlook } from "../../shared/outlook";
 
 /**
  * Every source behind the current map, with what it contributed, so people
@@ -77,6 +77,21 @@ export default function DataLayers({
         ? `US AQI ${outlook.air.usAqi} · ${outlook.air.category}${outlook.air.pm25 !== null ? ` · PM2.5 ${outlook.air.pm25} µg/m³` : ""}`
         : "Unavailable right now",
       ok: !!outlook?.air,
+    },
+    {
+      name: "Heat risk this week",
+      source: "NWS HeatRisk (experimental, US only)",
+      detail: outlook?.heatRisk
+        ? outlook.heatRisk.days.length
+          ? outlook.heatRisk.days
+              .map(
+                (d) =>
+                  `${new Date(d.date).toLocaleDateString("en-US", { weekday: "short", timeZone: world.timezone })} ${d.level}`,
+              )
+              .join(" · ")
+          : `Today ${outlook.heatRisk.today} · ${HEAT_RISK_LEVELS[outlook.heatRisk.today].label}`
+        : "Unavailable here or right now",
+      ok: !!outlook?.heatRisk,
     },
     {
       name: "Official heat and air alerts",
