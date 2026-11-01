@@ -345,7 +345,21 @@ export function route(
   return planner(w, start, end, o)(o.preference);
 }
 
-/** Compare all preferences with one graph, quickest route and shade cache. */
+/** Several preferences sharing one graph, quickest route and shade cache. */
+export function planRoutes<P extends RoutePreference>(
+  w: World,
+  start: string,
+  end: string,
+  o: Omit<RouteOptions, "preference">,
+  preferences: readonly P[],
+) {
+  const plan = planner(w, start, end, o);
+  return Object.fromEntries(preferences.map((p) => [p, plan(p)])) as Record<
+    P,
+    RouteResult | null
+  >;
+}
+
 /** How far off the path a fountain still counts as "on the way", metres. */
 const WATER_REACH = 20;
 function segmentDistance(p: Point, a: Point, b: Point) {

@@ -89,6 +89,7 @@ import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
 import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
+import { sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import {
@@ -120,6 +121,7 @@ import {
   type Outlook,
 } from "../shared/outlook";
 import OutlookNotice from "./components/OutlookNotice";
+import CoolWalkCard from "./components/CoolWalkCard";
 import {
   uvLabel,
   describeConditions,
@@ -626,6 +628,14 @@ export default function App({
     }
     return length ? { feelsC: feels / length, shade: shade / length } : null;
   }, [currentRoute, edgeHeat]);
+  /** Shade on the rest of the walk, for "shade in 80 m" nudges. */
+  const ahead = useMemo(
+    () =>
+      currentRoute && edgeHeat
+        ? sunAhead(currentRoute.edges, (id) => edgeHeat.get(id))
+        : null,
+    [currentRoute, edgeHeat],
+  );
   function setLocalHour(hour: number, dayOffset = 0) {
     setEnv((previous) => {
       const day = new Date(
@@ -2263,6 +2273,9 @@ export default function App({
                   street={planting.street}
                   planted={planting.planted}
                   time={clockLabel(heatEnv.dateTime, world.timezone)}
+                  area={world.name}
+                  date={heatEnv.dateTime}
+                  timeZone={world.timezone}
                   onReset={() => {
                     setHeatBaseline(null);
                     setPlanting(null);
@@ -2446,6 +2459,12 @@ export default function App({
                 forecast={forecast}
                 outlook={outlook}
               />
+              <CoolWalkCard
+                world={routeWorld}
+                env={routeEnv}
+                sunAversion={sunAversion}
+                timeLabel={clockLabel(routeEnv.dateTime, world.timezone)}
+              />
               <p>{world.provenance.source}</p>
               <p className="fine">{world.provenance.attribution}</p>
               {world.provenance.notes.map((n) => (
@@ -2545,6 +2564,17 @@ export default function App({
                 {nextStretch &&
                   ` · next stretch ~${Math.round(toF(nextStretch.feelsC))}°F, ${Math.round(nextStretch.shade * 100)}% shade`}
               </span>
+              {ahead && (
+                <span className="walk-shade">
+                  {ahead.inShade
+                    ? `In shade for ${ahead.shadeForM} m`
+                    : ahead.shadeInM !== null
+                      ? `Shade in ${ahead.shadeInM} m`
+                      : "No shade ahead: keep to the shady side"}
+                  {ahead.sunMinutesLeft > 0 &&
+                    ` · ${ahead.sunMinutesLeft} min in sun left`}
+                </span>
+              )}
             </div>
           )}
           {picking && (

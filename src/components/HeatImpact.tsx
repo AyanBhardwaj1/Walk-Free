@@ -1,5 +1,8 @@
-import { TreePine } from "lucide-react";
+import { useState } from "react";
+import { FileText, TreePine } from "lucide-react";
 import { toF } from "../lib/heat";
+import { plantingProposal } from "../lib/plant-proposal";
+import ProposalDialog from "./ProposalDialog";
 
 type Summary = { shade: number; feelsLikeC: number } | null;
 const pct = (x: number, fine = false) =>
@@ -41,13 +44,24 @@ export default function HeatImpact({
   planted,
   time,
   onReset,
+  area,
+  date,
+  timeZone,
 }: {
   impact: { street: Summary[]; area: Summary[] };
   street: string;
   planted: number;
   time: string;
   onReset: () => void;
+  /** For the written proposal: the place, moment and its time zone. */
+  area: string;
+  date: string;
+  timeZone: string;
 }) {
+  const [proposal, setProposal] = useState<{
+    title: string;
+    text: string;
+  } | null>(null);
   return (
     <div className="heat-impact" role="status" aria-live="polite">
       <div className="section-title">
@@ -59,12 +73,32 @@ export default function HeatImpact({
       />
       <Row label="Whole area (walking paths)" pair={impact.area} />
       <p className="fine">
-        {planted} trees planted. Move the time of day to see how the shade
-        shifts; estimates assume mature canopy.
+        {planted} {planted === 1 ? "tree" : "trees"} planted. Move the time of
+        day to see how the shade shifts; estimates assume mature canopy.
       </p>
-      <button className="text-button" onClick={onReset}>
-        Compare from here
-      </button>
+      <div className="impact-actions">
+        <button
+          className="secondary"
+          onClick={() =>
+            setProposal(
+              plantingProposal({
+                area,
+                street,
+                planted,
+                date,
+                timeZone,
+                impact,
+              }),
+            )
+          }
+        >
+          <FileText size={15} aria-hidden /> Write a proposal
+        </button>
+        <button className="text-button" onClick={onReset}>
+          Compare from here
+        </button>
+      </div>
+      <ProposalDialog proposal={proposal} onClose={() => setProposal(null)} />
     </div>
   );
 }

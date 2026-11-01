@@ -2596,3 +2596,67 @@ footer {
   margin: 0 0 0 2px;
   vertical-align: -1px;
 }
+.proposal-dialog {
+  width: min(640px, calc(100vw - 32px));
+}
+.proposal-text {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 260px;
+  padding: 12px;
+  font: 13px/1.55 "DM Sans", system-ui, sans-serif;
+  color: var(--c-fg-313b30, #313b30);
+  background: var(--c-bg-fffdf6, #fffdf6);
+  border: 1px solid var(--c-line-d9ddcb, #d9ddcb);
+  resize: vertical;
+}
+.proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.proposal-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  flex: 1 1 auto;
+  margin: 0;
+}
+.impact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.impact-actions .secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.coolwalk {
+  margin: 18px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-line-d9ddcb, #d9ddcb);
+}
+.coolwalk-score {
+  font-size: 14px;
+  margin: 6px 0 8px;
+}
+.coolwalk-score strong {
+  font-size: 22px;
+  font-family: "Playfair Display", Georgia, serif;
+}
+.coolwalk ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.walk-banner .walk-shade {
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--c-fg-fffdf2, #fffdf2);
+}
