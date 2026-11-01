@@ -2045,8 +2045,8 @@ export default function App({
               </div>
               <p>
                 Plan routes in plain words, ask why a street is hot, or plant
-                trees by asking. Create a free account to use the assistant,
-                or watch what it does on this map first.
+                trees by asking. Create a free account to use the assistant, or
+                watch what it does on this map first.
               </p>
               <a className="primary" href="/signup">
                 Create free account <ArrowUpRight size={16} />
@@ -2280,6 +2280,8 @@ export default function App({
                   area={world.name}
                   date={heatEnv.dateTime}
                   timeZone={world.timezone}
+                  sunUp={sunDirection(heatEnv, world.origin).y > 0}
+                  canopy={world.objects.some((o) => o.source === "canopy")}
                   onReset={() => {
                     setHeatBaseline(null);
                     setPlanting(null);
@@ -2464,7 +2466,7 @@ export default function App({
                 outlook={outlook}
               />
               <CoolWalkCard
-                world={routeWorld}
+                world={world}
                 env={routeEnv}
                 sunAversion={sunAversion}
                 timeLabel={clockLabel(routeEnv.dateTime, world.timezone)}

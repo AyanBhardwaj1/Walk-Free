@@ -34,6 +34,9 @@ describe("CoolWalkability", () => {
     expect(r.sunMinutesSaved).toBeGreaterThanOrEqual(0);
     expect(r.score).toBeGreaterThanOrEqual(0);
     expect(r.score).toBeLessThanOrEqual(100);
+    // On this map, shade routing does avoid some sun at midday.
+    expect(r.sunMinutesSaved).toBeGreaterThan(0);
+    expect(r.shadeShare).toBeGreaterThan(r.quickShare);
   });
 
   it("finds nothing to gain after dark", async () => {
@@ -52,6 +55,16 @@ describe("CoolWalkability", () => {
         signal: controller.signal,
       }),
     ).rejects.toThrow(/abort/i);
+  });
+
+  it("stops part-way when cancelled during the run", async () => {
+    const controller = new AbortController();
+    const run = coolWalkability(w, env("2026-06-21T20:00:00Z"), {
+      pairs: 12,
+      signal: controller.signal,
+    });
+    setTimeout(() => controller.abort(), 0);
+    await expect(run).rejects.toThrow(/abort/i);
   });
 
   it("returns null for a map with no walks", async () => {

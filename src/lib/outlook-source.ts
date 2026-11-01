@@ -60,7 +60,9 @@ export async function loadOutlook(
       (d) => parseWalkAlerts(d),
       "application/geo+json",
     ),
-    direct(deps, heatRiskUrl(origin.lat, origin.lon), parseHeatRisk),
+    direct(deps, heatRiskUrl(origin.lat, origin.lon), (d) =>
+      parseHeatRisk(d, new Date(), origin.lon),
+    ),
   ]);
   return { air, alerts, heatRisk, fetchedAt: new Date().toISOString() };
 }

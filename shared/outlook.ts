@@ -100,14 +100,27 @@ const riskLevel = (v: unknown) => {
   const n = typeof v === "string" && /^\d$/.test(v.trim()) ? Number(v) : NaN;
   return n >= 0 && n <= 4 ? n : null;
 };
-export function parseHeatRisk(data: unknown): HeatRisk | null {
+/** Days since the epoch at a longitude's solar time (close to local date). */
+const localDay = (t: number, lon: number) =>
+  Math.floor((t + (lon / 15) * 3_600_000) / 86_400_000);
+
+/**
+ * HeatRisk at a point. Days already over at `lon` (by local date) are
+ * dropped, and "today" is the day whose date is today there; the service's
+ * single value is used only when it lists no days.
+ */
+export function parseHeatRisk(
+  data: unknown,
+  now = new Date(),
+  lon = 0,
+): HeatRisk | null {
   const d = data as {
     value?: unknown;
     properties?: { Values?: unknown };
     catalogItems?: { features?: unknown };
   } | null;
-  const today = riskLevel(d?.value);
-  if (today === null) return null;
+  const value = riskLevel(d?.value);
+  if (value === null) return null;
   const values = Array.isArray(d?.properties?.Values)
     ? d.properties.Values
     : [];
@@ -134,6 +147,16 @@ export function parseHeatRisk(data: unknown): HeatRisk | null {
         });
     });
   days.sort((a, b) => a.day - b.day);
+  const listed = days.length > 0;
+  const thisDay = localDay(now.getTime(), lon);
+  const ahead = days.filter(
+    (d) => localDay(Date.parse(d.date), lon) >= thisDay,
+  );
+  const today = listed
+    ? (ahead.find((d) => localDay(Date.parse(d.date), lon) === thisDay)
+        ?.level ?? value)
+    : value;
+  days.splice(0, days.length, ...ahead);
   const peak = days.reduce<HeatRiskDay | undefined>(
     (best, d) => (!best || d.level > best.level ? d : best),
     undefined,
@@ -258,10 +281,10 @@ export function outlookAdvice(o: Pick<Outlook, "air" | "alerts" | "heatRisk">) {
     }`;
   if (o.air && o.air.level >= 3)
     return `Air quality is ${o.air.category.toLowerCase()} (AQI ${o.air.usAqi}): keep walks short and prefer the indoor route.`;
-  if (o.air && o.air.level === 2)
-    return `Air quality is unhealthy for sensitive groups (AQI ${o.air.usAqi}): if you have asthma or heart or lung conditions, keep this walk short.`;
   if (o.heatRisk && o.heatRisk.today >= 3)
     return `NWS HeatRisk is ${HEAT_RISK_LEVELS[o.heatRisk.today].label} today: heat can harm anyone without cooling or water. Walk early or late and take the shadiest route.`;
+  if (o.air && o.air.level === 2)
+    return `Air quality is unhealthy for sensitive groups (AQI ${o.air.usAqi}): if you have asthma or heart or lung conditions, keep this walk short.`;
   const air = o.alerts?.find((a) => a.kind === "air");
   if (air)
     return `${air.event} in effect: keep walks short if you're sensitive to air pollution.`;

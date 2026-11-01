@@ -13,18 +13,23 @@ export function sunAhead(
   edges: { id: string; distance: number }[],
   reading: (edgeId: string) => { shade: number } | undefined,
 ) {
-  const known = edges.flatMap((e) => {
-    const r = reading(baseEdgeId(e.id));
-    return r ? [{ distance: e.distance, shade: r.shade }] : [];
-  });
-  if (!known.length) return null;
-  const inShade = known[0].shade >= SHADED;
+  const stretches = edges.map((e) => ({
+    distance: e.distance,
+    shade: reading(baseEdgeId(e.id))?.shade,
+  }));
+  const first = stretches.find((k) => k.shade !== undefined);
+  if (!first) return null;
+  const inShade = first.shade! >= SHADED;
+  // Stretches without a reading still count toward distance, so "in 80 m"
+  // is measured along the real walk; they don't decide shade or sun.
   let run = 0,
     sun = 0,
     changeAt: number | null = null;
-  for (const k of known) {
-    sun += k.distance * (1 - k.shade);
-    if (changeAt === null && k.shade >= SHADED !== inShade) changeAt = run;
+  for (const k of stretches) {
+    if (k.shade !== undefined) {
+      sun += k.distance * (1 - k.shade);
+      if (changeAt === null && k.shade >= SHADED !== inShade) changeAt = run;
+    }
     run += k.distance;
   }
   return {

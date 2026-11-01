@@ -41,9 +41,14 @@ describe("sun ahead on a walk", () => {
     expect(r?.sunMinutesLeft).toBe(1.8);
   });
 
-  it("skips stretches it knows nothing about", () => {
+  it("counts stretches without a reading toward distance only", () => {
     const r = sunAhead(edges(["x", 100], ["a", 40]), shade({ a: 0.9 }));
-    expect(r).toMatchObject({ inShade: true, shadeForM: 40 });
+    expect(r).toMatchObject({ inShade: true, shadeForM: 140 });
+    const s = sunAhead(
+      edges(["a", 50], ["x", 300], ["c", 60]),
+      shade({ a: 0, c: 1 }),
+    );
+    expect(s?.shadeInM).toBe(350);
   });
 
   it("returns nothing for an empty route", () => {

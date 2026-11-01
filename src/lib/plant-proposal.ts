@@ -9,6 +9,10 @@ export interface ProposalInput {
   /** The moment the numbers describe, ISO. */
   date: string;
   timeZone: string;
+  /** Whether the sun is up at that moment (explains an unchanged result). */
+  sunUp: boolean;
+  /** Whether the map used Meta/WRI canopy, so the credit is only given then. */
+  canopy: boolean;
   impact: { street: readonly Summary[]; area: readonly Summary[] };
 }
 
@@ -56,14 +60,16 @@ export function plantingProposal(p: ProposalInput) {
     change(named ? p.street : "This path", p.impact.street),
     change("Whole area (walking paths)", p.impact.area),
     unchanged
-      ? "(The sun is low or down at this hour, so shade barely changes; the same trees matter most on summer afternoons.)"
+      ? p.sunUp
+        ? "(These spots are already in shade at this hour; try another hour to see where the new trees help.)"
+        : "(The sun is down at this hour, so shade doesn't change; the same trees matter most on summer afternoons.)"
       : null,
     "",
     "Why it matters: extreme heat is the deadliest weather hazard in the US, and walkers in full sun feel far hotter than the air temperature. Street trees are one of the few changes that cool a walk all day, every summer.",
     "",
     "How these numbers were made: Walk-Free traces sunlight against mapped buildings and tree crowns for the chosen hour and combines it with the weather to estimate how hot each path feels. They are modeled estimates, not measurements, and assume the new trees have reached mature canopy (about 10 m wide, 12 m tall).",
     "",
-    "Data: OpenStreetMap contributors; Meta and World Resources Institute 1 m canopy height map (built with DINOv3, CC BY 4.0); Open-Meteo and the National Weather Service.",
+    `Data: OpenStreetMap contributors;${p.canopy ? " Meta and World Resources Institute 1 m canopy height map (built with DINOv3, CC BY 4.0);" : ""} Open-Meteo and the National Weather Service.`,
     "Made with Walk-Free · https://walk-free.vercel.app",
   ].filter((l): l is string => l !== null);
   return { title, text: lines.join("\n") };

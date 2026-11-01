@@ -46,8 +46,9 @@ describe("NWS HeatRisk", () => {
     expect(url.searchParams.get("returnGeometry")).toBe("false");
   });
 
+  const SAT = new Date("2026-10-31T18:00:00Z"); // 11 AM in Phoenix
   it("puts each day's value with its own forecast day", () => {
-    const risk = parseHeatRisk(PHOENIX)!;
+    const risk = parseHeatRisk(PHOENIX, SAT, -111.94)!;
     // Values follow the catalog order, which isn't sorted by day.
     expect(risk.days.map((d) => d.level)).toEqual([2, 2, 0, 3, 1, 1, 4]);
     expect(risk.days[0]).toEqual({
@@ -70,6 +71,23 @@ describe("NWS HeatRisk", () => {
     ]);
   });
 
+  it("takes today from today's day, not the service's single value", () => {
+    const risk = parseHeatRisk({ ...PHOENIX, value: "4" }, SAT, -111.94)!;
+    expect(risk.today).toBe(2);
+  });
+
+  it("drops days already over after local midnight", () => {
+    // 1 AM Sunday in Phoenix, still Saturday in UTC-less terms of day 1.
+    const risk = parseHeatRisk(
+      PHOENIX,
+      new Date("2026-11-01T08:00:00Z"),
+      -111.94,
+    )!;
+    expect(risk.days[0].day).toBe(2);
+    expect(risk.today).toBe(2);
+    expect(risk.days).toHaveLength(6);
+  });
+
   it("falls back to today's value when the days can't be matched", () => {
     const risk = parseHeatRisk({
       value: "3",
@@ -88,16 +106,55 @@ describe("NWS HeatRisk", () => {
   });
 
   it("warns about Major or Extreme HeatRisk today", () => {
-    const risk = parseHeatRisk({ ...PHOENIX, value: "3" })!;
+    const risk = parseHeatRisk(
+      {
+        ...PHOENIX,
+        properties: { Values: ["3", "3", "4", "1", "0", "1", "2"] },
+      },
+      SAT,
+      -111.94,
+    )!;
+    expect(risk.today).toBe(3);
     expect(outlookAdvice({ air: null, alerts: [], heatRisk: risk })).toMatch(
       /HeatRisk is Major today/,
     );
-    const mild = parseHeatRisk({ ...PHOENIX, value: "1" })!;
+    const mild = parseHeatRisk(
+      {
+        ...PHOENIX,
+        properties: { Values: ["3", "1", "4", "1", "0", "1", "2"] },
+      },
+      SAT,
+      -111.94,
+    )!;
     expect(outlookAdvice({ air: null, alerts: [], heatRisk: mild })).toBeNull();
   });
 
+  it("warns about heat before air that only affects sensitive groups", () => {
+    const risk = parseHeatRisk(
+      {
+        ...PHOENIX,
+        properties: { Values: ["3", "4", "4", "1", "0", "1", "2"] },
+      },
+      SAT,
+      -111.94,
+    )!;
+    const air = {
+      usAqi: 120,
+      pm25: null,
+      ozone: null,
+      level: 2,
+      category: "Unhealthy for sensitive groups",
+      time: "",
+      hours: [],
+      attribution: "",
+    };
+    expect(outlookAdvice({ air, alerts: [], heatRisk: risk })).toMatch(
+      /HeatRisk is Extreme/,
+    );
+  });
+
   it("tells the assistant today's level and the week's peak", () => {
-    const risk = parseHeatRisk(PHOENIX)!;
+    const risk = parseHeatRisk(PHOENIX, SAT, -111.94)!;
     expect(
       outlookContext(
         { air: null, alerts: [], heatRisk: risk },

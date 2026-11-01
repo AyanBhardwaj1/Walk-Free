@@ -317,7 +317,7 @@ const META_PARTS = [
   {
     icon: Sparkles,
     title: "Muse Spark plans the walk",
-    text: "The assistant runs on Meta's Model API. It calls Walk-Free's own tools to plan routes, move the clock, rank hot streets and plant trees, then answers in a sentence.",
+    text: "The assistant is built for Meta's Model API and Muse Spark is its first choice. It calls Walk-Free's own tools to plan routes, move the clock, rank hot streets and plant trees, then answers in a sentence.",
   },
   {
     icon: Trees,
@@ -327,7 +327,7 @@ const META_PARTS = [
   {
     icon: Boxes,
     title: "Open Muse models, any host",
-    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Keys stay in your browser.",
+    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Your key is saved only in your browser and sent just with your own requests.",
   },
   {
     icon: Languages,
@@ -700,9 +700,9 @@ export default function LandingPage({
                       <dt>Shade route on typical walks</dt>
                       <dd>
                         avoids{" "}
-                        <strong>{c.shade_route.sun_avoided_percent}%</strong>{" "}
-                        of the sun for {c.shade_route.extra_distance_percent}%
-                        more walking
+                        <strong>{c.shade_route.sun_avoided_percent}%</strong> of
+                        the sun for {c.shade_route.extra_distance_percent}% more
+                        walking
                       </dd>
                     </div>
                   )}

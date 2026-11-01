@@ -550,13 +550,16 @@ export async function getOutlook(
         now,
       ),
     ),
-    // HeatRisk is updated a few times a day; an hour's cache is plenty.
-    outlookPart(`heatrisk-v1-${at}`, async () =>
+    // An experimental service: a short timeout so it can't hold back the
+    // other parts for long.
+    outlookPart(`heatrisk-v2-${at}`, async () =>
       parseHeatRisk(
         await requestJson(heatRiskUrl(lat, lon), {
-          timeoutMs: 10_000,
+          timeoutMs: 6_000,
           maxBytes: 200_000,
         }),
+        now,
+        lon,
       ),
     ),
   ]);

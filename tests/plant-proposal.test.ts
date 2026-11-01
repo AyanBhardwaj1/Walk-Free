@@ -7,6 +7,8 @@ const input = {
   planted: 38,
   date: "2026-07-14T20:00:00Z",
   timeZone: "America/Chicago",
+  sunUp: true,
+  canopy: true,
   impact: {
     street: [
       { shade: 0.22, feelsLikeC: 41.2 },
@@ -43,6 +45,12 @@ describe("plant-here proposal", () => {
     expect(p.text).toMatch(/mature canopy/);
   });
 
+  it("credits the canopy map only when it was used", () => {
+    expect(plantingProposal({ ...input, canopy: false }).text).not.toMatch(
+      /DINOv3/,
+    );
+  });
+
   it("credits its data sources", () => {
     expect(p.text).toMatch(/OpenStreetMap/);
     expect(p.text).toMatch(/DINOv3/);
@@ -74,6 +82,20 @@ describe("proposal wording", () => {
       },
     });
     expect(q.text).toContain("plant 1 tree,");
-    expect(q.text).toMatch(/sun is low or down/);
+    expect(q.text).toMatch(/already in shade at this hour/);
+    expect(
+      plantingProposal({
+        ...input,
+        sunUp: false,
+        planted: 1,
+        impact: {
+          street: [
+            { shade: 1, feelsLikeC: 31 },
+            { shade: 1, feelsLikeC: 31 },
+          ],
+          area: [null, null],
+        },
+      }).text,
+    ).toMatch(/sun is down/);
   });
 });

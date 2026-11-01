@@ -6,7 +6,7 @@
 Walk-Free shows how hot every street on campus will feel at the hour you walk it. It finds the shadiest way there, and Meta's Muse Spark plans the walk for you in your own language.
 
 ## The problem
-Extreme heat is the deadliest weather in the US. Students and city walkers have no way to see which streets are shaded and when. Maps optimise for minutes, not for the 15 °F difference between a tree-lined path and an open plaza at 3 PM.
+Extreme heat is the deadliest weather in the US. Students and city walkers have no way to see which streets are shaded and when. Maps optimise for minutes, not for shade: on UT Austin's Speedway at 3 PM in July, Walk-Free's model puts the sunny side about 11 °F hotter than the shade (`public/landing/speedway.json`).
 
 ## What it does
 - **Heat you can see.** Every path is coloured by modeled feels-like temperature for the chosen hour. The model uses live weather and sunlight (Open-Meteo, NWS fallback) and real shade, ray-traced against OpenStreetMap buildings and tree crowns.
@@ -24,7 +24,7 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
 ## How it uses Meta AI
 | Meta technology | Where it is used |
 |---|---|
-| **Muse Spark (Meta Model API, `api.meta.ai/v1`)** | Default model for the assistant. The assistant uses tool calling: `find_places`, `plan_route`, `set_time`, `heat_ranking`, `place_heat`, `plant_shade_trees`, `build_area` and `propose_design`. The model acts on the live map, then answers in 1–3 sentences that can be read aloud. Set `WALK_FREE_AI_BASE_URL=https://api.meta.ai/v1`; the model defaults to `muse-spark-1.3`. |
+| **Muse Spark (Meta Model API, `api.meta.ai/v1`)** | The assistant's intended model: the first and default option for people's own keys, and the default model when the site's key is a Meta Model API key. The assistant uses tool calling: `find_places`, `plan_route`, `set_time`, `heat_ranking`, `place_heat`, `plant_shade_trees`, `build_area` and `propose_design`. The model acts on the live map, then answers in 1–3 sentences that can be read aloud. Set `WALK_FREE_AI_BASE_URL=https://api.meta.ai/v1`; the model defaults to `muse-spark-1.3`. |
 | **DINOv3 (Meta + WRI High Resolution Canopy Height Maps v2)** | 1 m canopy height, read server-side straight from the public Cloud-Optimized GeoTIFFs. It adds the trees nobody mapped: at UC Berkeley, 214 mapped trees plus about 10,900 crowns inferred from the canopy map. |
 | **Open Muse models** | Bring-your-own-key presets for Muse Spark Open (Fireworks, Baseten, Together) and Muse Glimmer 30B (DeepInfra). The legacy Llama API is still supported. |
 | **Multilingual** | The assistant replies in the language the person writes in. |

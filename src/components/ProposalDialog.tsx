@@ -34,7 +34,8 @@ export default function ProposalDialog({
     a.href = url;
     a.download = `${proposal!.title.replace(/[^\w-]+/g, "-").toLowerCase()}.txt`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Some browsers start the download after this tick.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const canShare = typeof navigator !== "undefined" && !!navigator.share;
   return (

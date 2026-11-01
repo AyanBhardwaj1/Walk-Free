@@ -47,6 +47,8 @@ export default function HeatImpact({
   area,
   date,
   timeZone,
+  sunUp,
+  canopy,
 }: {
   impact: { street: Summary[]; area: Summary[] };
   street: string;
@@ -57,6 +59,8 @@ export default function HeatImpact({
   area: string;
   date: string;
   timeZone: string;
+  sunUp: boolean;
+  canopy: boolean;
 }) {
   const [proposal, setProposal] = useState<{
     title: string;
@@ -87,6 +91,8 @@ export default function HeatImpact({
                 planted,
                 date,
                 timeZone,
+                sunUp,
+                canopy,
                 impact,
               }),
             )
