@@ -17,6 +17,7 @@ import {
   Layers,
   Undo2,
   Download,
+  FileText,
   Upload,
   Trash2,
   Sparkles,
@@ -125,6 +126,9 @@ import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
+import { heatBrief } from "./lib/heat-brief";
+import ProposalDialog from "./components/ProposalDialog";
+import type { CoolWalkability } from "./lib/cool-walkability";
 import { speechLang } from "./lib/speech-lang";
 import {
   formatTemp,
@@ -316,6 +320,13 @@ export default function App({
   // °F or °C for every temperature shown; kept on this device.
   const [unit, setUnit] = useState<TempUnit>(loadUnit);
   const unitRef = useRef(unit);
+  // The heat brief dialog, and the latest Compare walks result for it.
+  const [brief, setBrief] = useState<{ title: string; text: string } | null>(
+    null,
+  );
+  const [walkComparison, setWalkComparison] = useState<CoolWalkability | null>(
+    null,
+  );
   unitRef.current = unit;
   // How much this person avoids the sun; kept on this device.
   const [sunAversion, setSunAversion] = useState(() => {
@@ -2543,7 +2554,35 @@ export default function App({
                 >
                   <Download size={15} aria-hidden /> Download street heat (CSV)
                 </button>
+                <button
+                  className="secondary heat-csv"
+                  onClick={() => {
+                    const trees = world.objects.filter(
+                      (o) => o.kind === "tree",
+                    );
+                    const canopy = trees.filter(
+                      (o) => o.source === "canopy",
+                    ).length;
+                    setBrief(
+                      heatBrief({
+                        area: world.name,
+                        at: clockLabel(heatEnv.dateTime, world.timezone),
+                        places: placeHeat(world, heatEnv),
+                        trees: { mapped: trees.length - canopy, canopy },
+                        walks: walkComparison ?? undefined,
+                        unit,
+                      }),
+                    );
+                  }}
+                >
+                  <FileText size={15} aria-hidden /> Write a heat brief
+                </button>
+                <ProposalDialog
+                  proposal={brief}
+                  onClose={() => setBrief(null)}
+                />
                 <CoolWalkCard
+                  onResult={setWalkComparison}
                   world={world}
                   env={routeEnv}
                   sunAversion={sunAversion}

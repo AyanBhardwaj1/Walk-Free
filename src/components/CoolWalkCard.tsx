@@ -12,11 +12,14 @@ export default function CoolWalkCard({
   env,
   sunAversion,
   timeLabel,
+  onResult,
 }: {
   world: World;
   env: Environment;
   sunAversion: number;
   timeLabel: string;
+  /** Tells the page the latest comparison (null when cleared). */
+  onResult?: (result: CoolWalkability | null) => void;
 }) {
   const [result, setResult] = useState<CoolWalkability | null | "none">(null);
   const [working, setWorking] = useState(false);
@@ -27,6 +30,8 @@ export default function CoolWalkCard({
     setResult(null);
     setWorking(false);
     setFailed(false);
+    onResult?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, env.dateTime, sunAversion]);
   useEffect(() => () => abort.current?.abort(), []);
   const run = async () => {
@@ -41,6 +46,7 @@ export default function CoolWalkCard({
         signal: controller.signal,
       });
       setResult(r ?? "none");
+      onResult?.(r);
     } catch (error) {
       // A newer area or hour cancels quietly; anything else is reported.
       if ((error as Error)?.name !== "AbortError") setFailed(true);
