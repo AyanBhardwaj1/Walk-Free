@@ -51,6 +51,12 @@ describe("plant-here proposal", () => {
     expect(c).toMatch(/about 4\.8°C cooler/);
   });
 
+  it("says when the numbers use scenario weather, not a live forecast", () => {
+    const t = plantingProposal({ ...input, liveWeather: false }).text;
+    expect(t).toMatch(/a scenario set in Walk-Free, not a live forecast/);
+    expect(t).not.toMatch(/Open-Meteo/);
+  });
+
   it("credits the canopy map only when it was used", () => {
     expect(plantingProposal({ ...input, canopy: false }).text).not.toMatch(
       /DINOv3/,

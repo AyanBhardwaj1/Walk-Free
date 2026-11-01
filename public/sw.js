@@ -74,10 +74,12 @@ function keep(event, promise) {
   }
 }
 
+/** On a weak connection, the cached app is shown after this long. */
+const PAGE_TIMEOUT_MS = 3000;
+
 async function page(request, event) {
   const cache = await caches.open(VERSION);
-  try {
-    const response = await fetch(request);
+  const network = fetch(request).then((response) => {
     // Every route serves the same app shell; keep the latest one, and only
     // when it is the HTML page (not a file opened directly).
     if (
@@ -87,14 +89,27 @@ async function page(request, event) {
     )
       keep(event, store(cache, "/", response.clone()));
     return response;
-  } catch {
-    return (await cache.match("/")) || Response.error();
-  }
+  });
+  const cached = await cache.match("/");
+  if (!cached) return network.catch(() => Response.error());
+  // Prefer the network, but don't hang on weak signal: after a few seconds
+  // (or on failure) show the cached app; the update still lands in cache.
+  keep(event, network.catch(() => undefined));
+  const slow = new Promise((resolve) =>
+    setTimeout(() => resolve(null), PAGE_TIMEOUT_MS),
+  );
+  const first = await Promise.race([network.catch(() => null), slow]);
+  return first || cached;
 }
 async function cacheFirst(request, event) {
   const cache = await caches.open(VERSION);
   const hit = await cache.match(request);
-  if (hit) return hit;
+  if (hit) {
+    // Re-store it as the newest, so files still in use (such as vendor
+    // chunks that keep their name across deploys) are never pruned first.
+    keep(event, store(cache, request, hit.clone()));
+    return hit;
+  }
   const response = await fetch(request);
   if (response.ok) keep(event, store(cache, request, response.clone()));
   return response;

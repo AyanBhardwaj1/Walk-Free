@@ -34,6 +34,20 @@ describe("installable app", () => {
     expect(existsSync(new URL("../public/og.png", import.meta.url))).toBe(true);
   });
 
+  it("describes the app for search engines with valid structured data", () => {
+    const html = read("index.html");
+    expect(html).toContain(
+      'rel="canonical" href="https://walk-free.vercel.app/"',
+    );
+    const json = html.match(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/,
+    )![1];
+    expect(JSON.parse(json)).toMatchObject({
+      "@type": "WebApplication",
+      name: "Walk-Free",
+    });
+  });
+
   it("links the manifest and icons from the page", () => {
     const html = read("index.html");
     expect(html).toContain('rel="manifest" href="/manifest.webmanifest"');

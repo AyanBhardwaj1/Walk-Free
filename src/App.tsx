@@ -2350,6 +2350,7 @@ export default function App({
                     timeZone={world.timezone}
                     sunUp={sunDirection(heatEnv, world.origin).y > 0}
                     canopy={world.objects.some((o) => o.source === "canopy")}
+                    liveWeather={heatEnv.weatherMode === "forecast"}
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);

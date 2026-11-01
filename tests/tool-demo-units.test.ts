@@ -27,6 +27,7 @@ vi.mock("../src/lib/assistant-tools.js", () => ({
         ],
       },
       best_time_to_leave: {
+        weather: "live forecast",
         day: "today",
         best: { leave_at: "7 PM", feels_like_f: 95 },
         cooler_than_now_f: 9,

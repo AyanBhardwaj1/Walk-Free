@@ -53,6 +53,7 @@ export default function HeatImpact({
   timeZone,
   sunUp,
   canopy,
+  liveWeather,
 }: {
   impact: { street: Summary[]; area: Summary[] };
   street: string;
@@ -65,6 +66,7 @@ export default function HeatImpact({
   timeZone: string;
   sunUp: boolean;
   canopy: boolean;
+  liveWeather: boolean;
 }) {
   const unit = useUnit();
   const [proposal, setProposal] = useState<{
@@ -98,6 +100,7 @@ export default function HeatImpact({
                 timeZone,
                 sunUp,
                 canopy,
+                liveWeather,
                 unit,
                 impact,
               }),

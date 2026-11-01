@@ -141,3 +141,26 @@ describe("outlook cache", () => {
     ).toHaveLength(2);
   });
 });
+
+describe("HeatRisk service errors", () => {
+  it("treats an ArcGIS error sent with HTTP 200 as a failure, not 'no data'", async () => {
+    const { lat, lon } = spot();
+    const now = new Date("2026-07-14T20:00:00Z");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let calls = 0;
+    requestJson.mockImplementation((url: string) => {
+      if (!url.includes("HeatRisk")) return Promise.reject(new Error("off"));
+      calls++;
+      return Promise.resolve(
+        calls === 1
+          ? { error: { code: 500, message: "boom" } }
+          : { value: "2" },
+      );
+    });
+    expect((await getOutlook(lat, lon, now)).heatRisk).toBeNull();
+    // Not cached: the next request asks again and gets the real answer.
+    expect((await getOutlook(lat, lon, now)).heatRisk?.today).toBe(2);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
