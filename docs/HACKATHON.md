@@ -18,7 +18,9 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
   - The NWS **HeatRisk** 7-day outlook.
 - **Plant trees, watch the heat drop.** A design tool lines a street with trees and shows shade and feels-like before and after. **Write a proposal** turns the result into a one-page letter for a campus planner or city council, and **Download street heat** exports every street's numbers as CSV.
 - **Compare walks:** how much of the sun the shade route avoids on this campus. On a July afternoon across the six campuses, it's 13–25% of the sun for 4–7% more walking.
-- **A 2D walking view** that follows you, with the next turn and the next block's heat.
+- **A 2D walking view** that follows you, with the next turn, the next block's heat, and how far it is to the next shade (spoken too).
+- **Heat brief:** a one-page summary of an area's hottest and coolest walks, its trees and how much shade routing helps, for planners.
+- **Works for everyone:** replies in your language (and read aloud in a matching voice), °F or °C, keyboard shortcuts, WCAG AA contrast, and installable as an app that opens offline.
 - **Four interface styles,** including a high-contrast Sunlight mode for outdoor glare.
 - **Share links** that reopen the exact walk, saved walks, and keyboard shortcuts.
 
