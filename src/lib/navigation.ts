@@ -66,12 +66,20 @@ export async function startTracking(
   );
   return () => navigator.geolocation.clearWatch(id);
 }
-export function speak(text: string) {
+/** Speaks text; `lang` (a BCP 47 tag) picks a matching voice when known. */
+export function speak(text: string, lang?: string | null) {
   if (nativeNavigation)
-    void TextToSpeech.speak({ text, lang: "en-US", rate: 1, volume: 1 });
+    void TextToSpeech.speak({
+      text,
+      lang: lang ?? "en-US",
+      rate: 1,
+      volume: 1,
+    });
   else if ("speechSynthesis" in window) {
     speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (lang) utterance.lang = lang;
+    speechSynthesis.speak(utterance);
   }
 }
 export function stopSpeech() {
