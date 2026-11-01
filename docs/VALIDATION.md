@@ -141,3 +141,9 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - Live HeatRisk values above 0 (all were 0 in late October). The parser maps each value to the catalog item at the same position, which the ArcGIS Identify (Image Service) reference documents ("pixel values … in the same order as the catalog items").
   - A real Muse Spark call.
   - Offline behaviour on iOS.
+- Later the same night:
+  - Spoken replies pick a voice in the reply's language. Tests cover 8 languages, and English and unclear text keep the default voice.
+  - The guest demo gained a best-time step. Checked in Chromium on desktop and phone.
+  - The landing page shows 4,375 OpenStreetMap trees against 62,748 DINOv3 canopy crowns across the six campuses (from `public/landing/campuses.json`).
+  - `npm test`: 295 pass.
+  - The production check on main confirmed health, the demo page, manifest, service worker, preview image, `/api/outlook` returning 401 for guests, and every new feature marker in the live bundle.
