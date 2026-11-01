@@ -1495,3 +1495,12 @@
 .landing-meta .meta-demo {
   margin-top: 8px;
 }
+.landing-meta .meta-trees {
+  margin: 26px 0 0;
+  font-size: 15px;
+  color: #4f5a45;
+}
+.landing-meta .meta-trees strong {
+  font: 26px "Playfair Display", Georgia, serif;
+  color: #2f3f2c;
+}

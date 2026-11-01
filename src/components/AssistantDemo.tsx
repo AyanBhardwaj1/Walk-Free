@@ -7,6 +7,7 @@ const TOOL_LABEL: Record<string, string> = {
   heat_ranking: "Ranking heat",
   place_heat: "Checking the street",
   plan_route: "Planning routes",
+  best_time_to_leave: "Finding the coolest hour",
 };
 
 /**

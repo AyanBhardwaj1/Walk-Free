@@ -139,5 +139,25 @@ export async function runToolDemo(
             }. It's on the map.`
           : (r3.error ?? "Those places aren't connected by mapped paths."),
     });
+    const when = await step(
+      "When's the coolest time to make that walk?",
+      "best_time_to_leave",
+      { from: a, to: b },
+    );
+    const r4 = when.result as Failed & {
+      day?: string;
+      best?: { leave_at: string; feels_like_f: number };
+      cooler_than_now_f?: number;
+    };
+    onTurn({
+      ...when,
+      reply: r4.best
+        ? `Leave at ${r4.best.leave_at}${r4.day === "tomorrow" ? " tomorrow" : ""}: it should feel about ${r4.best.feels_like_f}°F${
+            r4.cooler_than_now_f
+              ? `, ${r4.cooler_than_now_f}° cooler than now`
+              : ""
+          }.`
+        : (r4.error ?? "I couldn't work out a time for that walk."),
+    });
   }
 }

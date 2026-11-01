@@ -41,6 +41,9 @@ interface CampusStat {
   buildings: number;
   paths_km: number;
   shaded_percent: number;
+  /** Trees from OpenStreetMap, and crowns added from Meta/WRI's canopy map. */
+  mapped_trees?: number;
+  canopy_trees?: number;
   hottest: { name: string; feels_f: number; shaded_percent: number };
   coolest: { name: string; feels_f: number; shaded_percent: number };
   /** Sample walks: share of the sun the shade route avoids, and its cost. */
@@ -780,6 +783,23 @@ export default function LandingPage({
               </li>
             ))}
           </ol>
+          {campusData?.campuses.some((c) => c.canopy_trees) && (
+            <p className="meta-trees reveal">
+              Across the six campuses:{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.mapped_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              trees mapped in OpenStreetMap, and{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.canopy_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              more tree crowns found by Meta's DINOv3 canopy map.
+            </p>
+          )}
         </section>
 
         <section className="landing-faq" id="faq">

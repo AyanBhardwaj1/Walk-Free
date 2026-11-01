@@ -125,6 +125,7 @@ import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
+import { speechLang } from "./lib/speech-lang";
 import {
   uvLabel,
   describeConditions,
@@ -949,7 +950,7 @@ export default function App({
           ),
       );
       setChat(messages);
-      if (speakReplies) speak(reply);
+      if (speakReplies) speak(reply, speechLang(reply));
     } catch (e) {
       if (e instanceof PartialChatError) {
         // Tools already changed the map; keep that in the conversation.
