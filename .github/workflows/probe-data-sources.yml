@@ -46,7 +46,9 @@ jobs:
           check "Health" "/api/health" 200
           check "Guest demo page" "/demo" 200
           # The landing page must not preload the 3D libraries.
-          if curl -sS --max-time 30 "$SITE/" | grep -q 'vendor-3d'; then echo "LANDING PRELOADS vendor-3d"; else echo "landing does not preload vendor-3d"; fi
+          landing=$(curl -sS --max-time 30 "$SITE/") || { echo "LANDING FETCH FAILED"; exit 1; }
+          if grep -q 'vendor-3d' <<<"$landing"; then echo "LANDING PRELOADS vendor-3d"; exit 1; fi
+          echo "landing does not preload vendor-3d"
           check "Web app manifest" "/manifest.webmanifest" 200
           check "Service worker" "/sw.js" 200
           check "Link preview image" "/og.png" 200

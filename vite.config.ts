@@ -10,7 +10,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // The 3D libraries change far less often than the app: in their own
-        // chunk, a deploy doesn't make returning visitors download them again.
+        // chunk, most deploys don't make returning visitors download them again.
         // React gets its own shared chunk so the public pages, which also
         // use it, never preload the 3D libraries.
         manualChunks(id) {

@@ -122,15 +122,31 @@ function transient(error: unknown) {
   const status = Number(error.message.match(/HTTP (\d{3})/)?.[1]);
   return !status || TRANSIENT_STATUSES.has(status);
 }
-async function withRetry<T>(call: () => Promise<T>): Promise<T> {
+/** A retry is skipped when less than this would be left for it. */
+const MIN_RETRY_TIME_MS = 5_000;
+/**
+ * Runs `call` with the whole time budget, then (for a transient failure that
+ * came back quickly) once more with only the time that is left, so both
+ * attempts together never outlast the budget.
+ */
+async function withRetry<T>(
+  call: (timeoutMs: number) => Promise<T>,
+  budgetMs: number,
+): Promise<T> {
   const started = Date.now();
   try {
-    return await call();
+    return await call(budgetMs);
   } catch (error) {
-    if (!transient(error) || Date.now() - started > RETRY_BUDGET_MS)
+    const elapsed = Date.now() - started;
+    const left = budgetMs - elapsed - RETRY_DELAY_MS;
+    if (
+      !transient(error) ||
+      elapsed > RETRY_BUDGET_MS ||
+      left < MIN_RETRY_TIME_MS
+    )
       throw error;
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-    return call();
+    return call(left);
   }
 }
 
@@ -145,41 +161,43 @@ export async function chatCompletion(
   } = {},
 ) {
   const openAi = config.baseUrl.includes("api.openai.com");
-  const result = await withRetry(() =>
-    requestJson<{
-      choices?: {
-        message?: { content?: string | null; tool_calls?: ToolCall[] };
-        finish_reason?: string;
-      }[];
-    }>(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.key}`,
-        "Content-Type": "application/json",
-      },
-      timeoutMs: options.timeoutMs ?? CALL_TIMEOUT_MS,
-      maxBytes: 2_000_000,
-      // A person's own provider explains a rejected key or model; the shared
-      // key's reasons stay on the server (they can echo part of the key).
-      errorReason: config.own,
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        // OpenAI's reasoning models require the newer name; other compatible
-        // providers all accept the original one.
-        [openAi ? "max_completion_tokens" : "max_tokens"]:
-          options.maxTokens ?? MAX_OUTPUT_TOKENS,
-        ...(options.tools?.length
-          ? { tools: options.tools, tool_choice: "auto" }
-          : {}),
-        ...(options.json ? { response_format: { type: "json_object" } } : {}),
-        // Reasoning models answer much faster with low effort, which suits
-        // short walking questions.
-        ...(openAi && /^(gpt-5|o\d)/.test(config.model)
-          ? { reasoning_effort: "low" }
-          : {}),
+  const result = await withRetry(
+    (timeoutMs) =>
+      requestJson<{
+        choices?: {
+          message?: { content?: string | null; tool_calls?: ToolCall[] };
+          finish_reason?: string;
+        }[];
+      }>(`${config.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.key}`,
+          "Content-Type": "application/json",
+        },
+        timeoutMs,
+        maxBytes: 2_000_000,
+        // A person's own provider explains a rejected key or model; the shared
+        // key's reasons stay on the server (they can echo part of the key).
+        errorReason: config.own,
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          // OpenAI's reasoning models require the newer name; other compatible
+          // providers all accept the original one.
+          [openAi ? "max_completion_tokens" : "max_tokens"]:
+            options.maxTokens ?? MAX_OUTPUT_TOKENS,
+          ...(options.tools?.length
+            ? { tools: options.tools, tool_choice: "auto" }
+            : {}),
+          ...(options.json ? { response_format: { type: "json_object" } } : {}),
+          // Reasoning models answer much faster with low effort, which suits
+          // short walking questions.
+          ...(openAi && /^(gpt-5|o\d)/.test(config.model)
+            ? { reasoning_effort: "low" }
+            : {}),
+        }),
       }),
-    }),
+    options.timeoutMs ?? CALL_TIMEOUT_MS,
   ).catch((error: unknown) => {
     // Turn provider HTTP errors into guidance about the key or model.
     const status = Number(

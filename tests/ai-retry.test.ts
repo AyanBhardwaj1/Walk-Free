@@ -60,3 +60,33 @@ describe("model call retries", () => {
     expect(requestJson).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("retry time budget", () => {
+  it("gives the retry only the time left, never a fresh full timeout", async () => {
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    requestJson
+      .mockImplementationOnce(async () => {
+        now += 8_000; // the first attempt failed after 8 s
+        throw upstream(503);
+      })
+      .mockResolvedValueOnce(ok);
+    await ask();
+    const [first, second] = requestJson.mock.calls.map(([, o]) => o.timeoutMs);
+    expect(first).toBe(50_000);
+    expect(second).toBeLessThanOrEqual(50_000 - 8_000);
+    clock.mockRestore();
+  });
+
+  it("doesn't retry a failure that took more than 15 s", async () => {
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    requestJson.mockImplementationOnce(async () => {
+      now += 16_000;
+      throw upstream(503);
+    });
+    await expect(ask()).rejects.toBeInstanceOf(ServiceError);
+    expect(requestJson).toHaveBeenCalledTimes(1);
+    clock.mockRestore();
+  });
+});
