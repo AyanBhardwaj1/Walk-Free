@@ -22,29 +22,47 @@ describe("street heat CSV", () => {
   const csv = streetHeatCsv(
     [
       place({}),
-      place({ id: "q", name: 'The "Drag", Guadalupe', kind: "park", length: 120 }),
+      place({
+        id: "q",
+        name: 'The "Drag", Guadalupe',
+        kind: "park",
+        length: 120,
+      }),
       place({ id: "r", name: "=HYPERLINK(1)" }),
     ],
     { area: "UT Austin, TX", at: "Wed 3:00 PM" },
   );
-  const lines = csv.trim().split("\r\n");
+  const lines = csv
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .split("\r\n");
+  const meta =
+    ',"UT Austin, TX",Wed 3:00 PM,"Walk-Free model (estimate, not a measurement)"';
 
-  it("starts with a comment naming the place, hour and that values are modeled", () => {
-    expect(lines[0]).toBe(
-      '"# Walk-Free modeled street heat for UT Austin, TX at Wed 3:00 PM (estimates, not measurements)"',
-    );
+  it("starts with a byte-order mark so Excel reads accents", () => {
+    expect(csv.startsWith("\uFEFF")).toBe(true);
   });
 
-  it("has a header and one row per place, in °F and percent", () => {
-    expect(lines[1]).toBe(
-      "name,kind,length_m,shaded_percent,feels_like_f,in_sun_f,in_shade_f",
+  it("has a plain header and one row per place, saying where, when and that it's modeled", () => {
+    expect(lines[0]).toBe(
+      "name,kind,length_m,shaded_percent,feels_like_f,in_sun_f,in_shade_f,area,at,source",
     );
-    expect(lines[2]).toBe("Speedway,street,812,23,106,109,98");
-    expect(lines).toHaveLength(5);
+    expect(lines[1]).toBe("Speedway,street,812,23,106,109,98" + meta);
+    expect(lines).toHaveLength(4);
   });
 
   it("quotes commas and quotes, and defuses spreadsheet formulas", () => {
-    expect(lines[3]).toBe('"The ""Drag"", Guadalupe",park,120,23,106,109,98');
-    expect(lines[4].startsWith("'=HYPERLINK(1)")).toBe(true);
+    expect(lines[2]).toBe(
+      '"The ""Drag"", Guadalupe",park,120,23,106,109,98' + meta,
+    );
+    expect(lines[3].startsWith("'=HYPERLINK(1)")).toBe(true);
+  });
+
+  it("keeps negative numbers as numbers", () => {
+    const cold = streetHeatCsv(
+      [place({ feelsLikeC: -20, sunFeelsC: -18, shadeFeelsC: -21 })],
+      { area: "X", at: "Y" },
+    );
+    expect(cold).toContain(",-4,0,-6,");
   });
 });

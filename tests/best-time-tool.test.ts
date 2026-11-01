@@ -118,4 +118,16 @@ describe("compare_walks tool", () => {
     expect(r.sun_avoided_percent).toBeGreaterThan(0);
     expect(r.sun_minutes_saved_per_walk).toBeGreaterThan(0);
   }, 30000);
+
+  it("says there is no sun to avoid after dark", async () => {
+    const { h } = host("2026-07-15T16:00:00Z");
+    const r = (await runTool(
+      h,
+      "compare_walks",
+      JSON.stringify({ hour: 23 }),
+    )) as {
+      note?: string;
+    };
+    expect(r.note).toMatch(/No sun on these walks/);
+  }, 30000);
 });

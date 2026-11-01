@@ -87,7 +87,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: "best_time_to_leave",
       description:
-        "Find the coolest hour to set off on a walk today (6 AM to 8 PM, only hours still ahead; plans tomorrow after 8 PM). Returns the best hour, how much cooler it feels than now, and the feels-like for every hour. Shows the route on the map without moving the clock.",
+        "Find the coolest hour to set off on a walk, by the real current time: today's hours from the current hour to 8 PM, or tomorrow's (6 AM to 8 PM) once 8 PM has passed. Returns the date, the best hour, how much cooler it is than now (when now is within today's walking hours), and the feels-like for every hour. Shows the route on the map without moving the clock.",
       parameters: {
         type: "object",
         properties: {

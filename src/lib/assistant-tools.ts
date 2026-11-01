@@ -15,6 +15,7 @@ import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
   clockLabel,
+  localHour,
   dailyProfile,
   placeHeat,
   routeHeat,
@@ -140,6 +141,11 @@ function envAt(host: ToolHost, h?: number): Environment {
         dateTime: atLocalHour(host.env.dateTime, host.world.timezone, h),
       };
 }
+
+const walkComparisons = new WeakMap<
+  World,
+  Map<string, Awaited<ReturnType<typeof coolWalkability>>>
+>();
 
 /** Runs one tool call and returns a JSON-safe result for the model. */
 export async function runTool(
@@ -279,12 +285,15 @@ export async function runTool(
       if (!start) return { error: `No start matching "${args.from}".` };
       if (!end) return { error: `No destination matching "${args.to}".` };
       const preference = args.preference ?? "shade";
+      // Plan for the real day and time, not the hour the clock shows.
+      const nowIso = host.now?.() ?? new Date().toISOString();
+      const planEnv = { ...host.env, dateTime: nowIso };
       const options = compareRoutes(host.world, start, end, {
         avoidStairs: false,
         allowHypothetical: false,
         maxDetour: 1.8,
-        environment: host.env,
-        coolStops: openCoolStops(host.world, host.env),
+        environment: planEnv,
+        coolStops: openCoolStops(host.world, planEnv),
         sunAversion: host.sunAversion,
       });
       const r = options[preference] ?? options.quickest;
@@ -292,10 +301,10 @@ export async function runTool(
         return { error: "Those places are not connected by mapped paths." };
       const plan = bestTimeToLeave(
         host.world,
-        host.env,
+        planEnv,
         r,
         host.env.weatherMode === "forecast" ? host.forecast : null,
-        host.now?.() ?? new Date().toISOString(),
+        nowIso,
       );
       host.showRoute({
         start,
@@ -305,20 +314,36 @@ export async function runTool(
         dateTime: host.env.dateTime,
       });
       const at = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+      const tz = host.world.timezone;
+      const hourNow = Math.floor(localHour(nowIso, tz));
+      // "Now" only means something during today's walking hours.
+      const nowCounts = plan.dayOffset === 0 && hourNow >= 6 && hourNow <= 20;
       return {
         route: r.preference,
         minutes: Math.max(1, Math.round(r.durationMinutes)),
         day: plan.dayOffset ? "tomorrow" : "today",
+        date: new Date(
+          Date.parse(nowIso) + plan.dayOffset * 86_400_000,
+        ).toLocaleDateString("en-US", {
+          timeZone: tz,
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
         best: {
           leave_at: at(plan.best.hour),
           feels_like_f: deg(plan.best.feelsLikeC),
           shaded_percent: Math.round(plan.best.shade * 100),
         },
-        now: {
-          hour: at(plan.now.hour),
-          feels_like_f: deg(plan.now.feelsLikeC),
-        },
-        cooler_than_now_f: plan.savingF,
+        ...(nowCounts
+          ? {
+              now: {
+                hour: at(plan.now.hour),
+                feels_like_f: deg(plan.now.feelsLikeC),
+              },
+              cooler_than_now_f: plan.savingF,
+            }
+          : {}),
         by_hour: plan.hours.map((h) => ({
           leave_at: at(h.hour),
           feels_like_f: deg(h.feelsLikeC),
@@ -327,11 +352,23 @@ export async function runTool(
     }
     case "compare_walks": {
       const env = envAt(host, a.hour as number | undefined);
-      const r = await coolWalkability(host.scene ?? host.world, env, {
-        pairs: 16,
-        sunAversion: host.sunAversion,
-      });
+      const scene = host.scene ?? host.world;
+      // The same sample as the Data & Sources card, cached per map and hour.
+      const key = `${scene.id}|${env.dateTime}|${host.sunAversion ?? ""}`;
+      let r = walkComparisons.get(scene)?.get(key);
+      if (r === undefined) {
+        r = await coolWalkability(scene, env, {
+          sunAversion: host.sunAversion,
+        });
+        if (!walkComparisons.has(scene)) walkComparisons.set(scene, new Map());
+        walkComparisons.get(scene)!.set(key, r);
+      }
       if (!r) return { error: "This map has no connected walks to compare." };
+      if (r.quickShare >= 0.999)
+        return {
+          at: clockLabel(env.dateTime, host.world.timezone),
+          note: "No sun on these walks at this hour (after dark or fully shaded), so there is nothing for shade routing to avoid. Try a daytime hour.",
+        };
       return {
         at: clockLabel(env.dateTime, host.world.timezone),
         sample_walks: r.walks,
