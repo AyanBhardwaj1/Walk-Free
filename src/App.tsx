@@ -767,10 +767,16 @@ export default function App({
         flash(`Style: ${next.label}`);
       } else if (e.key.toLowerCase() === "v" && !atlas && mode === "explore")
         setView((v) => (v === "3d" ? "2d" : "3d"));
+      else if (e.key.toLowerCase() === "u") {
+        const next = unit === "F" ? "C" : "F";
+        setUnit(next);
+        saveUnit(next);
+        flash(`Temperatures in °${next}`);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [theme, atlas, mode, shortcutsOn]);
+  }, [theme, atlas, mode, shortcutsOn, unit]);
   const playDayRef = useRef(() => {});
   playDayRef.current = playDay;
   function playDay() {
@@ -1600,7 +1606,7 @@ export default function App({
             <button
               className="icon-button unit-toggle"
               aria-label={`Show temperatures in ${unit === "F" ? "Celsius" : "Fahrenheit"}`}
-              title="Temperature unit"
+              title="Temperature unit (U)"
               onClick={() => {
                 const next = unit === "F" ? "C" : "F";
                 setUnit(next);

@@ -5,6 +5,7 @@ export const SHORTCUTS: [key: string, action: string][] = [
   ["P", "Play or pause the day"],
   ["S", "Switch interface style"],
   ["V", "Switch between the 3D and flat map"],
+  ["U", "Switch temperatures between °F and °C"],
   ["?", "Show these shortcuts"],
 ];
 
