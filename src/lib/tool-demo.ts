@@ -1,6 +1,7 @@
 import type { Destination } from "./destinations.js";
 import { runTool, type ToolHost } from "./assistant-tools.js";
 import { coolStopNodes } from "./cool-stops.js";
+import { formatTemp, type TempUnit } from "./units.js";
 
 /* Results of the assistant's tools, as far as the demo reads them. */
 interface Spot {
@@ -68,7 +69,10 @@ export async function runToolDemo(
   host: ToolHost,
   onTurn: (turn: DemoTurn) => void,
   signal?: AbortSignal,
+  unit: TempUnit = "F",
 ) {
+  // Tools report °F; show the person's unit.
+  const t = (f: number) => formatTemp(((f - 32) * 5) / 9, unit);
   const step = async (ask: string, tool: string, args: object) => {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     // A beat between steps so each change on the map can be seen.
@@ -97,7 +101,7 @@ export async function runToolDemo(
     ...ranking,
     reply:
       hot && cool
-        ? `At ${r1.at}, ${hot.name} is the hottest walk here, about ${hot.feels_like_f}°F with ${hot.shaded_percent}% shade. ${cool.name} is the coolest at ${cool.feels_like_f}°F.`
+        ? `At ${r1.at}, ${hot.name} is the hottest walk here, about ${t(hot.feels_like_f)} with ${hot.shaded_percent}% shade. ${cool.name} is the coolest at ${t(cool.feels_like_f)}.`
         : (r1.error ?? "This map has no streets to rank."),
   });
 
@@ -111,7 +115,7 @@ export async function runToolDemo(
       ...why,
       reply: r2.error
         ? r2.error
-        : `${r2.shaded_percent ? `Only ${r2.shaded_percent}% of it is` : "None of it is"} shaded at 3 PM: in the sun it feels about ${r2.in_sun_f}°F, in shade ${r2.in_shade_f}°F. It's highlighted on the map.`,
+        : `${r2.shaded_percent ? `Only ${r2.shaded_percent}% of it is` : "None of it is"} shaded at 3 PM: in the sun it feels about ${t(r2.in_sun_f!)}, in shade ${t(r2.in_shade_f!)}. It's highlighted on the map.`,
     });
   }
 
@@ -152,7 +156,7 @@ export async function runToolDemo(
     onTurn({
       ...when,
       reply: r4.best
-        ? `Leave at ${r4.best.leave_at}${r4.day === "tomorrow" ? " tomorrow" : ""}: it should feel about ${r4.best.feels_like_f}°F${
+        ? `Leave at ${r4.best.leave_at}${r4.day === "tomorrow" ? " tomorrow" : ""}: it should feel about ${t(r4.best.feels_like_f)}${
             r4.cooler_than_now_f
               ? `, ${r4.cooler_than_now_f}° cooler than now`
               : ""

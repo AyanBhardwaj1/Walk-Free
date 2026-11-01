@@ -73,6 +73,17 @@ describe("assistant demo without a model", () => {
     expect(h.calls).toContain("route shade");
   });
 
+  it("writes temperatures in °C when asked", async () => {
+    vi.useFakeTimers();
+    const turns: DemoTurn[] = [];
+    const done = runToolDemo(host(), (t) => turns.push(t), undefined, "C");
+    await vi.runAllTimersAsync();
+    await done;
+    vi.useRealTimers();
+    expect(turns[0].reply).toMatch(/about \d+°C with/);
+    expect(turns.map((t) => t.reply).join(" ")).not.toMatch(/°F/);
+  });
+
   it("stops when cancelled", async () => {
     const controller = new AbortController();
     controller.abort();

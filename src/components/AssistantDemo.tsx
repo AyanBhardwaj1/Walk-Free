@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PlayCircle } from "lucide-react";
 import type { ToolHost } from "../lib/assistant-tools";
 import { runToolDemo, type DemoTurn } from "../lib/tool-demo";
+import { useUnit } from "../lib/units";
 
 const TOOL_LABEL: Record<string, string> = {
   heat_ranking: "Ranking heat",
@@ -21,6 +22,7 @@ export default function AssistantDemo({
   host: () => ToolHost;
   area: string;
 }) {
+  const unit = useUnit();
   const [turns, setTurns] = useState<DemoTurn[]>([]);
   const [running, setRunning] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -42,6 +44,7 @@ export default function AssistantDemo({
         host(),
         (t) => setTurns((all) => [...all, t]),
         controller.signal,
+        unit,
       );
     } catch {
       /* Stopped by a new area or a replay. */
@@ -83,9 +86,9 @@ export default function AssistantDemo({
         </div>
       )}
       <p className="fine">
-        Scripted demo: it runs the assistant's real tools on this map and
-        writes each reply from their numbers, without an AI model. The real
-        assistant (Meta's Muse Spark) answers anything you ask.
+        Scripted demo: it runs the assistant's real tools on this map and writes
+        each reply from their numbers, without an AI model. The real assistant
+        (Meta's Muse Spark) answers anything you ask.
       </p>
     </div>
   );
