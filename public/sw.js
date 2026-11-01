@@ -44,23 +44,59 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-async function page(request) {
+/** Hashed assets kept; older builds' files are dropped beyond this. */
+const MAX_ASSETS = 80;
+
+/** Stores a copy, ignoring a full quota; old hashed assets are pruned. */
+async function store(cache, key, response) {
+  try {
+    await cache.put(key, response);
+    const keys = (await cache.keys()).filter((r) =>
+      new URL(r.url).pathname.startsWith("/assets/"),
+    );
+    // Keys come back oldest first.
+    await Promise.all(
+      keys
+        .slice(0, Math.max(0, keys.length - MAX_ASSETS))
+        .map((r) => cache.delete(r)),
+    );
+  } catch {
+    /* Storage full or unavailable: the network copy is still served. */
+  }
+}
+
+/** Keeps the worker alive for a background write, when still allowed. */
+function keep(event, promise) {
+  try {
+    event.waitUntil(promise);
+  } catch {
+    /* Too late to extend; the write still runs. */
+  }
+}
+
+async function page(request, event) {
   const cache = await caches.open(VERSION);
   try {
     const response = await fetch(request);
-    // Every route serves the same app shell; keep the latest one.
-    if (response.ok) cache.put("/", response.clone());
+    // Every route serves the same app shell; keep the latest one, and only
+    // when it is the HTML page (not a file opened directly).
+    if (
+      response.ok &&
+      response.type === "basic" &&
+      (response.headers.get("content-type") || "").includes("text/html")
+    )
+      keep(event, store(cache, "/", response.clone()));
     return response;
   } catch {
     return (await cache.match("/")) || Response.error();
   }
 }
-async function cacheFirst(request) {
+async function cacheFirst(request, event) {
   const cache = await caches.open(VERSION);
   const hit = await cache.match(request);
   if (hit) return hit;
   const response = await fetch(request);
-  if (response.ok) cache.put(request, response.clone());
+  if (response.ok) keep(event, store(cache, request, response.clone()));
   return response;
 }
 async function staleWhileRevalidate(request, event) {
@@ -68,7 +104,7 @@ async function staleWhileRevalidate(request, event) {
   const hit = await cache.match(request);
   const fresh = fetch(request)
     .then((response) => {
-      if (response.ok) cache.put(request, response.clone());
+      if (response.ok) keep(event, store(cache, request, response.clone()));
       return response;
     })
     .catch(() => hit || Response.error());
@@ -83,8 +119,9 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
   const strategy = strategyFor(request.url, request.mode, self.location.origin);
-  if (strategy === "page") event.respondWith(page(request));
-  else if (strategy === "cache-first") event.respondWith(cacheFirst(request));
+  if (strategy === "page") event.respondWith(page(request, event));
+  else if (strategy === "cache-first")
+    event.respondWith(cacheFirst(request, event));
   else if (strategy === "stale-while-revalidate")
     event.respondWith(staleWhileRevalidate(request, event));
 });
