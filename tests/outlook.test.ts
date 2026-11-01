@@ -363,3 +363,41 @@ describe("review fixes", () => {
     expect(activeOutlook(null, new Date())).toBeNull();
   });
 });
+
+describe("air forecast", () => {
+  const air = (hours: { time: string; usAqi: number }[]) =>
+    parseAirQuality({
+      current: { time: "2026-07-14T15:00", us_aqi: 40 },
+      hourly: {
+        time: hours.map((h) => h.time),
+        us_aqi: hours.map((h) => h.usAqi),
+      },
+    });
+  const now = new Date("2026-07-14T15:30:00Z");
+
+  it("warns when the air will turn unhealthy later today", () => {
+    expect(
+      outlookAdvice(
+        { air: air([{ time: "2026-07-14T21:00", usAqi: 135 }]), alerts: [] },
+        { now, timeZone: "America/Los_Angeles" },
+      ),
+    ).toBe(
+      "Air quality is forecast to become unhealthy for sensitive groups around 2 PM (AQI 135): walk earlier if you can.",
+    );
+  });
+
+  it("ignores past hours and ones more than 12 hours away", () => {
+    expect(
+      outlookAdvice(
+        {
+          air: air([
+            { time: "2026-07-14T14:00", usAqi: 160 },
+            { time: "2026-07-15T08:00", usAqi: 160 },
+          ]),
+          alerts: [],
+        },
+        { now },
+      ),
+    ).toBeNull();
+  });
+});
