@@ -504,18 +504,36 @@ export async function getCanopy(
 }
 
 const OUTLOOK_TTL_MS = 10 * 60 * 1000;
-/** Loads one outlook part, caching only real answers (a failure is retried). */
+const OUTLOOK_MAX_ENTRIES = 600;
+/**
+ * Outlook parts live in their own small in-memory cache, so a sweep of
+ * coordinates can't push expensive map builds out of the disk cache.
+ */
+const outlookCache = new Map<string, { at: number; value: unknown }>();
+/**
+ * Loads one outlook part, caching real answers. A failure (thrown) is never
+ * cached; an empty answer (null) is cached only when `keepEmpty` is set,
+ * such as HeatRisk outside the US.
+ */
 async function outlookPart<T>(
   key: string,
   load: () => Promise<T | null>,
+  keepEmpty = false,
 ): Promise<T | null> {
+  const hit = outlookCache.get(key);
+  if (hit && Date.now() - hit.at < OUTLOOK_TTL_MS) return hit.value as T | null;
   try {
-    return await cached(key, OUTLOOK_TTL_MS, async () => {
-      const value = await load();
-      if (value === null)
-        throw new ServiceError("NO_DATA", "No usable answer.");
-      return value;
-    });
+    const value = await load();
+    if (value !== null || keepEmpty) {
+      outlookCache.delete(key);
+      outlookCache.set(key, { at: Date.now(), value });
+      // Maps keep insertion order: drop the oldest beyond the bound.
+      for (const old of outlookCache.keys()) {
+        if (outlookCache.size <= OUTLOOK_MAX_ENTRIES) break;
+        outlookCache.delete(old);
+      }
+    }
+    return value;
   } catch {
     return null;
   }
@@ -552,15 +570,19 @@ export async function getOutlook(
     ),
     // An experimental service: a short timeout so it can't hold back the
     // other parts for long.
-    outlookPart(`heatrisk-v2-${at}`, async () =>
-      parseHeatRisk(
-        await requestJson(heatRiskUrl(lat, lon), {
-          timeoutMs: 6_000,
-          maxBytes: 200_000,
-        }),
-        now,
-        lon,
-      ),
+    outlookPart(
+      `heatrisk-v2-${at}`,
+      async () =>
+        parseHeatRisk(
+          await requestJson(heatRiskUrl(lat, lon), {
+            timeoutMs: 6_000,
+            maxBytes: 200_000,
+          }),
+          now,
+          lon,
+        ),
+      // Outside the US the service has no data: remember that too.
+      true,
     ),
   ]);
   return {

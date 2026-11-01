@@ -119,3 +119,25 @@ describe("/api/outlook", () => {
     }
   });
 });
+
+describe("outlook cache", () => {
+  it("remembers that HeatRisk has no data here, but retries failures", async () => {
+    const { lat, lon } = spot();
+    const now = new Date("2026-07-14T20:00:00Z");
+    let heatRiskCalls = 0;
+    requestJson.mockImplementation((url: string) => {
+      if (url.includes("HeatRisk")) {
+        heatRiskCalls++;
+        return Promise.resolve({ value: "NoData" });
+      }
+      return Promise.reject(new Error("offline"));
+    });
+    await getOutlook(lat, lon, now);
+    await getOutlook(lat, lon, now);
+    expect(heatRiskCalls).toBe(1);
+    // Air quality failed both times and was asked again each time.
+    expect(
+      requestJson.mock.calls.filter(([u]) => String(u).includes("air-quality")),
+    ).toHaveLength(2);
+  });
+});
