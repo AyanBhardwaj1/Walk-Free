@@ -753,6 +753,13 @@ export default function LandingPage({
               National Weather Service heat alerts sit on top, so the advice
               changes when the day turns dangerous.
             </p>
+            <a
+              className="landing-button meta-demo"
+              href="/demo?area=ut-austin&tab=ask"
+            >
+              Watch the assistant's tools work, no sign-up{" "}
+              <ArrowUpRight size={16} />
+            </a>
           </div>
           <ol className="step-cards">
             {META_PARTS.map((s, i) => (

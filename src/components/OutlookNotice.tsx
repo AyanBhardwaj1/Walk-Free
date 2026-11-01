@@ -22,7 +22,7 @@ export default function OutlookNotice({
 }) {
   // Alerts that ended since the last refresh no longer show.
   const outlook = activeOutlook(loaded);
-  const advice = outlook && outlookAdvice(outlook);
+  const advice = outlook && outlookAdvice(outlook, { timeZone });
   if (!outlook || !advice) return null;
   // The forecast office's page for this spot, with the alert's full text.
   const details = `https://forecast.weather.gov/MapClick.php?lat=${coarse(origin.lat)}&lon=${coarse(origin.lon)}`;

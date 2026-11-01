@@ -22,7 +22,11 @@ export interface WalkLink {
   pref?: RoutePreference;
   /** Local hour of day, 0 to 23.75. */
   hour?: number;
+  /** The panel tab to open, such as "ask" for the assistant demo. */
+  tab?: LinkTab;
 }
+export type LinkTab = "route" | "heat" | "ask" | "climate" | "data";
+const TABS: LinkTab[] = ["route", "heat", "ask", "climate", "data"];
 
 /** A link to the guest demo, so anyone can open it without an account. */
 export function walkLinkUrl(origin: string, link: WalkLink) {
@@ -70,5 +74,7 @@ export function parseWalkLink(search: string): WalkLink {
   if (pref && PREFERENCES.includes(pref)) link.pref = pref;
   const hour = Number(q.get("t"));
   if (q.has("t") && hour >= 0 && hour <= 23.75) link.hour = hour;
+  const tab = q.get("tab") as LinkTab | null;
+  if (tab && TABS.includes(tab)) link.tab = tab;
   return link;
 }

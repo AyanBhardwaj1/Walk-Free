@@ -97,3 +97,11 @@ describe("saved walks", () => {
     expect(loadSavedWalks()).toHaveLength(12);
   });
 });
+
+describe("tab in a link", () => {
+  it("opens a known tab and ignores others", async () => {
+    const { parseWalkLink } = await import("../src/lib/walk-links");
+    expect(parseWalkLink("?area=ut-austin&tab=ask").tab).toBe("ask");
+    expect(parseWalkLink("?area=ut-austin&tab=admin").tab).toBeUndefined();
+  });
+});

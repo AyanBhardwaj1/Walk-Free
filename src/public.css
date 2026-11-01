@@ -339,7 +339,7 @@
   padding: 30px 6%;
   border-top: 1px solid #dddfd2;
   font-size: 11px;
-  color: #78816e;
+  color: #5f6956;
 }
 .public-footer p {
   flex: 1;
@@ -1491,4 +1491,7 @@
 .landing-meta .section-intro p svg {
   vertical-align: -2px;
   color: #a3671c;
+}
+.landing-meta .meta-demo {
+  margin-top: 8px;
 }

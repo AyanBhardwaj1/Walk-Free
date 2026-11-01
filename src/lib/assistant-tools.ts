@@ -9,10 +9,13 @@ import { rankDestinations, type Destination } from "./destinations.js";
 import { searchVariants } from "../../shared/aliases.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
+import { bestTimeToLeave } from "./best-time.js";
+import { coolWalkability } from "./cool-walkability.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
   clockLabel,
+  localHour,
   dailyProfile,
   placeHeat,
   routeHeat,
@@ -32,6 +35,8 @@ export interface ToolHost {
   forecast: WeatherForecast | null;
   catalog: Destination[];
   myLocationNodeId: string | null;
+  /** The current moment, for "hours still ahead" (tests pass a fixed one). */
+  now?: () => string;
   /** The person's sun-aversion setting, so tool routes match the map's. */
   sunAversion?: number;
   showRoute(r: {
@@ -69,6 +74,14 @@ const schemas = {
     hour: hour.optional(),
   }),
   set_time: z.object({ hour }),
+  compare_walks: z.object({ hour: hour.optional() }),
+  best_time_to_leave: z.object({
+    from: z.string().min(1).max(120),
+    to: z.string().min(1).max(120),
+    preference: z
+      .enum(["quickest", "shade", "scenic", "indoors", "stepfree", "night"])
+      .optional(),
+  }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
   propose_design: z.object({ request: z.string().min(1).max(1000) }),
   plant_shade_trees: z.object({ street: z.string().min(1).max(120) }),
@@ -128,6 +141,11 @@ function envAt(host: ToolHost, h?: number): Environment {
         dateTime: atLocalHour(host.env.dateTime, host.world.timezone, h),
       };
 }
+
+const walkComparisons = new WeakMap<
+  World,
+  Map<string, Awaited<ReturnType<typeof coolWalkability>>>
+>();
 
 /** Runs one tool call and returns a JSON-safe result for the model. */
 export async function runTool(
@@ -256,6 +274,109 @@ export async function runTool(
           hour: byHeat.at(-1)!.hour,
           feels_like_f: deg(byHeat.at(-1)!.feelsLikeC),
         },
+      };
+    }
+    case "best_time_to_leave": {
+      const args = a as unknown as z.infer<typeof schemas.best_time_to_leave>;
+      const start = /my (current )?location|here|me$/i.test(args.from)
+        ? host.myLocationNodeId
+        : matchDestinations(host.catalog, args.from)[0]?.id;
+      const end = matchDestinations(host.catalog, args.to)[0]?.id;
+      if (!start) return { error: `No start matching "${args.from}".` };
+      if (!end) return { error: `No destination matching "${args.to}".` };
+      const preference = args.preference ?? "shade";
+      // Plan for the real day and time, not the hour the clock shows.
+      const nowIso = host.now?.() ?? new Date().toISOString();
+      const planEnv = { ...host.env, dateTime: nowIso };
+      const options = compareRoutes(host.world, start, end, {
+        avoidStairs: false,
+        allowHypothetical: false,
+        maxDetour: 1.8,
+        environment: planEnv,
+        coolStops: openCoolStops(host.world, planEnv),
+        sunAversion: host.sunAversion,
+      });
+      const r = options[preference] ?? options.quickest;
+      if (!r)
+        return { error: "Those places are not connected by mapped paths." };
+      const plan = bestTimeToLeave(
+        host.world,
+        planEnv,
+        r,
+        host.env.weatherMode === "forecast" ? host.forecast : null,
+        nowIso,
+      );
+      host.showRoute({
+        start,
+        end,
+        preference: r.preference,
+        avoidStairs: false,
+        dateTime: host.env.dateTime,
+      });
+      const at = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+      const tz = host.world.timezone;
+      const hourNow = Math.floor(localHour(nowIso, tz));
+      // "Now" only means something during today's walking hours.
+      const nowCounts = plan.dayOffset === 0 && hourNow >= 6 && hourNow <= 20;
+      return {
+        route: r.preference,
+        minutes: Math.max(1, Math.round(r.durationMinutes)),
+        day: plan.dayOffset ? "tomorrow" : "today",
+        date: new Date(
+          Date.parse(nowIso) + plan.dayOffset * 86_400_000,
+        ).toLocaleDateString("en-US", {
+          timeZone: tz,
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        best: {
+          leave_at: at(plan.best.hour),
+          feels_like_f: deg(plan.best.feelsLikeC),
+          shaded_percent: Math.round(plan.best.shade * 100),
+        },
+        ...(nowCounts
+          ? {
+              now: {
+                hour: at(plan.now.hour),
+                feels_like_f: deg(plan.now.feelsLikeC),
+              },
+              cooler_than_now_f: plan.savingF,
+            }
+          : {}),
+        by_hour: plan.hours.map((h) => ({
+          leave_at: at(h.hour),
+          feels_like_f: deg(h.feelsLikeC),
+        })),
+      };
+    }
+    case "compare_walks": {
+      const env = envAt(host, a.hour as number | undefined);
+      const scene = host.scene ?? host.world;
+      // The same sample as the Data & Sources card, cached per map and hour.
+      const key = `${scene.id}|${env.dateTime}|${host.sunAversion ?? ""}`;
+      let r = walkComparisons.get(scene)?.get(key);
+      if (r === undefined) {
+        r = await coolWalkability(scene, env, {
+          sunAversion: host.sunAversion,
+        });
+        if (!walkComparisons.has(scene)) walkComparisons.set(scene, new Map());
+        walkComparisons.get(scene)!.set(key, r);
+      }
+      if (!r) return { error: "This map has no connected walks to compare." };
+      if (r.quickShare >= 0.999)
+        return {
+          at: clockLabel(env.dateTime, host.world.timezone),
+          note: "No sun on these walks at this hour (after dark or fully shaded), so there is nothing for shade routing to avoid. Try a daytime hour.",
+        };
+      return {
+        at: clockLabel(env.dateTime, host.world.timezone),
+        sample_walks: r.walks,
+        sun_avoided_percent: r.score,
+        shaded_percent_quickest: Math.round(r.quickShare * 100),
+        shaded_percent_shade_route: Math.round(r.shadeShare * 100),
+        sun_minutes_saved_per_walk: Math.round(r.sunMinutesSaved * 10) / 10,
+        extra_distance_percent: Math.max(0, Math.round(r.extraDistance * 100)),
       };
     }
     case "set_time": {

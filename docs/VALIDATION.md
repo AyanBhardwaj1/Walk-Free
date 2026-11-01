@@ -121,3 +121,23 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - Chromium (desktop 1440 px, phone 390 px) against the dev server with mocked provider answers: AQI badge, heat-advisory notice linking to forecast.weather.gov, sun-aversion slider saved on the device; no console errors; the notice appears with live weather unavailable.
 - Independent review of the change (same-family reviewer, provisional): 7/10, "almost"; its three medium findings (outlook only loaded with weather, UTC times in the assistant's context, AQI over 500 discarded) and most low ones were fixed with tests.
 - Not verified here: a successful Muse Spark call (no Meta key in this environment; the shared assistant on Vercel also still needs `WALK_FREE_DATABASE_URL`), whether a model follows the reply-language rule, live NWS alert text, and the Meta Model API key prefix.
+
+## HeatRisk, guest demo, proposals, nudges, installable app — 2026-11-01
+
+- `npm test`: 289 pass (40 files); lint and build clean.
+- Chromium against the dev server with mocked provider answers:
+  - HeatRisk badge and notice; Compare walks; the walking banner's shade nudge; the plant-trees proposal dialog; the guest **Watch what it does** demo on UC Berkeley and UT Austin, desktop and phone, with replies from real tool results; the street-heat CSV download (ASU, 67 places).
+  - The new screens in the Night and Sunlight styles.
+  - No page errors.
+- axe (WCAG 2 A/AA): no violations on the landing page, the Route tab with a notice, Data & Sources after Compare walks, or the Ask demo, after fixing the header-tab and footer contrast and making chat logs focusable.
+- Production build: the service worker takes control, and the landing page reloads offline.
+- Two independent reviews (same-family, provisional) scored 7/10, "almost"; their medium findings were fixed with tests:
+  - HeatRisk "today" taken by local date, and past days dropped.
+  - Heat advice before sensitive-group air.
+  - Copy that overstated the default model and key handling.
+  - Proposal reasons based on the sun's position.
+  - Walking-nudge distances include stretches without a reading.
+- Not verified here:
+  - The live order of HeatRisk catalog items. The parser assumes values follow catalog order, as ArcGIS identify documents; live values were all 0 in late October.
+  - A real Muse Spark call.
+  - Offline behaviour on iOS.

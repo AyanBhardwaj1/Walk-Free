@@ -123,6 +123,7 @@ import {
 import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
+import { streetHeatCsv } from "./lib/heat-csv";
 import {
   uvLabel,
   describeConditions,
@@ -186,6 +187,7 @@ const WALK_LINK_PARAMS = [
   "to",
   "pref",
   "t",
+  "tab",
 ];
 /** "Play the day": from this hour to that, in steps this long and fast. */
 const DAY_START_HOUR = 6;
@@ -936,6 +938,8 @@ export default function App({
           setChatStatus(
             {
               plan_route: "Planning routes…",
+              best_time_to_leave: "Finding the coolest hour…",
+              compare_walks: "Comparing walks…",
               heat_ranking: "Ranking heat…",
               place_heat: "Checking the heat…",
               build_area: "Building the area…",
@@ -1201,7 +1205,7 @@ export default function App({
       if (link?.pref) setPref(link.pref);
       setHypothetical(false);
       setMode("explore");
-      setTab("route");
+      setTab(link?.tab ?? "route");
       setPicking(null);
       setTrees(true);
       setBuildings(true);
@@ -2465,6 +2469,26 @@ export default function App({
                 forecast={forecast}
                 outlook={outlook}
               />
+              <button
+                className="secondary heat-csv"
+                onClick={() => {
+                  // Every street and park at the hour shown, for planners.
+                  const csv = streetHeatCsv(placeHeat(world, heatEnv), {
+                    area: world.name,
+                    at: clockLabel(heatEnv.dateTime, world.timezone),
+                  });
+                  const url = URL.createObjectURL(
+                    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+                  );
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${world.name.replace(/[^\w-]+/g, "-").toLowerCase()}-street-heat.csv`;
+                  a.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }}
+              >
+                <Download size={15} aria-hidden /> Download street heat (CSV)
+              </button>
               <CoolWalkCard
                 world={world}
                 env={routeEnv}

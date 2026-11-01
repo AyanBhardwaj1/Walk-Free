@@ -271,7 +271,13 @@ export function parseWalkAlerts(data: unknown, now = new Date()) {
 }
 
 /** One sentence to show above the route when something calls for it. */
-export function outlookAdvice(o: Pick<Outlook, "air" | "alerts" | "heatRisk">) {
+export function outlookAdvice(
+  o: Pick<Outlook, "air" | "alerts" | "heatRisk">,
+  {
+    now = new Date(),
+    timeZone = "UTC",
+  }: { now?: Date; timeZone?: string } = {},
+) {
   const heat = o.alerts?.find((a) => a.kind === "heat");
   if (heat)
     return `${heat.event} in effect from the National Weather Service: walk early or late, take the shadiest or indoor route, and carry water.${
@@ -288,6 +294,20 @@ export function outlookAdvice(o: Pick<Outlook, "air" | "alerts" | "heatRisk">) {
   const air = o.alerts?.find((a) => a.kind === "air");
   if (air)
     return `${air.event} in effect: keep walks short if you're sensitive to air pollution.`;
+  // Air that is fine now but forecast to turn unhealthy in the next 12 hours.
+  const soon = o.air?.hours.find(
+    (h) =>
+      h.usAqi > 100 &&
+      Date.parse(h.time) > now.getTime() &&
+      Date.parse(h.time) <= now.getTime() + 12 * 3_600_000,
+  );
+  if (o.air && soon) {
+    const at = new Date(soon.time).toLocaleTimeString("en-US", {
+      timeZone,
+      hour: "numeric",
+    });
+    return `Air quality is forecast to become ${aqiCategory(soon.usAqi).label.toLowerCase()} around ${at} (AQI ${soon.usAqi}): walk earlier if you can.`;
+  }
   return null;
 }
 
