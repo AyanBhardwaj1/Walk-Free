@@ -57,6 +57,7 @@ npm start
 - Plant-here proposal: after planting trees in Design studio, **Write a proposal** turns the before/after numbers into a one-page letter to copy, download or share.
 - Compare walks (Data & Sources): how much of the sun the shade route avoids across a fixed sample of walks at the hour shown, the minutes saved and the extra distance. The landing page's campus cards show the same for a July afternoon.
 - Walking view: "In shade for 120 m" or "Shade in 80 m" and the minutes left in the sun; spoken guidance mentions shade close ahead.
+- Write a heat brief (Data & Sources): a one-page text for planners with the hottest and coolest walks at the hour shown, mapped trees vs canopy crowns, and the Compare walks result when it has been run.
 - Download street heat (Data & Sources): every street and park's modeled shade and feels-like at the hour shown, as CSV for planners.
 - Assistant tools include `best_time_to_leave` ("when should I leave?") and `compare_walks` ("how shade-friendly is this campus?"). Signed-out visitors can **Watch what it does**: a labelled, scripted run of the real tools on the open campus, with replies written from their numbers.
 - Air quality forecast: a notice when the next 12 hours bring unhealthy air.
