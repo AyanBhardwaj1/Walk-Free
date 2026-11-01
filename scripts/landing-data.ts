@@ -71,6 +71,11 @@ const campuses = await Promise.all(
       name: area.name.replace(/, [A-Z]{2}$/, ""),
       air_f: SUMMER[area.slug].highF,
       buildings: world.objects.filter((o) => o.kind !== "tree").length,
+      // Trees from OpenStreetMap vs crowns added from Meta/WRI's DINOv3 canopy.
+      mapped_trees: world.objects.filter(
+        (o) => o.kind === "tree" && o.source !== "canopy",
+      ).length,
+      canopy_trees: world.objects.filter((o) => o.source === "canopy").length,
       paths_km: round(
         world.graph.edges.reduce((s, e) => s + e.distance, 0) / 1000,
         0,
