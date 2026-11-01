@@ -1,6 +1,7 @@
 import { Clock } from "lucide-react";
 import type { BestTime as Plan } from "../lib/best-time";
-import { heatLevel, HEAT_LEVELS, toF } from "../lib/heat";
+import { heatLevel, HEAT_LEVELS } from "../lib/heat";
+import { inUnit, tempDelta, useUnit } from "../lib/units";
 
 const clock = (hour: number) =>
   hour === 12 ? "noon" : `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
@@ -17,8 +18,12 @@ export default function BestTime({
   /** Moves the time to this hour, on the day shown or the next one. */
   onPick: (hour: number, dayOffset: 0 | 1) => void;
 }) {
+  const unit = useUnit();
   if (!plan) return null;
-  const temps = plan.hours.map((h) => toF(h.feelsLikeC));
+  const temps = plan.hours.map((h) => inUnit(h.feelsLikeC, unit));
+  const saving = Math.round(
+    tempDelta(plan.now.feelsLikeC - plan.best.feelsLikeC, unit),
+  );
   const [low, high] = [Math.min(...temps), Math.max(...temps)];
   const tomorrow = plan.dayOffset === 1;
   const later =
@@ -33,14 +38,14 @@ export default function BestTime({
         {tomorrow ? (
           <>
             Leave at <strong>{clock(plan.best.hour)}</strong> tomorrow: about{" "}
-            {Math.round(toF(plan.best.feelsLikeC))}°F, the coolest walk of the
-            day.
+            {Math.round(inUnit(plan.best.feelsLikeC, unit))}°{unit}, the coolest
+            walk of the day.
           </>
         ) : later ? (
           <>
             Leave at <strong>{clock(plan.best.hour)}</strong>: about{" "}
-            {Math.round(toF(plan.best.feelsLikeC))}°F, {plan.savingF}° cooler
-            than now.
+            {Math.round(inUnit(plan.best.feelsLikeC, unit))}°{unit}, {saving}°
+            cooler than now.
           </>
         ) : (
           <>Now is as cool as this walk gets today.</>
@@ -52,14 +57,14 @@ export default function BestTime({
         aria-label="Feels-like by hour"
       >
         {plan.hours.map((h) => {
-          const f = toF(h.feelsLikeC);
+          const f = inUnit(h.feelsLikeC, unit);
           const height = high > low ? 18 + ((f - low) / (high - low)) * 42 : 30;
           return (
             <button
               key={h.hour}
               className={h.hour === plan.best.hour ? "best" : ""}
-              aria-label={`Leave at ${clock(h.hour)}${tomorrow ? " tomorrow" : ""}: about ${Math.round(f)}°F, ${Math.round(h.shade * 100)}% shade${h.hour === plan.best.hour ? ", the coolest time still ahead" : ""}`}
-              title={`${clock(h.hour)} · ${Math.round(f)}°F`}
+              aria-label={`Leave at ${clock(h.hour)}${tomorrow ? " tomorrow" : ""}: about ${Math.round(f)}°${unit}, ${Math.round(h.shade * 100)}% shade${h.hour === plan.best.hour ? ", the coolest time still ahead" : ""}`}
+              title={`${clock(h.hour)} · ${Math.round(f)}°${unit}`}
               onClick={() => onPick(h.hour, plan.dayOffset)}
             >
               <i

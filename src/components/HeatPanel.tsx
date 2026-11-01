@@ -3,14 +3,18 @@ import {
   HEAT_LEVELS,
   HEAT_RAMP,
   relativeHeatColor,
-  toF,
   type HeatReading,
   type PlaceHeat,
 } from "../lib/heat";
+import { formatTemp, tempDelta, useUnit } from "../lib/units";
 
 export type ProfileHour = HeatReading & { hour: number };
 
-const degrees = (c: number) => `${Math.round(toF(c))}°F`;
+/** Formats °C readings in the person's chosen unit. */
+function useDegrees() {
+  const unit = useUnit();
+  return (c: number) => formatTemp(c, unit);
+}
 const percent = (x: number) => `${Math.round(x * 100)}%`;
 export const clock = (hour: number) => {
   const h = Math.floor(hour) % 24;
@@ -28,6 +32,7 @@ export function HeatBadge({ reading }: { reading: HeatReading }) {
 
 /** The map's colour scale: fully shaded to full sun at this moment. */
 export function HeatLegend({ range }: { range: HeatReading | null }) {
+  const degrees = useDegrees();
   const contrast = range && range.sunFeelsC - range.shadeFeelsC >= 1;
   if (!range || !contrast)
     return (
@@ -62,9 +67,10 @@ function DayProfile({
   currentHour: number;
   onHour: (hour: number) => void;
 }) {
-  const temps = profile.map((p) => toF(p.feelsLikeC));
-  const low = Math.min(...temps) - 4,
-    high = Math.max(...temps) + 1;
+  const degrees = useDegrees();
+  const temps = profile.map((p) => p.feelsLikeC);
+  const low = Math.min(...temps) - 2.2,
+    high = Math.max(...temps) + 0.6;
   const peak = profile[temps.indexOf(Math.max(...temps))];
   return (
     <div className="day-profile">
@@ -78,7 +84,7 @@ function DayProfile({
             key={p.hour}
             className={Math.floor(currentHour) === p.hour ? "now" : ""}
             style={{
-              height: `${12 + ((temps[i] - low) / Math.max(1, high - low)) * 88}%`,
+              height: `${12 + ((temps[i] - low) / Math.max(0.55, high - low)) * 88}%`,
               background: HEAT_LEVELS[p.level].color,
             }}
             title={`${clock(p.hour)}: ${degrees(p.feelsLikeC)}, ${percent(p.shade)} shade`}
@@ -117,6 +123,7 @@ function PlaceCard({
   onCompare: () => void;
   comparing: boolean;
 }) {
+  const degrees = useDegrees();
   return (
     <div className="place-card">
       <div className="place-card-head">
@@ -171,7 +178,9 @@ function PlaceCard({
 }
 
 function Comparison({ a, b }: { a: PlaceHeat; b: PlaceHeat }) {
-  const diff = Math.round(toF(a.feelsLikeC) - toF(b.feelsLikeC));
+  const degrees = useDegrees();
+  const unit = useUnit();
+  const diff = Math.round(tempDelta(a.feelsLikeC - b.feelsLikeC, unit));
   const [hot, cool] = diff >= 0 ? [a, b] : [b, a];
   return (
     <div className="heat-compare">
@@ -185,7 +194,7 @@ function Comparison({ a, b }: { a: PlaceHeat; b: PlaceHeat }) {
       <p>
         {diff === 0
           ? "These feel about the same right now."
-          : `${hot.name} feels about ${Math.abs(diff)}°F hotter than ${cool.name} right now.`}
+          : `${hot.name} feels about ${Math.abs(diff)}°${unit} hotter than ${cool.name} right now.`}
       </p>
     </div>
   );
@@ -200,6 +209,7 @@ function PlaceList({
   places: PlaceHeat[];
   onSelect: (place: PlaceHeat) => void;
 }) {
+  const degrees = useDegrees();
   if (!places.length) return null;
   return (
     <div className="place-list">

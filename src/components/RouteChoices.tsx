@@ -5,7 +5,8 @@ import type {
   World,
 } from "../../shared/types";
 import { routePreferences } from "../lib/routing";
-import { routeHeat, toF } from "../lib/heat";
+import { routeHeat } from "../lib/heat";
+import { inUnit, tempDelta, useUnit } from "../lib/units";
 
 export const routeLabels: Record<RoutePreference, string> = {
   quickest: "Quickest",
@@ -41,6 +42,7 @@ export default function RouteChoices({
   environment: Environment;
   origin: World["origin"];
 }) {
+  const unit = useUnit();
   const quick = choices.quickest;
   const quickHeat = quick && routeHeat(quick, environment, origin);
   return (
@@ -54,7 +56,9 @@ export default function RouteChoices({
         const heat = route && routeHeat(route, environment, origin);
         const cooler =
           heat && quickHeat
-            ? Math.round(toF(quickHeat.feelsLikeC) - toF(heat.feelsLikeC))
+            ? Math.round(
+                tempDelta(quickHeat.feelsLikeC - heat.feelsLikeC, unit),
+              )
             : 0;
         const same =
           preference !== "quickest" &&
@@ -81,7 +85,8 @@ export default function RouteChoices({
                   <small>· {(route.distance / 1000).toFixed(2)} km</small>
                 </span>
                 <span className="route-heat">
-                  ~{Math.round(toF(heat!.feelsLikeC))}°F feels like
+                  ~{Math.round(inUnit(heat!.feelsLikeC, unit))}°{unit} feels
+                  like
                   {preference !== "quickest" && cooler > 0 && (
                     <> · {cooler}° cooler</>
                   )}
