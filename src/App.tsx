@@ -123,6 +123,7 @@ import {
 import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
+import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
 import {
   uvLabel,
@@ -2084,6 +2085,12 @@ export default function App({
                 saveOwnKey(account.id, value);
                 setChatError("");
               }}
+            />
+          )}
+          {!atlas && mode === "explore" && tab === "heat" && (
+            <HeatRiskWeek
+              risk={outlook?.heatRisk}
+              timeZone={world.timezone}
             />
           )}
           {!atlas && mode === "explore" && tab === "heat" && (
