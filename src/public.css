@@ -223,7 +223,7 @@
 .landing-studio p {
   font-size: 14px;
   line-height: 1.9;
-  color: #707967;
+  color: #5f6956;
 }
 .landing-steps {
   padding: 0;
@@ -866,7 +866,7 @@
 }
 .number-band span {
   font-size: 13px;
-  color: #6f7964;
+  color: #5f6956;
 }
 
 /* Interactive preview */
@@ -942,7 +942,7 @@
 }
 .preview-readout span {
   font-size: 13px;
-  color: #6f7964;
+  color: #5f6956;
 }
 .preview-slider {
   font-size: 12px;
@@ -956,8 +956,8 @@
 .preview-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
-  color: #969c86;
+  font-size: 11px;
+  color: #5f6956;
 }
 .preview-plant {
   display: flex;
@@ -988,9 +988,9 @@
 }
 .preview-note,
 .fine-note {
-  font-size: 11px !important;
+  font-size: 12px !important;
   line-height: 1.6 !important;
-  color: #8b9080 !important;
+  color: #5f6956 !important;
   margin: 0;
 }
 
@@ -1035,7 +1035,7 @@
 .step-cards p {
   font-size: 13px;
   line-height: 1.75;
-  color: #6f7964;
+  color: #5f6956;
   margin: 0;
 }
 
@@ -1130,7 +1130,7 @@
 .feature-copy p {
   font-size: 15px;
   line-height: 1.85;
-  color: #6f7964;
+  color: #5f6956;
   max-width: 480px;
 }
 
@@ -1335,7 +1335,7 @@
 .faq-list p {
   font-size: 14px;
   line-height: 1.85;
-  color: #6f7964;
+  color: #5f6956;
   margin: 12px 0 0;
   animation: rise 0.35s ease-out both;
 }
@@ -1484,7 +1484,7 @@
 }
 .landing-meta .section-intro p {
   max-width: 560px;
-  color: #6f7964;
+  color: #5f6956;
   font-size: 14px;
   line-height: 1.7;
 }
@@ -1503,4 +1503,9 @@
 .landing-meta .meta-trees strong {
   font: 26px "Playfair Display", Georgia, serif;
   color: #2f3f2c;
+}
+
+/* Comfortable line length for running text (45-75 characters). */
+.landing-v2 p {
+  max-width: 68ch;
 }
