@@ -40,6 +40,20 @@ export default function OutlookNotice({
             {a.ends ? ` until ${alertEnd(a.ends, timeZone)}` : ""} · {a.sender}
           </small>
         ))}
+        {(outlook.alerts?.some((a) => a.kind === "heat") ||
+          (outlook.heatRisk?.today ?? 0) >= 3) && (
+          <small>
+            <a
+              href="https://www.cdc.gov/extreme-heat/signs-symptoms/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Heat safety: signs of heat illness and what to do
+              <ArrowUpRight size={12} aria-hidden />
+            </a>{" "}
+            · CDC
+          </small>
+        )}
       </div>
     </section>
   );
