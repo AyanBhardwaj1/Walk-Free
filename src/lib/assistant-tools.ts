@@ -9,6 +9,7 @@ import { rankDestinations, type Destination } from "./destinations.js";
 import { searchVariants } from "../../shared/aliases.js";
 import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
+import { bestTimeToLeave } from "./best-time.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -32,6 +33,8 @@ export interface ToolHost {
   forecast: WeatherForecast | null;
   catalog: Destination[];
   myLocationNodeId: string | null;
+  /** The current moment, for "hours still ahead" (tests pass a fixed one). */
+  now?: () => string;
   /** The person's sun-aversion setting, so tool routes match the map's. */
   sunAversion?: number;
   showRoute(r: {
@@ -69,6 +72,13 @@ const schemas = {
     hour: hour.optional(),
   }),
   set_time: z.object({ hour }),
+  best_time_to_leave: z.object({
+    from: z.string().min(1).max(120),
+    to: z.string().min(1).max(120),
+    preference: z
+      .enum(["quickest", "shade", "scenic", "indoors", "stepfree", "night"])
+      .optional(),
+  }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
   propose_design: z.object({ request: z.string().min(1).max(1000) }),
   plant_shade_trees: z.object({ street: z.string().min(1).max(120) }),
@@ -256,6 +266,61 @@ export async function runTool(
           hour: byHeat.at(-1)!.hour,
           feels_like_f: deg(byHeat.at(-1)!.feelsLikeC),
         },
+      };
+    }
+    case "best_time_to_leave": {
+      const args = a as unknown as z.infer<typeof schemas.best_time_to_leave>;
+      const start = /my (current )?location|here|me$/i.test(args.from)
+        ? host.myLocationNodeId
+        : matchDestinations(host.catalog, args.from)[0]?.id;
+      const end = matchDestinations(host.catalog, args.to)[0]?.id;
+      if (!start) return { error: `No start matching "${args.from}".` };
+      if (!end) return { error: `No destination matching "${args.to}".` };
+      const preference = args.preference ?? "shade";
+      const options = compareRoutes(host.world, start, end, {
+        avoidStairs: false,
+        allowHypothetical: false,
+        maxDetour: 1.8,
+        environment: host.env,
+        coolStops: openCoolStops(host.world, host.env),
+        sunAversion: host.sunAversion,
+      });
+      const r = options[preference] ?? options.quickest;
+      if (!r)
+        return { error: "Those places are not connected by mapped paths." };
+      const plan = bestTimeToLeave(
+        host.world,
+        host.env,
+        r,
+        host.env.weatherMode === "forecast" ? host.forecast : null,
+        host.now?.() ?? new Date().toISOString(),
+      );
+      host.showRoute({
+        start,
+        end,
+        preference: r.preference,
+        avoidStairs: false,
+        dateTime: host.env.dateTime,
+      });
+      const at = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+      return {
+        route: r.preference,
+        minutes: Math.max(1, Math.round(r.durationMinutes)),
+        day: plan.dayOffset ? "tomorrow" : "today",
+        best: {
+          leave_at: at(plan.best.hour),
+          feels_like_f: deg(plan.best.feelsLikeC),
+          shaded_percent: Math.round(plan.best.shade * 100),
+        },
+        now: {
+          hour: at(plan.now.hour),
+          feels_like_f: deg(plan.now.feelsLikeC),
+        },
+        cooler_than_now_f: plan.savingF,
+        by_hour: plan.hours.map((h) => ({
+          leave_at: at(h.hour),
+          feels_like_f: deg(h.feelsLikeC),
+        })),
       };
     }
     case "set_time": {

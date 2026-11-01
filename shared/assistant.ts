@@ -85,6 +85,36 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "best_time_to_leave",
+      description:
+        "Find the coolest hour to set off on a walk today (6 AM to 8 PM, only hours still ahead; plans tomorrow after 8 PM). Returns the best hour, how much cooler it feels than now, and the feels-like for every hour. Shows the route on the map without moving the clock.",
+      parameters: {
+        type: "object",
+        properties: {
+          from: {
+            type: "string",
+            description: "Start place name, or 'my location'.",
+          },
+          to: { type: "string", description: "Destination place name." },
+          preference: {
+            type: "string",
+            enum: [
+              "quickest",
+              "shade",
+              "scenic",
+              "indoors",
+              "stepfree",
+              "night",
+            ],
+          },
+        },
+        required: ["from", "to"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "set_time",
       description: "Move the time-of-day slider to a local hour (0-23.75).",
       parameters: {
