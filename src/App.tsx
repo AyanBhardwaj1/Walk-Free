@@ -315,6 +315,8 @@ export default function App({
   const [detour, setDetour] = useState(1.8);
   // °F or °C for every temperature shown; kept on this device.
   const [unit, setUnit] = useState<TempUnit>(loadUnit);
+  const unitRef = useRef(unit);
+  unitRef.current = unit;
   // How much this person avoids the sun; kept on this device.
   const [sunAversion, setSunAversion] = useState(() => {
     try {
@@ -940,6 +942,7 @@ export default function App({
               activeOutlook(outlookRef.current),
               t.world.timezone,
             ),
+            temperatureUnit: unitRef.current,
             canBuildAreas: true,
           };
         },
