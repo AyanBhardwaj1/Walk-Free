@@ -38,8 +38,11 @@ Heat illness is preventable when people know where and when the heat is. Walk-Fr
 2. Compare **Quickest** with **More shade**. Push the **sun aversion** slider and watch the shade route change.
 3. Open **Best time to go** and tap the coolest hour.
 4. In Design studio, plant a row of trees on a hot street and read the before/after feels-like.
-5. On the Ask tab, signed out, press **Watch what it does** to see the assistant's tools act on the map. Then sign in (or add a Meta Model API key in AI settings) and ask: *"Plan me the coolest walk from UT Tower to Gregory Gym at 2 PM"*, or the same in Spanish.
+5. Open https://walk-free.vercel.app/demo?area=ut-austin&tab=ask and press **Watch what it does** to see the assistant's tools act on the map (no sign-up). Then sign in (or add a Meta Model API key in AI settings) and ask: *"Plan me the coolest walk from UT Tower to Gregory Gym at 2 PM"*, or the same in Spanish.
 6. Open **Data & Sources** to see every layer: OSM, Meta/WRI canopy, Open-Meteo weather and AQI, NWS alerts and HeatRisk.
+
+## Video
+A 2-minute recording script is in [docs/VIDEO_SCRIPT.md](VIDEO_SCRIPT.md).
 
 ## Built with
 React 19, Vite, three.js / React Three Fiber, MapLibre, Express 5 on Vercel, Neon Postgres (usage caps), and Neon Auth.
