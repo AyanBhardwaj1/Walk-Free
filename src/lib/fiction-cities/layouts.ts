@@ -1,4 +1,8 @@
-import type { ObjectKind, Point } from "../../../shared/types.js";
+import type {
+  LandmarkShape,
+  ObjectKind,
+  Point,
+} from "../../../shared/types.js";
 import {
   arc,
   between,
@@ -8,6 +12,7 @@ import {
   lines,
   pick,
   round,
+  spanBetween,
   subdivide,
   tiltedFit,
   withMidlines,
@@ -26,7 +31,10 @@ interface Place {
   height: number;
   color: string;
   kind?: ObjectKind;
-  shape?: (w: number, d: number) => Point[];
+  /** Footprint inside the width × depth rectangle. */
+  plan?: (w: number, d: number) => Point[];
+  /** Signature silhouette, drawn by scene/LandmarkShapes. */
+  shape?: LandmarkShape;
 }
 
 /** A named landmark on the nearest free lot, with a named path node beside it. */
@@ -45,7 +53,8 @@ function landmark(b: CityBuilder, p: Place, lot?: Lot) {
     color: p.color,
     name: p.name,
     kind: p.kind ?? "landmark",
-    footprint: p.shape?.(width, depth),
+    footprint: p.plan?.(width, depth),
+    shape: p.shape,
   });
   if (!o) throw new Error(`${p.name} does not fit its lot`);
   b.nameNode(target.center, p.node);
@@ -231,6 +240,15 @@ export function noirHarbor(b: CityBuilder) {
         kind: "plaza",
         name: "Clocktower Square",
       },
+      {
+        i0: 8,
+        i1: 12,
+        j0: 20,
+        j1: harbor,
+        kind: "lot",
+        name: "Harbor Chemical Works",
+      },
+      { i0: 0, i1: 4, j0: 10, j1: 16, kind: "lot", name: "Graymoor Estate" },
     ],
   );
   // A ferry pier reaches out into the harbor.
@@ -254,18 +272,91 @@ export function noirHarbor(b: CityBuilder) {
     "Ravenhollow Path",
     { roadClass: "path", lit: false, scenic: 0.7, width: 3, kind: "footway" },
   );
+  // A causeway out to the asylum on Blackwater Point.
+  const pointX = xs[26];
+  b.street(
+    [
+      [pointX, zs[harbor]],
+      [pointX, 392],
+    ],
+    "Blackwater Causeway",
+    { roadClass: "path", lit: false, scenic: 0.6, width: 5, kind: "footway" },
+  );
   b.prune();
   b.node([pierX, 432], "Ferry Pier End");
+  b.node([pointX, 392], "Asylum Gate");
 
   const river = blocks[0].polygon;
+  // Bridges, the elevated line and the asylum stand over (or beside) the
+  // water, so they go up before the water is laid.
+  const graymoorZ = (zs[12] + zs[14]) / 2;
+  const graymoorBridge = b.building({
+    ...spanBetween([xs[4] + 6, graymoorZ], [xs[6] - 6, graymoorZ], 14),
+    height: 36,
+    color: "#4a4744",
+    name: "Graymoor Bridge",
+    kind: "landmark",
+    shape: "bridge",
+  });
+  if (!graymoorBridge) throw new Error("Graymoor Bridge does not fit");
+  b.nameNode([xs[4], graymoorZ], "Graymoor Bridge West");
+  b.nameNode([xs[6], graymoorZ], "Graymoor Bridge East");
+  // The elevated line runs the waterfront between the walk and the water,
+  // broken at the river, the pier and the causeway.
+  const railZ = 335;
+  const railRuns: [number, number][] = [
+    [-458, river[0][0] - 2],
+    [river[1][0] + 2, pierX - 6],
+    [pierX + 6, pointX - 6],
+    [pointX + 6, 470],
+  ];
+  for (const [x0, x1] of railRuns) {
+    const pieces = Math.ceil((x1 - x0) / 190);
+    const step = (x1 - x0) / pieces;
+    for (let k = 0; k < pieces; k++)
+      b.building({
+        ...spanBetween(
+          [x0 + step * k + (k ? 4 : 0), railZ],
+          [x0 + step * (k + 1) - (k < pieces - 1 ? 4 : 0), railZ],
+          9,
+        ),
+        height: 11,
+        color: "#34312f",
+        name: "Harbor Elevated Line",
+        shape: "bridge",
+      });
+  }
+  const asylum = b.building({
+    center: [pointX, 428],
+    width: 84,
+    depth: 56,
+    rotation: 0,
+    height: 34,
+    color: "#5d5a55",
+    name: "Blackwater Asylum",
+    kind: "landmark",
+    shape: "manor",
+  });
+  if (!asylum) throw new Error("Blackwater Asylum does not fit");
+  const point: [number, number][] = [
+    [pointX - 58, 342],
+    [pointX + 70, 342],
+    [pointX + 70, 470],
+    [pointX - 58, 470],
+  ];
   b.landscape("water", "Mourning River", [
     [river[0][0], -500],
     [river[1][0], -500],
     [river[1][0], 346],
     [river[0][0], 346],
   ]);
+  // The harbor wraps Blackwater Point, a wooded tongue of land.
   b.landscape("water", "Noir Harbor", [
     [-500, 342],
+    point[0],
+    point[3],
+    point[2],
+    point[1],
     [500, 342],
     [500, 500],
     [-500, 500],
@@ -282,9 +373,60 @@ export function noirHarbor(b: CityBuilder) {
       depth: 104,
       height: 96,
       color: stone,
-      shape: footprints.cross,
+      plan: footprints.cross,
+      shape: "cathedral",
     },
     blocks[2].lot,
+  );
+  // The chemical works on the waterfront: a stack hall and a tank farm.
+  const [works, tankFarm] = subdivide(rng, blocks[5].lot, 2, 1, 10);
+  landmark(
+    b,
+    {
+      name: "Harbor Chemical Works",
+      node: "Chemical Works Gate",
+      at: [0, 0],
+      width: 70,
+      depth: 80,
+      height: 78,
+      color: "#4b4038",
+      shape: "smokestacks",
+    },
+    works,
+  );
+  landmark(
+    b,
+    {
+      name: "Harbor Chemical Tank Farm",
+      node: "Tank Farm Gate",
+      at: [0, 0],
+      width: 70,
+      depth: 80,
+      height: 30,
+      color: "#6f7468",
+      shape: "tanks",
+    },
+    tankFarm,
+  );
+  // Graymoor Manor in its woods across the river from the city.
+  const estate = blocks[6];
+  landmark(
+    b,
+    {
+      name: "Graymoor Manor",
+      node: "Graymoor Gate",
+      at: [0, 0],
+      width: 84,
+      depth: 54,
+      height: 42,
+      color: "#5b5249",
+      shape: "manor",
+    },
+    {
+      ...estate.lot,
+      center: [estate.lot.center[0], estate.lot.center[1] - 24],
+      depth: 54,
+    },
   );
   const places: Place[] = [
     {
@@ -295,7 +437,8 @@ export function noirHarbor(b: CityBuilder) {
       depth: 26,
       height: 252,
       color: "#2b2b30",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "spire",
     },
     {
       name: "Midnight Clocktower",
@@ -305,7 +448,8 @@ export function noirHarbor(b: CityBuilder) {
       depth: 22,
       height: 204,
       color: "#3a3631",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "spire",
     },
     {
       name: "Harbor Gate Customs House",
@@ -326,13 +470,24 @@ export function noirHarbor(b: CityBuilder) {
       color: "#4a4d52",
     },
     {
-      name: "Hall of Iron Justice",
+      name: "Ironbound Courthouse",
       node: "Courthouse Steps",
       at: [-80, -60],
       width: 40,
       depth: 40,
-      height: 64,
+      height: 54,
       color: "#3e3b38",
+      shape: "hall",
+    },
+    {
+      name: "Central Precinct",
+      node: "Precinct Steps",
+      at: [70, -170],
+      width: 40,
+      depth: 36,
+      height: 40,
+      color: "#3d4048",
+      shape: "signal",
     },
     {
       name: "Obsidian Opera House",
@@ -342,6 +497,7 @@ export function noirHarbor(b: CityBuilder) {
       depth: 40,
       height: 48,
       color: "#262428",
+      shape: "dome",
     },
     {
       name: "Crowsnest Rail Station",
@@ -358,8 +514,9 @@ export function noirHarbor(b: CityBuilder) {
       at: [-400, 200],
       width: 40,
       depth: 40,
-      height: 34,
+      height: 58,
       color: "#4b3b32",
+      shape: "smokestacks",
     },
     {
       name: "Weatherglass Observatory",
@@ -369,7 +526,8 @@ export function noirHarbor(b: CityBuilder) {
       depth: 30,
       height: 120,
       color: "#30343c",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "dome",
     },
     {
       name: "Monarch Grand Hotel",
@@ -379,6 +537,7 @@ export function noirHarbor(b: CityBuilder) {
       depth: 40,
       height: 158,
       color: "#3a3f47",
+      shape: "stepped",
     },
     {
       name: "Gargoyle Perch Bank",
@@ -388,6 +547,7 @@ export function noirHarbor(b: CityBuilder) {
       depth: 40,
       height: 112,
       color: "#2f3036",
+      shape: "stepped",
     },
     {
       name: "Lighthouse of Saint Ione",
@@ -397,7 +557,7 @@ export function noirHarbor(b: CityBuilder) {
       depth: 18,
       height: 70,
       color: "#d8d2c4",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
     },
     {
       name: "Ravenhollow Mausoleum",
@@ -407,6 +567,7 @@ export function noirHarbor(b: CityBuilder) {
       depth: 30,
       height: 26,
       color: "#5a5650",
+      shape: "pyramid",
     },
   ];
   for (const p of places) landmark(b, p);
@@ -456,6 +617,8 @@ export function noirHarbor(b: CityBuilder) {
                 between(rng, 0.3, 0.5),
               )
             : undefined;
+      // The core's tall towers rise to gothic spires and deco setbacks.
+      const form = height > 100 && (core || height > 165) ? rng() : 1;
       b.building({
         center: sub.center,
         width,
@@ -464,6 +627,7 @@ export function noirHarbor(b: CityBuilder) {
         height,
         color: pick(rng, palette),
         footprint: shape,
+        shape: form < 0.32 ? "spire" : form < 0.62 ? "stepped" : undefined,
       });
     }
   });
@@ -472,11 +636,15 @@ export function noirHarbor(b: CityBuilder) {
   b.landscape("park", "Gaslight Commons", blocks[3].polygon);
   b.landscape("park", "Clocktower Square", blocks[4].polygon);
   b.landscape("park", "Cathedral Close", blocks[2].polygon);
+  b.landscape("park", "Graymoor Woods", estate.polygon);
+  b.landscape("park", "Blackwater Point", point);
   const trees = ["#2f3b33", "#36433a", "#2a3530", "#3f4a3c"];
   b.scatterTrees(blocks[1].polygon, 8.5, 0.85, trees, [5, 9], "Cemetery yew");
   b.scatterTrees(blocks[3].polygon, 9, 0.8, trees, [5, 9], "Commons elm");
   b.scatterTrees(blocks[4].polygon, 14, 0.35, trees, [4, 7], "Square plane");
   b.scatterTrees(blocks[2].polygon, 12, 0.4, trees, [5, 8], "Close yew");
+  b.scatterTrees(estate.polygon, 9, 0.8, trees, [7, 12], "Graymoor oak");
+  b.scatterTrees(point, 9, 0.6, trees, [5, 9], "Blackwater willow");
   b.streetTrees(trees, [5, 8], "Harbor plane");
 
   amenitiesAt(b, [
@@ -584,12 +752,16 @@ export function skylinePrime(b: CityBuilder) {
       },
     };
   };
+  // The harbor opens the south-east corner: its outer streets go.
+  const harborEdge = (axis: "x" | "z", i: number, seg: number) =>
+    i === 18 && seg >= (axis === "x" ? 16 : 14);
   const blocks = lattice(
     b,
     xs,
     zs,
     line,
-    (_, i) => (i % 2 ? rng() < 0.7 : true),
+    (axis, i, seg) =>
+      harborEdge(axis, i, seg) ? false : i % 2 ? rng() < 0.7 : true,
     [
       {
         i0: 8,
@@ -603,6 +775,8 @@ export function skylinePrime(b: CityBuilder) {
       { i0: 8, i1: 10, j0: 6, j1: 8, kind: "lot", name: "Globe Plaza" },
       { i0: 8, i1: 10, j0: 2, j1: 4, kind: "lot", name: "City Hall" },
       { i0: 14, i1: 16, j0: 8, j1: 10, kind: "lot", name: "Union Terminal" },
+      { i0: 14, i1: 18, j0: 16, j1: 18, kind: "water", name: "Prime Harbor" },
+      { i0: 4, i1: 6, j0: 8, j1: 10, kind: "lot", name: "Champions Court" },
     ],
   );
   const park = blocks[1].polygon;
@@ -627,21 +801,76 @@ export function skylinePrime(b: CityBuilder) {
   b.node(center, "Sunburst Fountain");
   b.prune();
 
+  // The harbor bridge strikes out east over the water from the shore.
+  const harbor = blocks[5].polygon;
+  const bayZ = (harbor[0][1] + 480) / 2;
+  const bayBridge = b.building({
+    ...spanBetween([harbor[0][0] + 2, bayZ], [478, bayZ], 20),
+    height: 66,
+    color: "#c9d3d6",
+    name: "Starliner Bay Bridge",
+    kind: "landmark",
+    shape: "bridge",
+  });
+  if (!bayBridge) throw new Error("Starliner Bay Bridge does not fit");
+  b.nameNode([xs[14], bayZ], "Bay Bridge Overlook");
+  b.landscape("water", "Prime Harbor", [
+    harbor[0],
+    [500, harbor[0][1]],
+    [500, 500],
+    [harbor[0][0], 500],
+  ]);
+
   const gold = "#e9d9a6";
   landmark(
     b,
     {
-      name: "Globe of Tomorrow Tower",
+      name: "Daily Clarion Globe Tower",
       node: "Globe Tower Plaza",
       at: [0, 0],
       width: 46,
       depth: 46,
       height: 332,
       color: gold,
-      shape: (w, d) => footprints.round(w, d, 16),
+      plan: (w, d) => footprints.round(w, d, 16),
+      shape: "globe",
     },
     blocks[2].lot,
   );
+  // The hall of heroes faces the Grand Concourse across its court.
+  const court = blocks[6].lot;
+  landmark(
+    b,
+    {
+      name: "Hall of Champions",
+      node: "Champions Court Steps",
+      at: [0, 0],
+      width: 60,
+      depth: 72,
+      height: 46,
+      color: "#f6f1e4",
+      shape: "hall",
+    },
+    {
+      ...court,
+      rotation: -90,
+      width: court.depth,
+      depth: Math.min(court.width, 58),
+    },
+  );
+  const statue = b.building({
+    center: [0, 23],
+    width: 11,
+    depth: 11,
+    rotation: 180,
+    height: 26,
+    color: "#c9a24f",
+    name: "Guardian of Tomorrow Statue",
+    kind: "landmark",
+    shape: "statue",
+  });
+  if (!statue) throw new Error("The statue does not fit its plaza");
+  b.nameNode([0, 50], "Guardian Statue Steps");
   landmark(
     b,
     {
@@ -652,7 +881,8 @@ export function skylinePrime(b: CityBuilder) {
       depth: 52,
       height: 124,
       color: "#efe3c8",
-      shape: (w, d) => footprints.notched(w, d, 8),
+      plan: (w, d) => footprints.notched(w, d, 8),
+      shape: "stepped",
     },
     blocks[3].lot,
   );
@@ -666,7 +896,7 @@ export function skylinePrime(b: CityBuilder) {
       depth: 62,
       height: 42,
       color: "#d9c7a0",
-      shape: (w, d) => footprints.notched(w, d, 10),
+      plan: (w, d) => footprints.notched(w, d, 10),
     },
     blocks[4].lot,
   );
@@ -674,14 +904,26 @@ export function skylinePrime(b: CityBuilder) {
     footprints.notched(w, d, Math.min(w, d) * 0.18);
   const places: Place[] = [
     {
-      name: "Morning Clarion Building",
-      node: "Clarion Corner",
+      name: "Morning Courier Building",
+      node: "Courier Corner",
       at: [-260, -210],
       width: 30,
       depth: 30,
       height: 236,
       color: "#f4ede0",
-      shape: deco,
+      plan: deco,
+      shape: "stepped",
+    },
+    {
+      name: "Apex Tower",
+      node: "Apex Plaza",
+      at: [220, -300],
+      width: 30,
+      depth: 30,
+      height: 312,
+      color: "#9fb2c4",
+      plan: footprints.octagon,
+      shape: "spire",
     },
     {
       name: "Radiant Theater",
@@ -698,8 +940,9 @@ export function skylinePrime(b: CityBuilder) {
       at: [-330, 120],
       width: 30,
       depth: 30,
-      height: 38,
+      height: 44,
       color: "#e6d3b3",
+      shape: "dome",
     },
     {
       name: "Starlight Ballroom Hotel",
@@ -709,7 +952,8 @@ export function skylinePrime(b: CityBuilder) {
       depth: 30,
       height: 168,
       color: "#b8c4c9",
-      shape: deco,
+      plan: deco,
+      shape: "stepped",
     },
     {
       name: "Chime Tower",
@@ -719,7 +963,8 @@ export function skylinePrime(b: CityBuilder) {
       depth: 24,
       height: 142,
       color: "#efe3c8",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "spire",
     },
     {
       name: "Mooring Mast Tower",
@@ -729,7 +974,8 @@ export function skylinePrime(b: CityBuilder) {
       depth: 30,
       height: 288,
       color: "#dfe4e6",
-      shape: deco,
+      plan: deco,
+      shape: "stepped",
     },
     {
       name: "Victory Arch",
@@ -757,7 +1003,8 @@ export function skylinePrime(b: CityBuilder) {
       depth: 30,
       height: 112,
       color: "#e9e1d4",
-      shape: deco,
+      plan: deco,
+      shape: "stepped",
     },
     {
       name: "Sunburst Bandshell",
@@ -812,6 +1059,7 @@ export function skylinePrime(b: CityBuilder) {
           : rng() < 0.1
             ? footprints.octagon(width, depth)
             : undefined;
+      const tall = subs.length === 1 && height >= 80;
       b.building({
         center: sub.center,
         width,
@@ -820,6 +1068,8 @@ export function skylinePrime(b: CityBuilder) {
         height: subs.length > 1 ? between(rng, 30, 70) : height,
         color: pick(rng, palette),
         footprint: shape,
+        // Gleaming setback towers fill the downtown.
+        ...(tall && rng() < 0.42 ? { shape: "stepped" as const } : {}),
       });
     }
   });
@@ -840,9 +1090,11 @@ export function skylinePrime(b: CityBuilder) {
       .map(([x, z]) => [x + center[0] + 95, z + center[1]] as Point),
   );
   b.landscape("park", "Globe Plaza", blocks[2].polygon);
+  b.landscape("park", "Champions Court", blocks[6].polygon);
   const trees = ["#5f8f4e", "#6e9e55", "#7aa95c", "#4f7f45"];
   b.scatterTrees(park, 11, 0.75, trees, [6, 11], "Park linden");
   b.scatterTrees(blocks[0].polygon, 16, 0.35, trees, [5, 8], "Plaza plane");
+  b.scatterTrees(blocks[6].polygon, 12, 0.5, trees, [5, 8], "Court linden");
   b.streetTrees(trees, [5, 9], "Boulevard elm");
 
   amenitiesAt(b, [
@@ -964,6 +1216,17 @@ export function velocityBay(b: CityBuilder) {
   );
   b.prune();
   b.node([470, zs[8]], "Ferry Landing");
+  // A suspension bridge strides along the bay, offshore.
+  const bayBridge = b.building({
+    ...spanBetween([446, -462], [446, -262], 16),
+    height: 62,
+    color: "#ff5a3c",
+    name: "Velocity Bay Bridge",
+    kind: "landmark",
+    shape: "bridge",
+  });
+  if (!bayBridge) throw new Error("Velocity Bay Bridge does not fit");
+  b.nameNode([xs[promenade], -362], "Bay Bridge Overlook");
   b.landscape("water", "Velocity Bay", [
     [412, -500],
     [500, -500],
@@ -982,7 +1245,7 @@ export function velocityBay(b: CityBuilder) {
       depth: 70,
       height: 34,
       color: "#f2f2ee",
-      shape: (w, d) => footprints.round(w, d, 20),
+      plan: (w, d) => footprints.round(w, d, 20),
     },
     hall,
   );
@@ -996,7 +1259,7 @@ export function velocityBay(b: CityBuilder) {
       depth: 60,
       height: 46,
       color: "#d8e3ea",
-      shape: (w, d) => footprints.ell(w, d, 0.4, 0.45),
+      plan: (w, d) => footprints.ell(w, d, 0.4, 0.45),
     },
     lab,
   );
@@ -1064,7 +1327,7 @@ export function velocityBay(b: CityBuilder) {
       depth: 26,
       height: 80,
       color: "#f2f2ee",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
     },
     {
       name: "Bayview Library",
@@ -1083,7 +1346,8 @@ export function velocityBay(b: CityBuilder) {
       depth: 40,
       height: 30,
       color: "#f5c8a8",
-      shape: (w, d) => footprints.round(w, d, 18),
+      plan: (w, d) => footprints.round(w, d, 18),
+      shape: "arena",
     },
     {
       name: "Dynamo Lofts",
@@ -1279,6 +1543,20 @@ export function auroraRealm(b: CityBuilder) {
   b.node(at(1, 12), "Spire Court");
   b.node(at(2, 0), "Swan Bridge Landing");
   b.node(at(2, 16), "Raven Bridge Landing");
+  // The rainbow bridge itself arcs over the fjord beside its promenade.
+  const along = (r: number): Point => [
+    r * Math.cos(theta) + 15 * -Math.sin(theta),
+    r * Math.sin(theta) + 15 * Math.cos(theta),
+  ];
+  const rainbowBridge = b.building({
+    ...spanBetween(along(495), along(645), 12),
+    height: 28,
+    color: "#f1d58a",
+    name: "Rainbow Bridge",
+    kind: "landmark",
+    shape: "bridge",
+  });
+  if (!rainbowBridge) throw new Error("The Rainbow Bridge does not fit");
 
   // Water: a ring canal (in sixteen reaches between the bridges) and the fjord.
   for (let i = 0; i < 16; i++) {
@@ -1361,6 +1639,7 @@ export function auroraRealm(b: CityBuilder) {
     name: "Sunhold Citadel",
     kind: "landmark",
     footprint: footprints.round(72, 72, 16),
+    shape: "dome",
   });
   [
     "Spire of Dawn",
@@ -1379,6 +1658,7 @@ export function auroraRealm(b: CityBuilder) {
       name,
       kind: "tower",
       footprint: footprints.octagon(11, 11),
+      shape: "spire",
     });
   });
   const places: Place[] = [
@@ -1390,6 +1670,7 @@ export function auroraRealm(b: CityBuilder) {
       depth: 40,
       height: 46,
       color: "#e8c065",
+      shape: "hall",
     },
     {
       name: "Ember Forge",
@@ -1453,7 +1734,8 @@ export function auroraRealm(b: CityBuilder) {
       depth: 16,
       height: 96,
       color: "#e8c065",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "spire",
     },
     {
       name: "Rainbow Gatehouse",
@@ -1481,6 +1763,7 @@ export function auroraRealm(b: CityBuilder) {
       depth: 40,
       height: 40,
       color: "#cfc3a4",
+      shape: "dome",
     },
   ];
   for (const p of places) landmark(b, p);
@@ -1728,7 +2011,8 @@ export function neonDistrict(b: CityBuilder) {
       depth: 30,
       height: 198,
       color: "#21e6ff",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "stepped",
     },
     {
       name: "Lotus Pagoda",
@@ -1738,7 +2022,8 @@ export function neonDistrict(b: CityBuilder) {
       depth: 24,
       height: 46,
       color: "#ff2bd6",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "stepped",
     },
     {
       name: "Circuit Central Station",
@@ -1775,7 +2060,8 @@ export function neonDistrict(b: CityBuilder) {
       depth: 30,
       height: 40,
       color: "#7cff6b",
-      shape: (w, d) => footprints.round(w, d, 16),
+      plan: (w, d) => footprints.round(w, d, 16),
+      shape: "arena",
     },
     {
       name: "Vinyl Vault",
@@ -1805,6 +2091,16 @@ export function neonDistrict(b: CityBuilder) {
       color: "#21e6ff",
     },
     {
+      name: "Searchlight Tower",
+      node: "Searchlight Corner",
+      at: [-60, -360],
+      width: 30,
+      depth: 30,
+      height: 34,
+      color: "#2a1f45",
+      shape: "signal",
+    },
+    {
       name: "Arcade Galaxy",
       node: "Arcade Corner",
       at: [-200, 380],
@@ -1830,7 +2126,8 @@ export function neonDistrict(b: CityBuilder) {
       depth: 30,
       height: 176,
       color: "#14202e",
-      shape: (w, d) => footprints.notched(w, d, 5),
+      plan: (w, d) => footprints.notched(w, d, 5),
+      shape: "stepped",
     },
   ];
   for (const p of places) landmark(b, p);
@@ -2257,7 +2554,8 @@ export function duneReach(b: CityBuilder) {
       depth: 9,
       height: 38,
       color: "#c99a62",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
+      shape: "wind-tower",
     },
     {
       name: "Saffron Souk Hall",
@@ -2267,7 +2565,7 @@ export function duneReach(b: CityBuilder) {
       depth: 30,
       height: 12,
       color: "#d9a35f",
-      shape: (w, d) => footprints.notched(w, d, 3),
+      plan: (w, d) => footprints.notched(w, d, 3),
     },
     {
       name: "Old Caravanserai",
@@ -2277,7 +2575,7 @@ export function duneReach(b: CityBuilder) {
       depth: 34,
       height: 10,
       color: "#c79e6e",
-      shape: (w, d) => courtyardHouse(w, d, 1),
+      plan: (w, d) => courtyardHouse(w, d, 1),
     },
     {
       name: "Cistern of Cool Stone",
@@ -2287,7 +2585,8 @@ export function duneReach(b: CityBuilder) {
       depth: 24,
       height: 8,
       color: "#bfa27c",
-      shape: (w, d) => footprints.round(w, d, 16),
+      plan: (w, d) => footprints.round(w, d, 16),
+      shape: "dome",
     },
     {
       name: "Mosaic Bathhouse",
@@ -2297,7 +2596,8 @@ export function duneReach(b: CityBuilder) {
       depth: 26,
       height: 9,
       color: "#e3c79b",
-      shape: (w, d) => footprints.round(w, d, 12),
+      plan: (w, d) => footprints.round(w, d, 12),
+      shape: "dome",
     },
     {
       name: "Lantern Makers Guildhall",
@@ -2323,9 +2623,9 @@ export function duneReach(b: CityBuilder) {
       at: [250, -230],
       width: 50,
       depth: 40,
-      height: 16,
-      color: "#f2ece0",
-      shape: (w, d) => footprints.ell(w, d, 0.4, 0.4),
+      height: 22,
+      color: "#e9e4d8",
+      shape: "pyramid",
     },
     {
       name: "Heliograph Exchange",
@@ -2353,7 +2653,7 @@ export function duneReach(b: CityBuilder) {
       depth: 10,
       height: 44,
       color: "#ff8a3d",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
     },
     {
       name: "Copper Dome Observatory",
@@ -2363,7 +2663,8 @@ export function duneReach(b: CityBuilder) {
       depth: 30,
       height: 18,
       color: "#b87333",
-      shape: (w, d) => footprints.round(w, d, 16),
+      plan: (w, d) => footprints.round(w, d, 16),
+      shape: "dome",
     },
   ];
   for (const p of places) landmark(b, p);
@@ -2401,6 +2702,7 @@ export function duneReach(b: CityBuilder) {
           color: "#c99a62",
           name: "Wind tower",
           kind: "tower",
+          shape: "wind-tower",
         });
         if (open === 1) x1 -= 6;
         else x0 += 6;
@@ -2675,14 +2977,14 @@ export function verdantCanopy(b: CityBuilder) {
   ]);
   b.building({
     center: c,
-    width: 52,
-    depth: 52,
+    width: 76,
+    depth: 44,
     rotation: 0,
     height: 34,
     color: "#d8efe6",
     name: "Great Glasshouse",
     kind: "landmark",
-    footprint: footprints.round(52, 52, 20),
+    shape: "glasshouse",
   });
   const places: Place[] = [
     {
@@ -2693,7 +2995,7 @@ export function verdantCanopy(b: CityBuilder) {
       depth: 36,
       height: 32,
       color: "#e8e2d0",
-      shape: (w, d) => footprints.notched(w, d, 6),
+      plan: (w, d) => footprints.notched(w, d, 6),
     },
     {
       name: "Seed Library",
@@ -2712,7 +3014,7 @@ export function verdantCanopy(b: CityBuilder) {
       depth: 14,
       height: 58,
       color: "#8fb98a",
-      shape: footprints.octagon,
+      plan: footprints.octagon,
     },
     {
       name: "Rainleaf Concert Shell",
@@ -2722,7 +3024,7 @@ export function verdantCanopy(b: CityBuilder) {
       depth: 24,
       height: 14,
       color: "#efe9dc",
-      shape: (w, d) => footprints.round(w, d, 12),
+      plan: (w, d) => footprints.round(w, d, 12),
     },
     {
       name: "Jade River Boathouse",
@@ -2759,7 +3061,7 @@ export function verdantCanopy(b: CityBuilder) {
       depth: 24,
       height: 40,
       color: "#e8e2d0",
-      shape: (w, d) => footprints.notched(w, d, 4),
+      plan: (w, d) => footprints.notched(w, d, 4),
     },
     {
       name: "Butterfly Conservatory",
@@ -2769,7 +3071,7 @@ export function verdantCanopy(b: CityBuilder) {
       depth: 34,
       height: 16,
       color: "#d8efe6",
-      shape: (w, d) => footprints.round(w, d, 16),
+      shape: "glasshouse",
     },
     {
       name: "Treehouse Library",
