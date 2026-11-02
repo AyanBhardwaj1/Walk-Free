@@ -3011,3 +3011,54 @@ label.weather-slider {
     right: 16px;
   }
 }
+
+/* Quick walk in the city atlas: any two places, routed by OSM services. */
+.atlas-build {
+  max-height: calc(100% - 90px);
+  overflow-y: auto;
+}
+.quick-walk {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--c-line-dedfd0, #dedfd0);
+}
+.quick-walk > p {
+  font: 19px var(--font-display, Georgia, serif);
+  margin: 0 0 4px;
+}
+.quick-walk p[role="alert"] {
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-fg-8d4a36, #8d4a36);
+}
+.quick-walk-result {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--c-bg-f1efe4, #f1efe4);
+  animation: ui-enter 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.quick-walk-result strong {
+  font: 400 22px var(--font-display, Georgia, serif);
+}
+.quick-walk-result small {
+  margin: 0;
+  color: var(--c-fg-4f5a45, #4f5a45);
+}
+.quick-walk-result .quick-walk-source {
+  color: var(--c-fg-5f6956, #5f6956);
+  font-style: italic;
+}
+.quick-walk-result ol {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-fg-33452e, #33452e);
+}
+.quick-walk-result a {
+  font-size: 12px;
+  color: var(--c-fg-3f5938, #3f5938);
+}
