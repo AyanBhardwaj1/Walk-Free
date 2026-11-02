@@ -88,6 +88,49 @@ function useJson<T>(url: string) {
   return data;
 }
 
+/**
+ * Counts up to a number the first time it scrolls into view (an ease-out
+ * over about a second); shows the final value at once under reduced motion
+ * or without IntersectionObserver.
+ */
+function CountUp({ value, suffix = "" }: { value: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [shown, setShown] = useState(value);
+  useEffect(() => {
+    const el = ref.current;
+    if (
+      !el ||
+      typeof IntersectionObserver === "undefined" ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    setShown(0);
+    let frame = 0;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      const start = performance.now();
+      const tick = (t: number) => {
+        const k = Math.min(1, (t - start) / 1100);
+        setShown(Math.round(value * (1 - Math.pow(1 - k, 4))));
+        if (k < 1) frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [value]);
+  return (
+    <span ref={ref} className="count-up">
+      {shown.toLocaleString("en-US")}
+      {suffix}
+    </span>
+  );
+}
+
 /** Adds .in to elements with .reveal as they scroll into view. */
 function useReveal() {
   useEffect(() => {
@@ -576,13 +619,17 @@ export default function LandingPage({
           </div>
           <div>
             <strong>
-              {totals.buildings ? totals.buildings.toLocaleString() : "10,000+"}
+              {totals.buildings ? (
+                <CountUp value={totals.buildings} />
+              ) : (
+                "10,000+"
+              )}
             </strong>
             <span>buildings mapped</span>
           </div>
           <div>
             <strong>
-              {totals.km ? `${totals.km.toLocaleString()} km` : "900+ km"}
+              {totals.km ? <CountUp value={totals.km} suffix=" km" /> : "900+ km"}
             </strong>
             <span>of walkable paths</span>
           </div>

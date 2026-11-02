@@ -807,7 +807,39 @@
 }
 .cine-hero-copy {
   max-width: 640px;
-  animation: rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Hero choreography: eyebrow, headline, its italic line, copy, actions,
+   then the stat, 80 ms apart; the heat map fades up behind them. */
+.cine-hero-copy > * {
+  animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cine-hero-copy > :nth-child(2) {
+  animation-delay: 80ms;
+}
+.cine-hero-copy h1 em {
+  display: inline-block;
+  animation: rise 0.9s 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cine-hero-copy > :nth-child(3) {
+  animation-delay: 280ms;
+}
+.cine-hero-copy > :nth-child(4) {
+  animation-delay: 360ms;
+}
+.cine-hero-copy > :nth-child(5) {
+  animation-delay: 440ms;
+}
+.cine-hero .hero-heat {
+  animation: hero-heat-in 1.6s 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes hero-heat-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(12px);
+  }
+}
+.count-up {
+  font-variant-numeric: tabular-nums;
 }
 @keyframes rise {
   from {
@@ -913,7 +945,8 @@
 }
 @keyframes pop {
   from {
-    transform: scale(0);
+    opacity: 0;
+    transform: scale(0.6);
     transform-box: fill-box;
     transform-origin: center;
   }
@@ -1378,7 +1411,10 @@
     transform: none;
     transition: none;
   }
-  .cine-hero-copy,
+  .chat-demo-typing,
+  .cine-hero-copy > *,
+  .cine-hero-copy h1 em,
+  .cine-hero .hero-heat,
   .chat-demo p,
   .faq-list p {
     animation: none;

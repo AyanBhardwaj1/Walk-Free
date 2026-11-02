@@ -2604,7 +2604,10 @@ footer {
   box-sizing: border-box;
   min-height: 260px;
   padding: 12px;
-  font: 13px/1.55 "DM Sans", system-ui, sans-serif;
+  font:
+    13px/1.55 "DM Sans",
+    system-ui,
+    sans-serif;
   color: var(--c-fg-313b30, #313b30);
   background: var(--c-bg-fffdf6, #fffdf6);
   border: 1px solid var(--c-line-d9ddcb, #d9ddcb);
@@ -2735,4 +2738,79 @@ dialog.shortcuts h2 {
   font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Product motion: quick, ease-out, never on shortcuts ---------- */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* A panel section appearing (a new tab, a notice, a result) settles in. */
+aside > section,
+.outlook-notice,
+.heat-impact,
+.coolwalk-score,
+.heatrisk-week {
+  animation: ui-enter 0.2s var(--ease-out) both;
+}
+@keyframes ui-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* Buttons answer the press. */
+button:not(:disabled):active,
+a.primary:active {
+  transform: scale(0.97);
+}
+button,
+a.primary {
+  transition:
+    transform 0.1s var(--ease-out),
+    background-color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out);
+}
+/* Route cards lift a little under a mouse; the chosen one changes smoothly. */
+@media (hover: hover) and (pointer: fine) {
+  .route-choices button:not(.selected):hover {
+    transform: translateY(-2px);
+  }
+}
+/* Dialogs open from slightly smaller, with a fading backdrop. */
+dialog[open] {
+  animation: dialog-in 0.22s var(--ease-out) both;
+}
+dialog[open]::backdrop {
+  animation: backdrop-in 0.22s var(--ease-out) both;
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  aside > section,
+  .outlook-notice,
+  .heat-impact,
+  .coolwalk-score,
+  .heatrisk-week,
+  dialog[open] {
+    animation: ui-fade 0.15s linear both;
+  }
+  button:not(:disabled):active,
+  a.primary:active {
+    transform: none;
+  }
+}
+@keyframes ui-fade {
+  from {
+    opacity: 0;
+  }
 }
