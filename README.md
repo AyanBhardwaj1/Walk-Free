@@ -67,6 +67,17 @@ npm start
 - Best time to go: for the chosen walk, how each hour you could set off today would feel, with the coolest hour called out; tap an hour to move the time there. Play the day sweeps the sun from 6 AM to 8 PM.
 - Share walk links open the guest demo on the same campus, endpoints, route type and hour; Save walk keeps up to twelve favourites in the browser. Keyboard: / search, P play the day, S style, V 3D/flat, ? help.
 - Quality gates: `npm run lint` (TypeScript, React hooks, accessibility), `npm test`, `npm run test:coverage`. The API rate-limits account, map, weather, canopy and geocoding requests and sends a Content-Security-Policy.
+- Home dashboard (`/home`): where signed-in people land. It shows a greeting, a live heat preview, every ready campus with its hottest street and shade-route gain, saved walks and the main tools.
+- Fictional cities: Noir Harbor, Skyline Prime, Velocity Bay, Aurora Realm and Neon District (`src/lib/fiction-cities.ts`).
+  - They are procedurally generated from fixed seeds and fully walkable: routing, heat, search and the assistant work as on a real campus.
+  - Each has its own sky, fog, weather layer (rain, sun haze, speed streaks, aurora or mist), ground tint and night window glow.
+  - Open them from search, the dashboard, the landing page, the panel's city switcher or `/app?fiction=<slug>`.
+  - They are labelled as fictional everywhere, and their heat numbers are illustrations.
+- Midtown Manhattan (`/app?area=midtown-manhattan`) is listed as a city district alongside the campuses.
+- 3D scene:
+  - Soft shadows, distance fog and land that runs out to a fogged horizon.
+  - A warmer sun as it lowers, moonlight after sunset, and lit windows from dusk.
+  - The weather chip shows a sun, moon, cloud or rain to match the conditions.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.
