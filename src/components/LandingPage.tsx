@@ -800,6 +800,10 @@ export default function LandingPage({
               </a>
             ))}
           </div>
+          <a className="campus-more reveal" href="/demo?area=midtown-manhattan">
+            Also ready: <strong>Midtown Manhattan</strong>, from Times Square to
+            the Chrysler Building <ArrowUpRight size={15} aria-hidden />
+          </a>
         </section>
 
         <section className="fiction-section" id="fictional-cities">

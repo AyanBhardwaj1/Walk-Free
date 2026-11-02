@@ -650,9 +650,7 @@ export default function App({
       : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
   // A fictional city's sky follows the sun: golden at dusk, dark at night.
   // Rounded so dragging the time slider doesn't redraw for every minute.
-  const sunY = fiction
-    ? Math.round(sunDirection(env, world.origin).y * 60) / 60
-    : 0;
+  const sunY = Math.round(sunDirection(env, world.origin).y * 60) / 60;
   const sky = useMemo(
     () => (fiction ? skyAt(fiction.ambient, sunY) : null),
     [fiction, sunY],
@@ -2946,7 +2944,19 @@ export default function App({
               </button>
             )}
             <div
-              className={`map-heading${onSky ? (isDarkSky((sky ?? onSky.ambient).sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
+              className={`map-heading${
+                onSky
+                  ? isDarkSky((sky ?? onSky.ambient).sky[0])
+                    ? " on-sky on-dark"
+                    : " on-sky"
+                  : // Real maps darken after sunset too.
+                    !fiction &&
+                      !atlas &&
+                      !(view === "2d" && mode === "explore") &&
+                      sunY < -0.02
+                    ? " on-dark"
+                    : ""
+              }`}
               hidden={
                 panelOpen ||
                 (!atlas &&
