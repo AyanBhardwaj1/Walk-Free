@@ -795,7 +795,9 @@
 }
 .hero-tilt {
   width: min(62vw, 880px);
-  transform: perspective(1400px) rotateX(48deg) rotateZ(-18deg);
+  transform: perspective(1400px) rotateX(calc(48deg + var(--tilt-y, 0) * -6deg))
+    rotateZ(calc(-18deg + var(--tilt-x, 0) * 5deg));
+  transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .slice-canvas {
   display: block;
