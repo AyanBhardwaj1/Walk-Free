@@ -2647,3 +2647,156 @@
     border-style: solid;
   }
 }
+
+/* Feature scenes: generate a city, and street level */
+.feature-visual.tone-generate {
+  background: linear-gradient(180deg, #141821, #3a3f4b 70%, #2a2e38);
+}
+.feature-visual.tone-street {
+  background: linear-gradient(180deg, #d9e6ea, #f1ede0);
+  color: var(--ink);
+}
+.scene-generate {
+  align-content: end;
+  gap: 10px;
+  padding: 0 7% 6%;
+}
+.scene-generate > svg {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+.scene-prompt {
+  margin: 0;
+  justify-self: start;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  background: #fffdf61a;
+  border: 1px solid #ffffff33;
+  font-size: 13px;
+  color: #f4f1e6;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.15s,
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+}
+.feature-row.in .scene-prompt {
+  opacity: 1;
+  transform: none;
+}
+.scene-generate {
+  grid-template-rows: auto 1fr auto;
+  align-content: stretch;
+  padding-top: 7%;
+}
+.scene-tower {
+  fill: #0d1016;
+  transform-box: fill-box;
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i) * 55ms + 0.7s);
+}
+.scene-tower:nth-child(3n) {
+  fill: #1c2230;
+}
+.feature-row.in .scene-tower {
+  transform: none;
+}
+.scene-built {
+  margin: 0;
+  justify-self: end;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d4a24c;
+  opacity: 0;
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1.8s;
+}
+.feature-row.in .scene-built {
+  opacity: 1;
+}
+.scene-street > svg {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+.street-ground {
+  fill: #c9c2ae;
+}
+.street-left {
+  fill: #9aa69a;
+}
+.street-right {
+  fill: #b7b39f;
+}
+.street-shade {
+  fill: #2f657733;
+}
+.street-walker {
+  fill: #b85b3b;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.feature-row.in .street-walker {
+  animation: street-walk 3.2s cubic-bezier(0.45, 0, 0.55, 1) 0.4s infinite;
+}
+@keyframes street-walk {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-34%) scale(0.35);
+    opacity: 0;
+  }
+}
+.scene-day {
+  position: absolute;
+  left: 5%;
+  bottom: 6%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.scene-day li {
+  padding: 5px 10px;
+  background: #fffdf6e6;
+  font-size: 12px;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i) * 90ms + 0.5s);
+}
+.scene-day b {
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+  color: #3f5938;
+}
+.feature-row.in .scene-day li {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-tower,
+  .scene-prompt,
+  .scene-built,
+  .scene-day li {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
+  .feature-row.in .street-walker {
+    animation: none;
+  }
+}
