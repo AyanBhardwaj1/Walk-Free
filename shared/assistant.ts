@@ -146,7 +146,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: "build_area",
       description:
-        "Build a US city, neighborhood or campus (for example 'UT Austin' or 'UC Berkeley') so it can be explored and walked.",
+        "Build a US city, neighborhood or campus (for example 'UT Austin' or 'UC Berkeley') so it can be explored and walked. It also opens Walk-Free's fictional cities by exact name: Noir Harbor (rainy gothic towers at night), Skyline Prime (sunny art-deco boulevards), Velocity Bay (fast, breezy bay grid), Aurora Realm (golden citadel under the aurora) and Neon District (neon-lit night-life downtown).",
       parameters: {
         type: "object",
         properties: { place: { type: "string" } },

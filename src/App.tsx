@@ -88,7 +88,7 @@ import {
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
 import PlaceField from "./components/PlaceField";
-import OmniSearch from "./components/OmniSearch";
+import OmniSearch, { matchFiction } from "./components/OmniSearch";
 import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
@@ -924,6 +924,10 @@ export default function App({
       setComparePlaceId(null);
     },
     async buildArea(query) {
+      // A fictional city opens at once, and stays in the conversation.
+      const fictional = matchFiction(query);
+      if (fictional.length === 1 && openFiction(fictional[0].slug, true))
+        return `Opened ${fictional[0].name}, a fictional city: ${fictional[0].mood} Its heat numbers are illustrations.`;
       const city = await lookUpPlace(query);
       if (!city) return `No city or campus matching "${query}" was found.`;
       const built = await loadCity(city, true, 1000);
@@ -1183,7 +1187,7 @@ export default function App({
     });
   }
   /** Open one of the generated fictional cities, dressed for its mood. */
-  function openFiction(slug: string) {
+  function openFiction(slug: string, fromAssistant = false) {
     const meta = FICTION_CITIES.find((c) => c.slug === slug);
     const w = meta && createFictionCity(slug);
     if (!meta || !w) return false;
@@ -1201,7 +1205,7 @@ export default function App({
     setEnd(to);
     setHypothetical(false);
     setMode("explore");
-    setTab("route");
+    if (!fromAssistant) setTab("route");
     setPicking(null);
     setTrees(true);
     setBuildings(true);
