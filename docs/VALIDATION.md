@@ -255,6 +255,11 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **UT Tower height.**
   - OpenStreetMap gives 23 m (one building part). It now uses the published 307 ft (93.6 m), cited in `shared/landmark-heights.ts`.
   - The prebuilt UT area changes only that object's height and height method. Tests cover the override, other buildings keeping their mapped height, and prototype keys.
+- **Outlines with 3D parts.**
+  - The Empire State Building's outline was extruded whole to 443 m over its mapped setbacks.
+  - Outlines that contain `building:part` ways are now capped at their lowest part, and are never raised.
+  - Midtown was rebuilt in the "Build hero areas" workflow: 80 outlines were lowered and the Empire State outline is now its 75 m base. The walk endpoints are unchanged, and the browser render showed no errors.
+  - Tests cover lowering, never raising and outlines without parts.
 - **After dark.** Route cards drop shade and sun minutes once the sun is down, and show the lit share where lighting is well mapped. UT has lighting mapped on about 28% of the night route.
 - **Not changed.** Moody Center and Bass Concert Hall keep estimated 10 m heights. No citable published figure was found for either, so none was invented.
-- **Totals.** `npm test` 595 pass; lint and build clean. The production probe passed on PR #39 (f3a7502) and PR #40 (aa99a0b).
+- **Totals.** `npm test` 597 pass; lint and build clean. The production probe passed on PR #39 (f3a7502) and PR #40 (aa99a0b).
