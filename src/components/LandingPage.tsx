@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -126,6 +126,48 @@ function CountUp({ value, suffix = "" }: { value: number; suffix?: string }) {
       {suffix}
     </span>
   );
+}
+
+/**
+ * The hero's heat map leans a few degrees toward the pointer: mouse and
+ * trackpad only, and never for people who ask for less motion.
+ */
+function useHeroTilt(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (
+      !el ||
+      !matchMedia("(hover: hover) and (pointer: fine)").matches ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    let frame = 0;
+    const move = (e: PointerEvent) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty(
+          "--tilt-x",
+          ((e.clientX - r.left) / r.width - 0.5).toFixed(3),
+        );
+        el.style.setProperty(
+          "--tilt-y",
+          ((e.clientY - r.top) / r.height - 0.5).toFixed(3),
+        );
+      });
+    };
+    const leave = () => {
+      el.style.setProperty("--tilt-x", "0");
+      el.style.setProperty("--tilt-y", "0");
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [ref]);
 }
 
 /** Adds .in to elements with .reveal as they scroll into view. */
@@ -536,6 +578,8 @@ export default function LandingPage({
   const campuses = campusData?.campuses ?? [];
   const ut = campuses.find((c) => c.slug === "ut-austin");
   useReveal();
+  const hero = useRef<HTMLElement>(null);
+  useHeroTilt(hero);
   const start = signedIn ? "/home" : "/demo";
   const totals = {
     buildings: campuses.reduce((s, c) => s + c.buildings, 0),
@@ -549,6 +593,7 @@ export default function LandingPage({
           <a href="#preview">See the heat</a>
           <a href="#how-it-works">How it works</a>
           <a href="#campuses">Campuses</a>
+          <a href="#fictional-cities">Fictional cities</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div className="public-header-actions">
@@ -562,7 +607,7 @@ export default function LandingPage({
         </div>
       </header>
       <main className="landing-main">
-        <section className="cine-hero">
+        <section className="cine-hero" ref={hero}>
           <HeroHeat preview={preview} />
           <div className="cine-hero-copy">
             <div className="landing-eyebrow light">

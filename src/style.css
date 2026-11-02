@@ -480,7 +480,7 @@ aside.collapsed ~ .viewport .map-heading {
 .map-heading.on-dark h2,
 .map-heading.on-dark .eyebrow,
 .map-heading.on-dark > span {
-  color: #f4efe2;
+  color: var(--c-fg-f4efe2, #f4efe2);
   text-shadow: 0 1px 12px rgb(0 0 0 / 45%);
 }
 .map-heading.on-sky > span {
@@ -491,7 +491,7 @@ aside.collapsed ~ .viewport .map-heading {
   color: var(--c-fg-48533c, #48533c);
 }
 .map-heading.on-dark > span {
-  color: #f4efe2;
+  color: var(--c-fg-f4efe2, #f4efe2);
   opacity: 0.85;
 }
 .weather-chip {
@@ -2834,5 +2834,51 @@ dialog[open]::backdrop {
 @keyframes ui-fade {
   from {
     opacity: 0;
+  }
+}
+
+/* Shade against sun at a glance: the shaded share fills from the left. */
+.sun-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--c-bg-e2a46b, #e2a46b);
+  overflow: hidden;
+}
+.sun-bar i {
+  display: block;
+  height: 100%;
+  background: var(--c-bg-4f8a9c, #4f8a9c);
+  transform-origin: left;
+  transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.route-choices .sun-bar {
+  margin-top: 2px;
+}
+.place-list small {
+  display: grid;
+  gap: 3px;
+}
+.place-list .sun-bar {
+  height: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun-bar i {
+    transition: none;
+  }
+}
+
+/* Pages cross-fade into each other (landing, home, map) where supported. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
   }
 }

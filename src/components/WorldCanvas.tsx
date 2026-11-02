@@ -397,6 +397,23 @@ function FogFollowsCamera() {
   });
   return null;
 }
+/** Hands the app a way to snapshot the current view as a PNG data URL. */
+function CaptureBridge({
+  onReady,
+}: {
+  onReady: (capture: (() => string) | null) => void;
+}) {
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    onReady(() => {
+      // Draw a fresh frame first: the drawing buffer isn't kept between frames.
+      gl.render(scene, camera);
+      return gl.domElement.toDataURL("image/png");
+    });
+    return () => onReady(null);
+  }, [gl, scene, camera, onReady]);
+  return null;
+}
 const DRAW_MS = 900;
 /** The route line, drawing itself from start to finish when it appears. */
 function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
@@ -458,6 +475,7 @@ export default function WorldCanvas({
   insets = NO_INSETS,
   theme = "editorial",
   ambient,
+  onCaptureReady,
 }: {
   world: World;
   environment: Environment;
@@ -480,6 +498,8 @@ export default function WorldCanvas({
   theme?: ThemeName;
   /** A fictional city's own sky; the canvas turns see-through over it. */
   ambient?: Ambient | null;
+  /** Receives a snapshot function while the scene is mounted. */
+  onCaptureReady?: (capture: (() => string) | null) => void;
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
@@ -557,6 +577,7 @@ export default function WorldCanvas({
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
       {ambient && <FogFollowsCamera />}
+      {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
       <fog
         attach="fog"
         args={[

@@ -20,6 +20,23 @@ import { canopyCells, withCanopy } from "../shared/canopy.js";
 
 const limits = { budgetMs: 10 * 60_000, mirrorTimeoutMs: 180_000 };
 
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * Public Overpass servers throttle bursts: wait between tiles, and retry a
+ * slow tile after a longer rest instead of failing the whole area.
+ */
+async function politely<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    await pause(i === 1 ? 5_000 : 60_000 * i);
+    try {
+      return await run();
+    } catch (error) {
+      if (i >= attempts) throw error;
+      console.log(`  tile failed (${String(error)}); retrying`);
+    }
+  }
+}
+
 async function buildArea(area: PrebuiltArea) {
   // n×n tiles; dense downtowns use more, smaller queries.
   const n = area.tiles ?? 2;
@@ -31,14 +48,16 @@ async function buildArea(area: PrebuiltArea) {
     for (let col = 0; col < n; col++) {
       const north = -area.radius + half * (2 * row + 1);
       const east = -area.radius + half * (2 * col + 1);
-      const tile = await fetchOverpass(
-        overpassQuery(
-          area.lat + north * metresToLat,
-          area.lon + east * metresToLon,
-          half,
-          180,
+      const tile = await politely(() =>
+        fetchOverpass(
+          overpassQuery(
+            area.lat + north * metresToLat,
+            area.lon + east * metresToLon,
+            half,
+            180,
+          ),
+          limits,
         ),
-        limits,
       );
       for (const e of tile.elements) elements.set(`${e.type}:${e.id}`, e);
       console.log(
