@@ -239,3 +239,22 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **New UT default walk:** Kinsolving Dormitory → Perry-Castañeda Library, chosen from a scored search of landmark pairs. Shade rises 23% → 45% for 3% more walking.
 - **Quick walk.** Unit tests cover each fallback layer. In the browser, the atlas route was found and drawn, with no false error when the map style was still loading.
 - **Totals.** `npm test` 587 pass; lint and build clean. PR #34 is merged, and the production probe passed on 829cf4f.
+
+## Street walk, crowd, phone tour, UT Tower — 2026-11-02 (night)
+
+- **Review fixes (PR #39).**
+  - Street walk: keeps a snapshot of the route, resets on area change and in 2D, and keeps haze at street distances.
+  - Camera: the arrival flight and the street walk hand the camera over cleanly.
+  - Crowd: throttled to about 20 fps, paused when the tab is hidden, human-sized at eye level, and off by default on phones.
+  - Tour actions wait for the map to load.
+  - Browser: street walk on Noir Harbor and UT Austin, and all 8 UT tour steps, with no page errors.
+- **Phone tour (PR #40).**
+  - The sheet drops to a peek for map steps, so the map stays visible.
+  - During a street walk the tour card sits low and the time card hides.
+  - Browser: the 8-step tour at 390 px, with no overflow and no errors.
+- **UT Tower height.**
+  - OpenStreetMap gives 23 m (one building part). It now uses the published 307 ft (93.6 m), cited in `shared/landmark-heights.ts`.
+  - The prebuilt UT area changes only that object's height and height method. Tests cover the override, other buildings keeping their mapped height, and prototype keys.
+- **After dark.** Route cards drop shade and sun minutes once the sun is down, and show the lit share where lighting is well mapped. UT has lighting mapped on about 28% of the night route.
+- **Not changed.** Moody Center and Bass Concert Hall keep estimated 10 m heights. No citable published figure was found for either, so none was invented.
+- **Totals.** `npm test` 595 pass; lint and build clean. The production probe passed on PR #39 (f3a7502) and PR #40 (aa99a0b).
