@@ -83,6 +83,9 @@ npm start
   - The AI (Meta Muse Spark or your own key) plans districts, landmarks (16 signature shapes), street names, climate and sky via `POST /api/agent/city`. Credits scale with realism: Sketch 1, Detailed 2, Dense 4.
   - `buildCityFromSpec` (`src/lib/city-from-spec.ts`) builds it deterministically, with an offline designer (`spec-from-prompt.ts`) when no AI is available.
   - You can open it from the panel, from search, from the assistant's `generate_city` tool, or with `/app?generate=…`. Cities you've made are kept in the browser (`/app?generated=…`).
+- Walk it at street level: the camera walks the chosen route at a walker's eye height, under the trees and between the buildings. Any drag stops it.
+- People on the streets: walkers wander the network, thin out at night and prefer shade in the heat. They are on by default in fictional and generated cities; the people button on the map toggles them.
+- A 1-minute guided tour (`?tour=1`, or the button on prebuilt areas) explains each feature and does it. Guests opening `/demo` start on UT Austin.
 - A day in the life (Route tab): six everyday walks planned in shade at their own hours, with a playable timeline. Prebuilt areas can name real stops (`day` in `shared/areas.ts`).
 - Weather controls:
   - Presets: Heatwave, Hot & humid, Summer, Mild, Cool, July afternoon, Live.
