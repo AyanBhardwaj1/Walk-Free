@@ -6,6 +6,7 @@ import type {
 } from "../../shared/types";
 import { routePreferences } from "../lib/routing";
 import { routeHeat } from "../lib/heat";
+import { sunDirection } from "../lib/environment";
 import { inUnit, tempDelta, useUnit } from "../lib/units";
 
 export const routeLabels: Record<RoutePreference, string> = {
@@ -45,6 +46,8 @@ export default function RouteChoices({
   const unit = useUnit();
   const quick = choices.quickest;
   const quickHeat = quick && routeHeat(quick, environment, origin);
+  // After dark, shade and sun minutes mean nothing; lighting matters.
+  const dark = sunDirection(environment, origin).altitude <= 0;
   return (
     <div
       className="preferences route-choices"
@@ -91,17 +94,28 @@ export default function RouteChoices({
                     <> · {cooler}° cooler</>
                   )}
                 </span>
-                <span>
-                  {Math.round(route.shadeFraction * 100)}% shade ·{" "}
-                  {Math.round(heat!.sunMinutes)} min in sun
-                </span>
-                <span className="sun-bar" aria-hidden>
-                  <i
-                    style={{
-                      transform: `scaleX(${Math.min(1, Math.max(0, route.shadeFraction))})`,
-                    }}
-                  />
-                </span>
+                {dark ? (
+                  <span>
+                    After dark
+                    {preference !== "night" &&
+                      lighting(route).mapped >= WELL_MAPPED &&
+                      ` · ${Math.round(lighting(route).lit * 100)}% lit`}
+                  </span>
+                ) : (
+                  <>
+                    <span>
+                      {Math.round(route.shadeFraction * 100)}% shade ·{" "}
+                      {Math.round(heat!.sunMinutes)} min in sun
+                    </span>
+                    <span className="sun-bar" aria-hidden>
+                      <i
+                        style={{
+                          transform: `scaleX(${Math.min(1, Math.max(0, route.shadeFraction))})`,
+                        }}
+                      />
+                    </span>
+                  </>
+                )}
                 {preference === "indoors" &&
                   (route.coolStop ? (
                     <span className="route-extra">
