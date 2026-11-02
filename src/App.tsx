@@ -26,6 +26,8 @@ import {
   Upload,
   Trash2,
   Sparkles,
+  Footprints,
+  Users,
   MapPin,
   Navigation,
   Mountain,
@@ -340,6 +342,7 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [walk3d, setWalk3d] = useState(false);
   const cityThisTurn = useRef(false);
   const genToken = useRef(0);
   const [genPrompt, setGenPrompt] = useState("");
@@ -697,6 +700,22 @@ export default function App({
   const edgeHeat = useMemo(
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
     [heatActive, world, heatEnv],
+  );
+  // People on the streets: on by default where the city is the show.
+  const [peopleFor, setPeopleFor] = useState<{ id: string; on: boolean }>({
+    id: "",
+    on: false,
+  });
+  const people =
+    peopleFor.id === world.id
+      ? peopleFor.on
+      : world.id.startsWith("fiction-") || world.id.startsWith("ai-");
+  const edgeShade = useMemo(
+    () =>
+      edgeHeat
+        ? new Map([...edgeHeat].map(([id, r]) => [id, r.shade]))
+        : undefined,
+    [edgeHeat],
   );
   const places = useMemo(
     () => (edgeHeat ? placeHeat(world, heatEnv, edgeHeat) : []),
@@ -1414,6 +1433,17 @@ export default function App({
         setPref("shade");
         setHeatMap(true);
         setPanelOpen(true);
+      },
+    },
+    {
+      title: "Walk it at street level",
+      text: "Drop to street level and walk the shade route between the buildings, then come back up whenever you like.",
+      action: "Walk it",
+      run: () => {
+        setMode("explore");
+        setTab("route");
+        setPlaying(false);
+        setWalk3d(true);
       },
     },
     {
@@ -2442,6 +2472,19 @@ export default function App({
                       </button>
                     )}
                   </div>
+                  {currentRoute && !(view === "2d" && mode === "explore") && (
+                    <button
+                      type="button"
+                      className="walk-3d"
+                      onClick={() => {
+                        setPlaying(false);
+                        setWalk3d(true);
+                      }}
+                    >
+                      <Footprints size={15} aria-hidden /> Walk it at street
+                      level
+                    </button>
+                  )}
                   {world.provenance.live && start && end && start !== end && (
                     <div className="walk-actions">
                       <button
@@ -3243,6 +3286,19 @@ export default function App({
                   insets={mapInsets}
                   theme={theme}
                   ambient={sky}
+                  walkthrough={
+                    walk3d && currentRoute ? currentRoute.points : null
+                  }
+                  onWalkthroughDone={() => setWalk3d(false)}
+                  crowd={
+                    people
+                      ? {
+                          count: world.extent > 1300 ? 220 : 160,
+                          shade: edgeShade,
+                          hot: heatEnv.temperatureC >= 28,
+                        }
+                      : null
+                  }
                   onCaptureReady={setCapture}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
@@ -3284,6 +3340,15 @@ export default function App({
                   </div>
                 )}
               </>
+            )}
+            {walk3d && (
+              <button
+                type="button"
+                className="walk-3d-stop"
+                onClick={() => setWalk3d(false)}
+              >
+                <X size={15} aria-hidden /> Stop walking
+              </button>
             )}
             {!atlas &&
               (tourOpen ? (
@@ -3518,6 +3583,15 @@ export default function App({
                     }}
                   >
                     <Undo2 size={19} />
+                  </button>
+                  <button
+                    title={people ? "Hide people" : "Show people walking"}
+                    aria-label={people ? "Hide people" : "Show people walking"}
+                    aria-pressed={people}
+                    className={!people ? "muted" : ""}
+                    onClick={() => setPeopleFor({ id: world.id, on: !people })}
+                  >
+                    <Users size={19} />
                   </button>
                   <button
                     title="Toggle trees"
