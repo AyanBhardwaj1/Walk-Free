@@ -7,14 +7,17 @@ export type FictionCitySlug =
   | "skyline-prime"
   | "velocity-bay"
   | "aurora-realm"
-  | "neon-district";
+  | "neon-district"
+  | "dune-reach"
+  | "verdant-canopy";
 
 /** How the UI should dress the scene: sky gradient, fog, accent and weather. */
 export interface FictionAmbient {
   sky: [top: string, bottom: string];
   fog: string;
   accent: string;
-  particles: "rain" | "sun" | "sparks" | "aurora" | "mist";
+  particles:
+    "rain" | "sun" | "sparks" | "aurora" | "mist" | "shimmer" | "leaves";
   night: boolean;
 }
 export interface FictionCity {
@@ -28,7 +31,7 @@ export interface FictionCity {
   ambient: FictionAmbient;
 }
 
-/** Five original, procedurally generated cities to explore on foot. */
+/** Seven original, procedurally generated cities to explore on foot. */
 export const FICTION_CITIES: readonly FictionCity[] = [
   {
     slug: "noir-harbor",
@@ -103,6 +106,37 @@ export const FICTION_CITIES: readonly FictionCity[] = [
       accent: "#ff2bd6",
       particles: "mist",
       night: true,
+    },
+  },
+  {
+    slug: "dune-reach",
+    name: "Dune Reach",
+    tagline:
+      "Where the sun rules the boulevards, the old lanes keep the shade.",
+    mood: "A sun-scorched desert city: a cool maze of narrow lanes between thick-walled courtyard houses and wind towers, a wide treeless boulevard district, and a palm oasis round a still pool.",
+    origin: { lat: 33.45, lon: -112.07 },
+    timezone: "America/Phoenix",
+    ambient: {
+      sky: ["#e9a25b", "#f8dfb0"],
+      fog: "#f1d3a2",
+      accent: "#ff8a3d",
+      particles: "shimmer",
+      night: false,
+    },
+  },
+  {
+    slug: "verdant-canopy",
+    name: "Verdant Canopy",
+    tagline: "A city that grew a forest over every street.",
+    mood: "A biophilic garden city of terraced mid-rise homes under a continuous canopy of street trees, with covered arcades, a riverside walk and a great botanical garden at its heart.",
+    origin: { lat: 1.29, lon: 103.85 },
+    timezone: "Asia/Singapore",
+    ambient: {
+      sky: ["#7cc6a4", "#e9f5d8"],
+      fog: "#cfe8d2",
+      accent: "#9be15d",
+      particles: "leaves",
+      night: false,
     },
   },
 ];

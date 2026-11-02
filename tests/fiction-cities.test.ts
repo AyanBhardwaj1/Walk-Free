@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type {
   Environment,
+  LandmarkShape,
   Point,
   SceneObject,
   World,
 } from "../shared/types.js";
+import { LANDMARK_SHAPES } from "../shared/types.js";
+import { worldSchema } from "../shared/schema.js";
 import {
   FICTION_CITIES,
   createFictionCity,
   type FictionCity,
 } from "../src/lib/fiction-cities.js";
-import { compareRoutes } from "../src/lib/routing.js";
+import { compareRoutes, samplePolyline } from "../src/lib/routing.js";
+import { createShadeTester } from "../src/lib/environment.js";
 import { placeHeat } from "../src/lib/heat.js";
 import {
   destinationCatalog,
@@ -31,6 +35,8 @@ const SLUGS = [
   "velocity-bay",
   "aurora-realm",
   "neon-district",
+  "dune-reach",
+  "verdant-canopy",
 ] as const;
 const BUILDING_KINDS = new Set(["building", "skyscraper", "tower", "landmark"]);
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -56,6 +62,39 @@ const polylineLength = (points: Point[]) =>
       (sum, p, i) => sum + Math.hypot(p[0] - points[i][0], p[1] - points[i][1]),
       0,
     );
+
+/** 3 PM local time on 15 July, as UTC, for each city's time zone. */
+const THREE_PM: Record<(typeof SLUGS)[number], string> = {
+  "noir-harbor": "2026-07-15T19:00:00Z",
+  "skyline-prime": "2026-07-15T20:00:00Z",
+  "velocity-bay": "2026-07-15T22:00:00Z",
+  "aurora-realm": "2026-07-15T13:00:00Z",
+  "neon-district": "2026-07-15T06:00:00Z",
+  "dune-reach": "2026-07-15T22:00:00Z",
+  "verdant-canopy": "2026-07-15T07:00:00Z",
+};
+const afternoon = (slug: (typeof SLUGS)[number]): Environment => ({
+  ...environment,
+  dateTime: THREE_PM[slug],
+});
+/** Each walking edge with its shaded share, sampled as routing samples it. */
+function edgeShade(slug: (typeof SLUGS)[number]) {
+  const w = city(slug);
+  const shaded = createShadeTester(w, afternoon(slug));
+  return w.graph.edges.map((e) => {
+    const samples = samplePolyline(
+      e.points,
+      Math.max(1, Math.min(32, Math.ceil(e.distance / 15))),
+    );
+    return {
+      edge: e,
+      shade: e.covered ? 1 : samples.filter(shaded).length / samples.length,
+    };
+  });
+}
+const shadedMetres = (list: ReturnType<typeof edgeShade>) =>
+  list.reduce((s, x) => s + x.shade * x.edge.distance, 0) /
+  list.reduce((s, x) => s + x.edge.distance, 0);
 
 /** World corners of an object's rectangle, turned as the scene turns it. */
 function corners(o: SceneObject): Point[] {
@@ -102,7 +141,7 @@ function rectangleTouchesSegment(rect: Point[], a: Point, b: Point) {
 }
 
 describe("fictional city catalog", () => {
-  it("lists five original cities with a distinct ambient mood", () => {
+  it("lists seven original cities with a distinct ambient mood", () => {
     expect(FICTION_CITIES.map((c) => c.slug)).toEqual([...SLUGS]);
     const particles = new Set<string>();
     for (const c of FICTION_CITIES as readonly FictionCity[]) {
@@ -122,7 +161,7 @@ describe("fictional city catalog", () => {
       particles.add(c.ambient.particles);
       expect(typeof c.ambient.night).toBe("boolean");
     }
-    expect(particles.size).toBe(5);
+    expect(particles.size).toBe(7);
     expect(
       FICTION_CITIES.find((c) => c.slug === "aurora-realm")!.origin.lat,
     ).toBeGreaterThan(58);
@@ -423,5 +462,275 @@ describe("city moods differ in the data", () => {
     const neonHeights = heights("neon-district");
     expect(Math.min(...neonHeights)).toBeLessThan(16);
     expect(Math.max(...neonHeights)).toBeGreaterThan(150);
+  });
+});
+
+describe("the desert and the garden", () => {
+  const BOULEVARD_X = 60;
+
+  it("gives Dune Reach a low walled maze, wind towers, a treeless boulevard district and an oasis", () => {
+    const dune = city("dune-reach");
+    const houses = dune.objects.filter((o) => o.name === "Courtyard house");
+    expect(houses.length).toBeGreaterThan(400);
+    for (const h of houses) {
+      expect(h.height).toBeGreaterThanOrEqual(6);
+      expect(h.height).toBeLessThanOrEqual(14);
+    }
+    const towers = dune.objects.filter((o) => /wind/i.test(o.name));
+    expect(towers.length).toBeGreaterThanOrEqual(3);
+    for (const t of towers) {
+      expect(["tower", "landmark"]).toContain(t.kind);
+      expect(Math.max(t.width, t.depth)).toBeLessThanOrEqual(10);
+      expect(t.height).toBeGreaterThan(
+        median(houses.map((h) => h.height)) * 1.5,
+      );
+    }
+    const lanes = dune.roads.filter((r) => /Lane$|Alley$/.test(r.name));
+    expect(lanes.length).toBeGreaterThan(40);
+    expect(Math.max(...lanes.map((r) => r.width))).toBeLessThanOrEqual(3);
+    const boulevards = dune.roads.filter((r) => r.kind === "road");
+    expect(median(boulevards.map((r) => r.width))).toBeGreaterThanOrEqual(30);
+    expect(trees(dune).filter((t) => t.position[0] > BOULEVARD_X - 10)).toEqual(
+      [],
+    );
+    expect(
+      dune.landscapes.some((l) => l.kind === "water" && /oasis/i.test(l.name)),
+    ).toBe(true);
+    expect(
+      dune.landscapes.some((l) => l.kind === "park" && /oasis/i.test(l.name)),
+    ).toBe(true);
+    expect(
+      trees(dune).filter((t) => /palm/i.test(t.name)).length,
+    ).toBeGreaterThan(150);
+  });
+
+  it("sends Dune Reach's 3 PM shade route through the old-quarter lanes", () => {
+    const dune = city("dune-reach");
+    const id = (name: string) =>
+      dune.graph.nodes.find((n) => n.name === name)!.id;
+    const routes = compareRoutes(dune, id("Caravan Gate"), id("Mirage Gate"), {
+      avoidStairs: false,
+      allowHypothetical: false,
+      maxDetour: 1.6,
+      environment: afternoon("dune-reach"),
+    });
+    const quickest = routes.quickest!,
+      shade = routes.shade!;
+    expect(quickest.edges.every((e) => e.name === "Sun Boulevard")).toBe(true);
+    expect(quickest.shadeFraction).toBeLessThan(0.1);
+    expect(shade.shadeFraction).toBeGreaterThan(quickest.shadeFraction + 0.4);
+    const laneMetres = shade.edges
+      .filter((e) => / Lane$/.test(e.name))
+      .reduce((s, e) => s + e.distance, 0);
+    expect(laneMetres / shade.distance).toBeGreaterThan(0.5);
+    expect(shade.warnings).toEqual([]);
+  });
+
+  it("gives Verdant Canopy terraced mid-rises, the most trees, arcades, a river and a botanic garden", () => {
+    const verdant = city("verdant-canopy");
+    const homes = verdant.objects.filter((o) => o.name === "Terraced homes");
+    expect(homes.length).toBeGreaterThan(200);
+    for (const h of homes) {
+      expect(h.height).toBeGreaterThanOrEqual(15);
+      expect(h.height).toBeLessThanOrEqual(40);
+    }
+    const count = trees(verdant).length;
+    for (const slug of SLUGS)
+      if (slug !== "verdant-canopy")
+        expect(count).toBeGreaterThan(trees(city(slug)).length);
+    expect(verdant.graph.edges.filter((e) => e.covered).length).toBeGreaterThan(
+      30,
+    );
+    expect(verdant.graph.edges.some((e) => /arcade/i.test(e.name))).toBe(true);
+    expect(
+      verdant.landscapes.some(
+        (l) => l.kind === "water" && /river/i.test(l.name),
+      ),
+    ).toBe(true);
+    expect(verdant.landscapes.some((l) => /botanic/i.test(l.name))).toBe(true);
+    expect(
+      verdant.objects.some(
+        (o) => o.kind === "landmark" && /glasshouse/i.test(o.name),
+      ),
+    ).toBe(true);
+    expect(
+      verdant.landscapes.filter((l) => l.kind === "park").length,
+    ).toBeGreaterThanOrEqual(6);
+  });
+
+  it("makes Verdant Canopy the coolest city to walk at 3 PM", () => {
+    const verdant = edgeShade("verdant-canopy");
+    const boulevards = edgeShade("dune-reach").filter(
+      (x) => x.edge.roadClass === "major",
+    );
+    expect(boulevards.length).toBeGreaterThan(30);
+    const verdantMedian = median(verdant.map((x) => x.shade));
+    expect(verdantMedian).toBeGreaterThan(
+      median(boulevards.map((x) => x.shade)) + 0.5,
+    );
+    expect(verdantMedian).toBeGreaterThanOrEqual(0.9);
+    // More of its walking metres lie in shade than in any other city.
+    const share = shadedMetres(verdant);
+    for (const slug of SLUGS)
+      if (slug !== "verdant-canopy")
+        expect(share, slug).toBeGreaterThan(shadedMetres(edgeShade(slug)));
+  });
+});
+
+describe("signature landmarks", () => {
+  /** Each city's shaped landmarks: [shape, name]. */
+  const SIGNATURES: Record<(typeof SLUGS)[number], [LandmarkShape, RegExp][]> =
+    {
+      "noir-harbor": [
+        ["cathedral", /^Saint Vesper Cathedral$/],
+        ["signal", /^Central Precinct$/],
+        ["manor", /^Graymoor Manor$/],
+        ["manor", /^Blackwater Asylum$/],
+        ["bridge", /^Graymoor Bridge$/],
+        ["bridge", /^Harbor Elevated Line$/],
+        ["smokestacks", /^Harbor Chemical Works$/],
+        ["tanks", /^Harbor Chemical Tank Farm$/],
+        ["spire", /^Gargoyle Spire$/],
+        ["stepped", /^Monarch Grand Hotel$/],
+      ],
+      "skyline-prime": [
+        ["globe", /^Daily Clarion Globe Tower$/],
+        ["hall", /^Hall of Champions$/],
+        ["spire", /^Apex Tower$/],
+        ["statue", /^Guardian of Tomorrow Statue$/],
+        ["bridge", /^Starliner Bay Bridge$/],
+        ["dome", /^Aerial Museum$/],
+        ["stepped", /^Skyline Prime City Hall$/],
+      ],
+      "velocity-bay": [
+        ["bridge", /^Velocity Bay Bridge$/],
+        ["arena", /^Photon Arena$/],
+      ],
+      "aurora-realm": [
+        ["dome", /^Sunhold Citadel$/],
+        ["spire", /^Spire of Dawn$/],
+        ["hall", /^Great Hall of Feasts$/],
+        ["bridge", /^Rainbow Bridge$/],
+      ],
+      "neon-district": [
+        ["stepped", /^Hologram Tower$/],
+        ["signal", /^Searchlight Tower$/],
+        ["arena", /^Synthwave Arena$/],
+      ],
+      "dune-reach": [
+        ["wind-tower", /^Tower of Seven Winds$/],
+        ["dome", /^Copper Dome Observatory$/],
+      ],
+      "verdant-canopy": [["glasshouse", /^Great Glasshouse$/]],
+    };
+  const shaped = (w: World, shape: LandmarkShape) =>
+    w.objects.filter((o) => o.shape === shape);
+  const inWater = (w: World, p: Point) =>
+    w.landscapes.some((l) => l.kind === "water" && insidePolygon(p, l.points));
+  const named = (w: World, name: string) =>
+    w.objects.find((o) => o.name === name)!;
+
+  it.each(SLUGS)("gives %s its signature shaped landmarks", (slug) => {
+    const w = city(slug);
+    for (const [shape, name] of SIGNATURES[slug]) {
+      const hits = shaped(w, shape).filter((o) => name.test(o.name));
+      expect(hits.length, `${shape} ${name}`).toBeGreaterThan(0);
+    }
+    for (const o of w.objects.filter((o) => o.shape)) {
+      expect(LANDMARK_SHAPES).toContain(o.shape);
+      expect(o.kind).not.toBe("tree");
+    }
+    // Shaped objects survive the scene schema.
+    expect(worldSchema.safeParse(w).success).toBe(true);
+  });
+
+  it("keeps the iconic-inspired cities trademark-safe", () => {
+    const banned =
+      /gotham|wayne|arkham|metropolis|daily planet|justice|lexcorp|ace chem|luthor|batman|superman/i;
+    for (const slug of SLUGS) {
+      const w = city(slug);
+      const names = [
+        ...w.objects.map((o) => o.name),
+        ...w.graph.nodes.flatMap((n) => (n.name ? [n.name] : [])),
+        ...w.graph.edges.map((e) => e.name),
+        ...w.landscapes.map((l) => l.name),
+      ];
+      expect(
+        names.filter((n) => banned.test(n)),
+        slug,
+      ).toEqual([]);
+    }
+  });
+
+  it("fills Noir Harbor's core with gothic spires and deco setbacks", () => {
+    const noir = city("noir-harbor");
+    const core = noir.objects.filter(
+      (o) =>
+        (o.shape === "spire" || o.shape === "stepped") &&
+        Math.hypot(...o.position) < 300,
+    );
+    expect(core.length).toBeGreaterThanOrEqual(30);
+    expect(core.some((o) => o.shape === "spire")).toBe(true);
+    expect(core.some((o) => o.shape === "stepped")).toBe(true);
+    for (const o of core) expect(o.height).toBeGreaterThan(100);
+  });
+
+  it("sets Noir Harbor's manor outside the core across a bridge, and its asylum out on the water", () => {
+    const noir = city("noir-harbor");
+    const manor = named(noir, "Graymoor Manor");
+    const bridge = named(noir, "Graymoor Bridge");
+    const cathedral = named(noir, "Saint Vesper Cathedral");
+    expect(Math.hypot(...manor.position)).toBeGreaterThan(300);
+    // The bridge spans the river between the manor and the city.
+    expect(inWater(noir, bridge.position)).toBe(true);
+    expect(manor.position[0]).toBeLessThan(bridge.position[0]);
+    expect(bridge.position[0]).toBeLessThan(cathedral.position[0]);
+    expect(
+      noir.objects.filter((o) => o.name === "Graymoor oak").length,
+    ).toBeGreaterThan(60);
+    // The asylum stands on dry land with the harbor round three sides.
+    const asylum = named(noir, "Blackwater Asylum");
+    const [x, z] = asylum.position;
+    expect(inWater(noir, asylum.position)).toBe(false);
+    for (const p of [
+      [x - 70, z],
+      [x + 80, z],
+      [x, z + 60],
+    ] as Point[])
+      expect(inWater(noir, p)).toBe(true);
+    // The elevated line runs the waterfront in several spans.
+    const el = noir.objects.filter((o) => o.name === "Harbor Elevated Line");
+    expect(el.length).toBeGreaterThanOrEqual(4);
+    expect(el.reduce((s, o) => s + o.width, 0)).toBeGreaterThan(600);
+  });
+
+  it("fills Skyline Prime with gleaming setback towers round a statue and a harbor bridge", () => {
+    const skyline = city("skyline-prime");
+    expect(shaped(skyline, "stepped").length).toBeGreaterThanOrEqual(30);
+    for (const o of shaped(skyline, "stepped"))
+      expect(o.height).toBeGreaterThanOrEqual(80);
+    const statue = named(skyline, "Guardian of Tomorrow Statue");
+    const plaza = skyline.landscapes.find(
+      (l) => l.name === "Grand Concourse Plaza",
+    )!;
+    expect(insidePolygon(statue.position, plaza.points)).toBe(true);
+    const globe = named(skyline, "Daily Clarion Globe Tower");
+    expect(globe.height).toBeGreaterThan(280);
+    for (const name of ["Starliner Bay Bridge"])
+      expect(inWater(skyline, named(skyline, name).position)).toBe(true);
+  });
+
+  it("lays every decorative bridge over water", () => {
+    for (const [slug, name] of [
+      ["noir-harbor", "Graymoor Bridge"],
+      ["skyline-prime", "Starliner Bay Bridge"],
+      ["velocity-bay", "Velocity Bay Bridge"],
+      ["aurora-realm", "Rainbow Bridge"],
+    ] as const) {
+      const w = city(slug);
+      const o = named(w, name);
+      expect(o.shape, name).toBe("bridge");
+      expect(inWater(w, o.position), name).toBe(true);
+    }
   });
 });

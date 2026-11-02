@@ -11,6 +11,7 @@ const toolLabels: Record<string, string> = {
   place_heat: "Checked a place's heat",
   set_time: "Moved the time of day",
   build_area: "Built an area",
+  generate_city: "Generated a city",
   propose_design: "Drafted a design change",
   plant_shade_trees: "Planted shade trees",
 };

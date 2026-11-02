@@ -5,6 +5,7 @@ import type { SceneObject, Terrain } from "../../../shared/types";
 import { terrainHeight } from "../../lib/geo";
 import { sc } from "../../lib/scene-theme";
 import { buildingGeometry, facadeGeometry, hash } from "./geometry";
+import LandmarkShapeModel from "./LandmarkShapes";
 
 interface Props {
   object: SceneObject;
@@ -148,7 +149,13 @@ function Building({
         onPointerDown ? (event) => onPointerDown(event, object) : undefined
       }
     >
-      {customAsset ? (
+      {object.shape ? (
+        <LandmarkShapeModel
+          object={object}
+          shape={object.shape}
+          selected={selected}
+        />
+      ) : customAsset ? (
         object.kind === "tower" ? (
           <Tower object={object} />
         ) : (

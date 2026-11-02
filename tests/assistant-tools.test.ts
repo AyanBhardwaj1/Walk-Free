@@ -98,6 +98,7 @@ function host(overrides: Partial<ToolHost> = {}): ToolHost {
     showRoute: vi.fn(),
     setDateTime: vi.fn(),
     highlightPlace: vi.fn(),
+    generateCity: vi.fn(async () => "Generated."),
     buildArea: vi.fn(async () => "built"),
     proposeDesign: vi.fn(async () => "preview"),
     applyPlanting: vi.fn(),
@@ -337,5 +338,27 @@ describe("assistant failures midway", () => {
     expect((messages.at(-1)!.content as string).length).toBeLessThanOrEqual(
       6000,
     );
+  });
+});
+
+describe("generate_city", () => {
+  it("passes the description and realism to the host", async () => {
+    const generateCity = vi.fn(async () => "Generated Ravenmoor.");
+    const result = await runTool(
+      host({ generateCity }),
+      "generate_city",
+      JSON.stringify({ description: "a rainy gothic city", realism: "dense" }),
+    );
+    expect(generateCity).toHaveBeenCalledWith("a rainy gothic city", "dense");
+    expect(result).toEqual({ result: "Generated Ravenmoor." });
+  });
+  it("defaults to detailed realism", async () => {
+    const generateCity = vi.fn(async () => "ok");
+    await runTool(
+      host({ generateCity }),
+      "generate_city",
+      JSON.stringify({ description: "a desert city" }),
+    );
+    expect(generateCity).toHaveBeenCalledWith("a desert city", "detailed");
   });
 });

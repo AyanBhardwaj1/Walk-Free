@@ -16,6 +16,8 @@ const PROFILE: Record<
   "velocity-bay": { count: 26, low: 0.18, high: 0.48 },
   "aurora-realm": { count: 20, low: 0.12, high: 0.4, spire: 0.5 },
   "neon-district": { count: 28, low: 0.3, high: 0.8 },
+  "dune-reach": { count: 32, low: 0.08, high: 0.22, spire: 0.62 },
+  "verdant-canopy": { count: 18, low: 0.2, high: 0.48 },
 };
 
 /** One row of towers; a few of the tallest carry a mast. */

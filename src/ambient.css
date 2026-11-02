@@ -374,3 +374,104 @@ aside .fiction-switch button {
     }
   }
 }
+
+/* Shimmer: heat haze rippling over a sun-baked city. */
+.ambient-shimmer i {
+  width: 120%;
+  height: 16%;
+  margin-left: -60%;
+  margin-top: 30%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    transparent
+  );
+  mix-blend-mode: soft-light;
+  opacity: 0.7;
+  animation: heat-ripple calc(4s + var(--s) * 4s) ease-in-out infinite alternate;
+  animation-delay: calc(var(--d) * -6s);
+}
+@keyframes heat-ripple {
+  from {
+    transform: translate3d(-4vw, 0, 0) scaleY(0.7) skewX(-6deg);
+  }
+  to {
+    transform: translate3d(4vw, -6px, 0) scaleY(1.25) skewX(6deg);
+  }
+}
+.ambient-weather.ambient-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% auto auto;
+  width: 70%;
+  height: 70%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, #fff3d1 60%, transparent),
+    transparent
+  );
+  mix-blend-mode: screen;
+  opacity: calc(0.8 * (1 - var(--night, 0)));
+}
+.ambient-weather.ambient-shimmer i {
+  opacity: calc(0.7 * (1 - var(--night, 0)));
+}
+
+/* Leaves drifting down by day; fireflies glowing among them at night. */
+.ambient-leaves i {
+  top: -6%;
+  width: calc(7px + var(--s) * 6px);
+  height: calc(5px + var(--s) * 4px);
+  border-radius: 0 100% 0 100%;
+  background: color-mix(in srgb, var(--accent) 70%, #3f6b2a);
+  animation: leaf-fall calc(9s + var(--s) * 8s) linear infinite;
+  animation-delay: calc(var(--d) * -16s);
+}
+.ambient-leaves i::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #f6ff9e;
+  box-shadow: 0 0 10px 3px #e6ff6b;
+  opacity: var(--night, 0);
+}
+.ambient-weather.ambient-leaves i {
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--accent) 70%, #3f6b2a)
+      calc((1 - var(--night, 0)) * 100%),
+    transparent
+  );
+}
+@keyframes leaf-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate3d(3vw, 28vh, 0) rotate(90deg);
+  }
+  50% {
+    transform: translate3d(-2vw, 55vh, 0) rotate(160deg);
+  }
+  75% {
+    transform: translate3d(4vw, 82vh, 0) rotate(250deg);
+  }
+  100% {
+    transform: translate3d(0, 112vh, 0) rotate(340deg);
+  }
+}
+@media (max-width: 720px) {
+  .ambient-leaves i:nth-child(n + 14) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-leaves i {
+    display: none;
+  }
+}

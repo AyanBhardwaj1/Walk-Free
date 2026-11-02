@@ -2,6 +2,7 @@ import type {
   Amenity,
   GraphEdge,
   GraphNode,
+  LandmarkShape,
   Landscape,
   ObjectKind,
   Point,
@@ -63,6 +64,8 @@ export interface BuildingSpec {
   kind?: ObjectKind;
   footprint?: Point[];
   aliases?: string[];
+  /** A signature silhouette for the renderer; the rectangle stays the solid. */
+  shape?: LandmarkShape;
 }
 
 /** Corners of an object's rectangle as the scene turns it (by -rotation). */
@@ -516,6 +519,7 @@ export class CityBuilder {
       heightMethod: "designed",
       ...(spec.footprint ? { footprint: spec.footprint } : {}),
       ...(spec.aliases ? { aliases: spec.aliases } : {}),
+      ...(spec.shape ? { shape: spec.shape } : {}),
     };
     this.objects.push(object);
     return object;
@@ -890,4 +894,17 @@ export function withMidlines(rng: Rng, coarse: number[], jitter = 0) {
     fine.push(v);
   });
   return fine;
+}
+
+/**
+ * A rectangle laid along the line from `a` to `b`: its width runs along the
+ * line, `breadth` across it. For decorative spans such as bridges.
+ */
+export function spanBetween(a: Point, b: Point, breadth: number) {
+  return {
+    center: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as Point,
+    width: Math.hypot(b[0] - a[0], b[1] - a[1]),
+    depth: breadth,
+    rotation: round((Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI),
+  };
 }

@@ -16,6 +16,7 @@ import { PREBUILT_AREAS } from "../../shared/areas";
 import { loadSavedWalks, type SavedWalk } from "../lib/saved-walks";
 import type { Account } from "../lib/account";
 import { lastPlace } from "../lib/last-place";
+import { generatedCities } from "../lib/generated-cities";
 
 interface CampusStat {
   slug: string;
@@ -78,6 +79,7 @@ export default function HomeDashboard({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [walks] = useState<SavedWalk[]>(() => loadSavedWalks().slice(0, 6));
   const [resume] = useState(lastPlace);
+  const [mine] = useState(() => generatedCities().slice(0, 4));
   useEffect(() => {
     let live = true;
     fetch("/landing/campuses.json")
@@ -224,12 +226,50 @@ export default function HomeDashboard({
           </ul>
         </section>
 
+        <section
+          className="home-section home-generate home-rise"
+          aria-labelledby="home-generate"
+          style={{ ["--d" as string]: 3 }}
+        >
+          <div className="home-generate-copy">
+            <span className="landing-eyebrow light">
+              <Sparkles size={13} aria-hidden /> New
+            </span>
+            <h2 id="home-generate">
+              Describe any city.
+              <br />
+              <em>Walk it in a minute.</em>
+            </h2>
+            <p>
+              A rain-soaked noir metropolis, a desert souk, your hometown in a
+              heatwave. The AI plans the districts and landmarks, Walk-Free
+              builds every street and drops you in the middle, with weather you
+              control.
+            </p>
+            <a className="landing-button bright" href="/app?generate=">
+              Generate a city <ArrowUpRight size={17} aria-hidden />
+            </a>
+          </div>
+          {mine.length > 0 && (
+            <ul className="home-generated" aria-label="Your generated cities">
+              {mine.map((c) => (
+                <li key={c.id}>
+                  <a href={`/app?generated=${c.id}`}>
+                    <strong>{c.spec.name}</strong>
+                    <small>{c.spec.tagline}</small>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="home-section" aria-labelledby="home-fiction">
           <div className="home-section-head">
             <h2 id="home-fiction">Fictional cities</h2>
             <p>
-              Five invented cities, each with its own sky and weather. Walk them
-              for fun, or to see how street shape changes the heat.
+              Seven invented cities, each with its own sky and weather. Walk
+              them for fun, or to see how street shape changes the heat.
             </p>
           </div>
           <FictionGallery base="/app" start={4} />

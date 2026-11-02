@@ -9,7 +9,8 @@ export interface Ambient {
   fog: string;
   /** Light colour for windows, sparks and aurora. */
   accent: string;
-  particles: "rain" | "sun" | "sparks" | "aurora" | "mist";
+  particles:
+    "rain" | "sun" | "sparks" | "aurora" | "mist" | "shimmer" | "leaves";
   /** A city that lives after dark. */
   night: boolean;
   /** 0 by day to 1 after sunset, when the sky follows the clock. */
@@ -28,6 +29,8 @@ const COUNTS: Record<Ambient["particles"], number> = {
   sparks: 14,
   aurora: 4,
   mist: 5,
+  shimmer: 7,
+  leaves: 26,
 };
 
 /**
@@ -86,7 +89,7 @@ export default function AmbientBackdrop({
           style={{
             left: `${b.x}%`,
             top:
-              kind === "aurora" || kind === "mist"
+              kind === "aurora" || kind === "mist" || kind === "shimmer"
                 ? `${b.y * 0.5}%`
                 : undefined,
             ["--d" as string]: b.d.toFixed(3),

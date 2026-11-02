@@ -2,10 +2,12 @@ import type { World } from "../../shared/types.js";
 import { CityBuilder, seededRng } from "./fiction-cities/kit.js";
 import {
   auroraRealm,
+  duneReach,
   neonDistrict,
   noirHarbor,
   skylinePrime,
   velocityBay,
+  verdantCanopy,
 } from "./fiction-cities/layouts.js";
 
 import { FICTION_CITIES, type FictionCitySlug } from "./fiction-catalog.js";
@@ -22,6 +24,8 @@ const LAYOUTS: Record<FictionCitySlug, (b: CityBuilder) => void> = {
   "velocity-bay": velocityBay,
   "aurora-realm": auroraRealm,
   "neon-district": neonDistrict,
+  "dune-reach": duneReach,
+  "verdant-canopy": verdantCanopy,
 };
 const EXTENT = 1000;
 const TERRAIN_RESOLUTION = 33;

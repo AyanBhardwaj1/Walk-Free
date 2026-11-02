@@ -604,9 +604,11 @@ export default function WorldCanvas({
         ? world.objects.filter(
             (o) =>
               o.kind !== "tree" &&
+              // Shaped landmarks keep their silhouettes.
+              !o.shape &&
               (o.source === "osm" ||
                 // Generated towers and landmarks keep their own shapes.
-                (o.source === "study" &&
+                ((o.source === "study" || o.source === "ai") &&
                   o.kind !== "tower" &&
                   o.kind !== "landmark")) &&
               o.id !== selectedId,

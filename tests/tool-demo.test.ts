@@ -33,6 +33,7 @@ function host(): ToolHost & { calls: string[] } {
     setDateTime: (iso) => calls.push(`time ${iso}`),
     highlightPlace: (id) => calls.push(`highlight ${id}`),
     buildArea: vi.fn(),
+    generateCity: vi.fn(),
     applyPlanting: vi.fn(),
     proposeDesign: vi.fn(),
   };
