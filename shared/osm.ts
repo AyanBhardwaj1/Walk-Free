@@ -9,6 +9,7 @@ import type {
   World,
 } from "./types.js";
 import { ServiceError } from "./errors.js";
+import { publishedHeight } from "./landmark-heights.js";
 import { nearestCity } from "../server/cities.js";
 
 // OpenStreetMap parsing shared by the API, the browser fallback, and the
@@ -378,11 +379,16 @@ export function parseOsmWorld(
         depth = Math.max(...zs) - Math.min(...zs);
       if (width < 1 || depth < 1 || width > radius * 3 || depth > radius * 3)
         continue;
-      const height = heightFor(tags);
+      const published = publishedHeight(`way/${element.id}`);
+      const height =
+        published !== undefined
+          ? { height: published, heightMethod: "published" as const }
+          : heightFor(tags);
       objects.push({
         id: `osm-way-${element.id}`,
         kind:
-          height.height > 90
+          // A landmark keeps its masonry look, not a glass high-rise's.
+          height.height > 90 && published === undefined
             ? "skyscraper"
             : tags["building:part"] === "tower"
               ? "tower"

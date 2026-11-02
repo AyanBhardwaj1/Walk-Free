@@ -36,7 +36,13 @@ export const worldSchema = z.object({
         shape: z.enum(LANDMARK_SHAPES).optional(),
         source: z.enum(["osm", "canopy", "user", "ai", "study"]),
         sourceId: z.string().optional(),
-        heightMethod: z.enum(["mapped", "levels", "estimated", "designed"]),
+        heightMethod: z.enum([
+          "mapped",
+          "levels",
+          "estimated",
+          "designed",
+          "published",
+        ]),
       }),
     )
     .max(60000),
