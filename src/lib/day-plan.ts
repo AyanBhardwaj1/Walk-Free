@@ -3,12 +3,12 @@ import type {
   Point,
   RouteResult,
   World,
-} from "../../shared/types";
-import { destinationCatalog, type Destination } from "./destinations";
-import { planRoutes } from "./routing";
-import { atLocalHour, routeHeat } from "./heat";
-import { seededRng } from "./fiction-cities/kit";
-import { matchDestinations } from "./assistant-tools";
+} from "../../shared/types.js";
+import { destinationCatalog, type Destination } from "./destinations.js";
+import { planRoutes } from "./routing.js";
+import { atLocalHour, routeHeat } from "./heat.js";
+import { seededRng } from "./fiction-cities/kit.js";
+import { matchDestinations } from "./assistant-tools.js";
 
 /** Place names to use for each stop, when the area has real favourites. */
 export type DayHints = Partial<Record<DayStop["role"], string>>;
