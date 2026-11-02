@@ -73,7 +73,7 @@ npm start
   - Each has its own sky, fog, weather layer (rain, sun haze, speed streaks, aurora or mist), ground tint and night window glow.
   - Open them from search, the dashboard, the landing page, the panel's city switcher or `/app?fiction=<slug>`.
   - They are labelled as fictional everywhere, and their heat numbers are illustrations.
-- Midtown Manhattan (`/app?area=midtown-manhattan`) is listed as a city district alongside the campuses.
+- Midtown Manhattan (`/app?area=midtown-manhattan`, a 1.3 km square built from a 3×3 grid of Overpass tiles; 3,283 buildings) is listed as a city district alongside the campuses.
 - 3D scene:
   - Soft shadows, distance fog and land that runs out to a fogged horizon.
   - A warmer sun as it lowers, moonlight after sunset, and lit windows from dusk.
