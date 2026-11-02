@@ -2867,3 +2867,18 @@ dialog[open]::backdrop {
     transition: none;
   }
 }
+
+/* Pages cross-fade into each other (landing, home, map) where supported. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
