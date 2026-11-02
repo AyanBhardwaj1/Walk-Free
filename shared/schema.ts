@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LANDMARK_SHAPES } from "./types.js";
 const n = z.number().finite();
 const point = z.tuple([n.min(-50000).max(50000), n.min(-50000).max(50000)]);
 const origin = z.object({ lat: n.min(-85).max(85), lon: n.min(-180).max(180) });
@@ -32,6 +33,7 @@ export const worldSchema = z.object({
           .optional(),
         footprint: z.array(point).min(3).max(5000).optional(),
         aliases: z.array(z.string().max(200)).max(12).optional(),
+        shape: z.enum(LANDMARK_SHAPES).optional(),
         source: z.enum(["osm", "canopy", "user", "ai", "study"]),
         sourceId: z.string().optional(),
         heightMethod: z.enum(["mapped", "levels", "estimated", "designed"]),

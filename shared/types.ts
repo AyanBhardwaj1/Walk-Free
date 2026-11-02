@@ -3,6 +3,26 @@ export type Point = [number, number];
 export type ObjectKind =
   "building" | "skyscraper" | "tower" | "landmark" | "tree";
 export type SourceKind = "osm" | "canopy" | "user" | "ai" | "study";
+/** Signature silhouettes for landmarks, drawn by scene/Buildings. */
+export const LANDMARK_SHAPES = [
+  "spire",
+  "dome",
+  "globe",
+  "stepped",
+  "smokestacks",
+  "tanks",
+  "manor",
+  "cathedral",
+  "signal",
+  "hall",
+  "arena",
+  "statue",
+  "bridge",
+  "pyramid",
+  "wind-tower",
+  "glasshouse",
+] as const;
+export type LandmarkShape = (typeof LANDMARK_SHAPES)[number];
 export interface SceneObject {
   id: string;
   kind: ObjectKind;
@@ -19,6 +39,8 @@ export interface SceneObject {
   heightMethod: "mapped" | "levels" | "estimated" | "designed";
   /** Other names: OSM ref, short_name, alt_name and similar. */
   aliases?: string[];
+  /** A landmark's signature silhouette (generated cities). */
+  shape?: LandmarkShape;
 }
 export interface SceneRoad {
   id: string;
