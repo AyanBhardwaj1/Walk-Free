@@ -476,22 +476,26 @@ footer {
 aside.collapsed ~ .viewport .map-heading {
   top: 76px;
 }
-/* Over a fictional city's dark sky. */
-.map-heading.on-dark h2,
-.map-heading.on-dark .eyebrow,
-.map-heading.on-dark > span {
-  color: var(--c-fg-f4efe2, #f4efe2);
-  text-shadow: 0 1px 12px rgb(0 0 0 / 45%);
+/* Over a fictional city's painted sky. The sky is never themed, so these
+   colours are fixed (written as rgb so the theme tokenizer leaves them). */
+.map-heading.on-sky h2,
+.map-heading.on-sky .eyebrow,
+.map-heading.on-sky > span {
+  color: rgb(42 52 36);
 }
 .map-heading.on-sky > span {
   display: block;
   max-width: 34ch;
   font-size: 13px;
   line-height: 1.45;
-  color: var(--c-fg-48533c, #48533c);
+}
+.map-heading.on-dark h2,
+.map-heading.on-dark .eyebrow,
+.map-heading.on-dark > span {
+  color: rgb(244 239 226);
+  text-shadow: 0 1px 12px rgb(0 0 0 / 45%);
 }
 .map-heading.on-dark > span {
-  color: var(--c-fg-f4efe2, #f4efe2);
   opacity: 0.85;
 }
 .weather-chip {
