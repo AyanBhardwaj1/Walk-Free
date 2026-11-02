@@ -1,6 +1,6 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import * as THREE from "three";
 import type {
   World,
@@ -14,6 +14,7 @@ import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
+import { partialLine, type P3 } from "../lib/polyline";
 import { sc, sceneTheme, setSceneTheme } from "../lib/scene-theme";
 import type { ThemeName } from "../lib/theme";
 import type { Ambient } from "./AmbientBackdrop";
@@ -380,6 +381,48 @@ function Endpoint({
     </group>
   );
 }
+const DRAW_MS = 900;
+/** The route line, drawing itself from start to finish when it appears. */
+function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
+  const invalidate = useThree((s) => s.invalidate);
+  const [k, setK] = useState(() =>
+    typeof matchMedia !== "undefined" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 1
+      : 0,
+  );
+  useEffect(() => {
+    if (k >= 1) return;
+    const start = performance.now();
+    let frame = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / DRAW_MS);
+      setK(1 - Math.pow(1 - p, 3));
+      // The canvas draws on demand; ask for each frame of the draw.
+      invalidate();
+      if (p < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // Runs once per mounted route; k only moves forward from here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invalidate]);
+  const shown = partialLine(points, k);
+  // Over heat colours, draw the route as a dark line with a light casing so
+  // it never blends into the orange "hot" paths.
+  return overHeat ? (
+    <>
+      <Line points={shown} color={sc("#fffdf4")} lineWidth={10} />
+      <Line
+        points={shown.map(([x, y, z]) => [x, y + 0.2, z] as P3)}
+        color={sc("#1d3557")}
+        lineWidth={5}
+      />
+    </>
+  ) : (
+    <Line points={shown} color={sc("#d57b48")} lineWidth={5} />
+  );
+}
 export default function WorldCanvas({
   world,
   environment,
@@ -617,41 +660,18 @@ export default function WorldCanvas({
           />
         )}
       </group>
-      {route &&
-        (heat ? (
-          // Over heat colours, draw the route as a dark line with a light
-          // casing so it never blends into the orange "hot" paths.
-          <>
-            <Line
-              points={route.points.map((p) => [
-                p[0],
-                terrainHeight(p, world.terrain) + 3,
-                p[1],
-              ])}
-              color={sc("#fffdf4")}
-              lineWidth={10}
-            />
-            <Line
-              points={route.points.map((p) => [
-                p[0],
-                terrainHeight(p, world.terrain) + 3.2,
-                p[1],
-              ])}
-              color={sc("#1d3557")}
-              lineWidth={5}
-            />
-          </>
-        ) : (
-          <Line
-            points={route.points.map((p) => [
-              p[0],
-              terrainHeight(p, world.terrain) + 3,
-              p[1],
-            ])}
-            color={sc("#d57b48")}
-            lineWidth={5}
-          />
-        ))}
+      {route && (
+        <RouteDraw
+          // A new route draws itself in; the same route doesn't replay.
+          key={route.points.map((p) => p.join(",")).join(";")}
+          points={route.points.map((p) => [
+            p[0],
+            terrainHeight(p, world.terrain) + 3,
+            p[1],
+          ])}
+          overHeat={!!heat}
+        />
+      )}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
       )}
