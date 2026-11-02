@@ -190,3 +190,30 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **Midtown Manhattan.** Added as a prebuilt city area. The first Overpass build timed out, so it was retried with a smaller 1.3 km square. Until its file exists, opening it falls back to a live build.
 - **Totals.** `npm test` 396 pass; lint and build clean. PR #27 is merged, and the production probe passed on the merge commit.
 
+
+## Adaptive skies, Midtown Manhattan, arrival, accessibility — 2026-11-02 (afternoon)
+
+- **Adaptive skies.** A fictional city's sky, haze and ground follow the sun via `skyAt()`, which is unit-tested: golden at dusk, night with stars after sunset. Rendered Skyline Prime at 5:45 PM and 9 PM.
+- **Midtown Manhattan.**
+  - Built in CI by "Build hero areas" from a 3×3 grid of Overpass tiles, with a pause between tiles and retries. The first two attempts with 4 tiles timed out.
+  - 4.0 MB: 3,283 buildings, 1,576 trees and 5,105 walking nodes.
+  - The first walk runs from Times Square to the Chrysler Building, 1.15 km. Grand Central and the Empire State Building sit near the square's edge on unconnected path fragments.
+  - The production probe now checks that all 7 prebuilt areas are served as `application/json`; all passed (run 41517077856).
+- **New features:**
+  - Arrival camera sweep and title card.
+  - Save a captioned picture of the 3D view.
+  - Shade bars on route cards and heat rankings.
+  - "Back to <place>" on the home page.
+  - Hero tilt on the landing page.
+  - Page view transitions.
+  - Typical building heights by OSM type.
+- **Accessibility.** axe reports 0 WCAG A/AA violations on the landing, home, login and fictional-city app pages after the contrast fixes.
+- **Reviews.** Two same-family independent review passes (provisional); all 8 real findings are fixed:
+  - Fictional buildings were drawn twice.
+  - A reloaded fictional city lost its weather.
+  - The heading misread over the atlas or 2D map, and was unreadable in the Night and Blueprint styles.
+  - `/home` redirected to login on a failed session check.
+  - The resume link turned into "Shared walk".
+  - The camera button was missing in Design studio.
+  - "Aurora" matched the fictional city instead of the real one.
+- **Totals.** `npm test` 408 pass; lint and build clean. PRs #27–#33 are merged, and the production probe passed after each deploy.
