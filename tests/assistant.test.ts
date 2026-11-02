@@ -541,3 +541,88 @@ describe("shared assistant and email verification", () => {
     expect(result.status).toBe(200);
   });
 });
+
+describe("AI city generation", () => {
+  const ownKey = {
+    "x-walk-free-ai-key": "sk-user-own-key-123",
+    "x-walk-free-ai-provider": "openai",
+    "x-walk-free-ai-model": "gpt-5-mini",
+  };
+  const plan = {
+    name: "Ravenmoor",
+    tagline: "Rain on gothic stone.",
+    inspiration: "a noir animated-series city",
+    origin: { lat: 40.7, lon: -74 },
+    timezone: "America/New_York",
+    climate: { temperatureC: 18, humidity: 85, windMps: 4, cloudCover: 80 },
+    ambient: {
+      sky: ["#141821", "#3a3f4b"],
+      fog: "#2a2e38",
+      accent: "#d4a24c",
+      particles: "rain",
+      night: true,
+    },
+    districts: [
+      {
+        name: "Old Spires",
+        kind: "downtown",
+        at: [0, 0],
+        size: 0.5,
+        streets: "grid",
+        heights: [40, 220],
+        density: 0.9,
+        trees: 0.1,
+        style: "gothic",
+      },
+    ],
+    landmarks: [
+      {
+        name: "Harbor Works",
+        shape: "smokestacks",
+        height: 60,
+        width: 80,
+        depth: 60,
+      },
+    ],
+    water: [{ kind: "bay", side: "east" }],
+  };
+
+  it("returns a validated plan and charges more for more realism", async () => {
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify(plan) } }],
+    });
+    const result = await post(
+      "/api/agent/city",
+      { prompt: "A rainy gothic noir city", realism: "dense" },
+      ownKey,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.spec.name).toBe("Ravenmoor");
+    expect(result.body.credits).toBe(4);
+    const sent = requestJson.mock.calls[0][1] as { body: string };
+    const body = JSON.parse(sent.body);
+    expect(body.messages[0].content).toMatch(/never use trademarked names/i);
+    expect(body.messages[1].content).toBe("A rainy gothic noir city");
+  });
+
+  it("explains an unreadable plan instead of failing silently", async () => {
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: "Sorry, here is a city: ..." } }],
+    });
+    const result = await post(
+      "/api/agent/city",
+      { prompt: "A desert city", realism: "sketch" },
+      ownKey,
+    );
+    expect(result.status).toBeGreaterThanOrEqual(400);
+    expect(result.body.code).toBe("INVALID_CITY");
+  });
+
+  it("rejects an empty request before calling the model", async () => {
+    const result = await post("/api/agent/city", { prompt: "" }, ownKey);
+    expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+});
