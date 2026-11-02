@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import type {
   World,
@@ -32,14 +32,21 @@ const VIEW_DIRECTION = new THREE.Vector3(0.65, 0.72, 0.7).normalize();
  * Re-frames only when the endpoints, area or visible region change, so the
  * time slider never moves the camera.
  */
+interface Framing {
+  target: THREE.Vector3;
+  offset: THREE.Vector3;
+}
 function FrameArea({
   extent,
   insets,
   focus,
+  framed,
 }: {
   extent: number;
   insets: MapInsets;
   focus: Point[];
+  /** Where the camera settled, for the arrival flight to land on. */
+  framed?: RefObject<Framing | null>;
 }) {
   const { camera, size, invalidate, controls } = useThree();
   const focusKey = focus.map((p) => p.map(Math.round).join(",")).join("|");
@@ -82,6 +89,11 @@ function FrameArea({
     const target = new THREE.Vector3(center[0], 0, center[1]);
     cam.position.copy(target).addScaledVector(VIEW_DIRECTION, distance);
     cam.lookAt(target);
+    if (framed)
+      framed.current = {
+        target: target.clone(),
+        offset: VIEW_DIRECTION.clone().multiplyScalar(distance),
+      };
     cam.updateProjectionMatrix();
     const orbit = controls as unknown as {
       target: THREE.Vector3;
@@ -106,6 +118,59 @@ function FrameArea({
     size.height,
     invalidate,
   ]);
+  return null;
+}
+const FLIGHT_MS = 1900;
+/**
+ * Arriving in an area: the camera sweeps in from higher and further round,
+ * and settles where FrameArea framed it. Any drag or zoom takes over at once;
+ * skipped for people who ask for less motion.
+ */
+function ArrivalFlight({ framed }: { framed: RefObject<Framing | null> }) {
+  const { camera, controls, invalidate } = useThree();
+  useEffect(() => {
+    if (
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    const orbit = controls as unknown as
+      | (THREE.EventDispatcher<{ start: object }> & { update: () => void })
+      | null;
+    let frame = 0;
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+    };
+    orbit?.addEventListener("start", stop);
+    const up = new THREE.Vector3(0, 1, 0);
+    const start = performance.now();
+    const tick = (t: number) => {
+      if (stopped) return;
+      const f = framed.current;
+      if (f) {
+        const p = Math.min(1, (t - start) / FLIGHT_MS);
+        const rest = 1 - (1 - Math.pow(1 - p, 3));
+        const offset = f.offset
+          .clone()
+          .applyAxisAngle(up, rest * 0.7)
+          .multiplyScalar(1 + rest * 0.8);
+        offset.y += rest * f.offset.length() * 0.4;
+        camera.position.copy(f.target).add(offset);
+        camera.lookAt(f.target);
+        orbit?.update();
+        invalidate();
+        if (p >= 1) return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      stop();
+      orbit?.removeEventListener("start", stop);
+    };
+  }, [camera, controls, invalidate, framed]);
   return null;
 }
 function WalkingPaths({
@@ -522,6 +587,7 @@ export default function WorldCanvas({
     new THREE.Color("#ffb46b"),
     Math.min(1, Math.max(0, 1 - sun.y / 0.35)),
   );
+  const framed = useRef<Framing | null>(null);
   // Fictional cities tint the land toward their own haze.
   const ground = ambient
     ? "#" +
@@ -572,7 +638,9 @@ export default function WorldCanvas({
         extent={extent}
         insets={insets}
         focus={startPoint && endPoint ? [startPoint, endPoint] : []}
+        framed={framed}
       />
+      <ArrivalFlight framed={framed} />
       {!ambient && <color attach="background" args={[sky]} />}
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}

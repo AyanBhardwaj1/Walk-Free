@@ -317,6 +317,7 @@ export default function App({
     }
   });
   const [world, setWorld] = useState<World>(createStudyWorld);
+  const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
     captureRef.current = capture;
@@ -1144,6 +1145,9 @@ export default function App({
     // Wait for the saved scene, so building pushes it onto undo history.
     if (!hydrated || openedArea.current) return;
     openedArea.current = true;
+    // Areas opened from here on get an arrival card; the scene already on
+    // screen (the default study or a restored one) does not.
+    setArrivalFrom(worldRef.current.id);
     const link = parseWalkLink(window.location.search);
     const fiction = new URLSearchParams(window.location.search).get("fiction");
     // A remembered place keeps its own name rather than "Shared walk".
@@ -2897,6 +2901,29 @@ export default function App({
                     ambient={sky ?? fiction.ambient}
                     layer="weather"
                   />
+                )}
+                {/* Arriving somewhere: its name, centre stage, then gone. */}
+                {arrivalFrom !== null && world.id !== arrivalFrom && (
+                  <div
+                    key={`arrival-${world.id}`}
+                    style={{ marginLeft: mapInsets.left / 2 }}
+                    className={`arrival${
+                      (fiction && sky ? isDarkSky(sky.sky[0]) : sunY < -0.02)
+                        ? " on-dark"
+                        : ""
+                    }`}
+                    aria-hidden
+                  >
+                    <small>
+                      {fiction
+                        ? "A fictional city"
+                        : world.provenance.live
+                          ? "Mapped from OpenStreetMap"
+                          : "The Walk-Free atlas"}
+                    </small>
+                    <strong>{world.name.split(" · ")[0]}</strong>
+                    {fiction && <span>{fiction.tagline}</span>}
+                  </div>
                 )}
               </>
             )}
