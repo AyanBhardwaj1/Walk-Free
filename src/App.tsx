@@ -88,7 +88,9 @@ import {
   clockLabel,
 } from "./lib/heat";
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
-import { matchDestinations } from "./lib/assistant-tools";
+import { matchDestinations, runTool } from "./lib/assistant-tools";
+import DemoTour, { type TourStep } from "./components/DemoTour";
+import { CITY_IDEAS } from "./components/CityGenerator";
 import PlaceField from "./components/PlaceField";
 import OmniSearch, { matchFiction } from "./components/OmniSearch";
 import Select from "./components/Select";
@@ -240,6 +242,7 @@ function moodEnv(
 /** Query parameters a shared walk link uses (lib/walk-links.ts). */
 const WALK_LINK_PARAMS = [
   "fiction",
+  "tour",
   "generate",
   "generated",
   "name",
@@ -336,6 +339,7 @@ export default function App({
   const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [genPrompt, setGenPrompt] = useState("");
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [dayBusy, setDayBusy] = useState(false);
@@ -1229,6 +1233,7 @@ export default function App({
       openGenerated(stored.spec, stored.realism, stored.via, stored.prompt);
       return;
     }
+    if (params0.has("tour")) setTourOpen(true);
     if (params0.has("generate")) {
       setGenPrompt((params0.get("generate") ?? "").slice(0, 600));
       setGenOpen(true);
@@ -1340,6 +1345,116 @@ export default function App({
     );
     return true;
   }
+  /** Plans the day here and shows it; null when the area can't. */
+  function planDayNow() {
+    const day = planDay(routeWorld, env, {
+      avoidStairs: stairs,
+      sunAversion,
+      hints: prebuiltAreaFor(world.origin.lat, world.origin.lon, 1000)?.day,
+    });
+    setDayPlan(day);
+    if (!day)
+      flash(
+        "This area has too few connected, named places to plan a day here.",
+      );
+    return day;
+  }
+  /** The guided tour: each step explains a feature and does it. */
+  const tourSteps: TourStep[] = [
+    {
+      title: "A July afternoon",
+      text: `This is ${world.name.split(" · ")[0]}, mapped building by building with Meta and WRI's canopy map. Shade matters most in summer heat, so let's set a July afternoon.`,
+      action: "Make it July, 3 PM",
+      run: () => {
+        setPlaying(false);
+        setEnv((previous) => julyAfternoon(previous, world.timezone));
+        setMode("explore");
+        setTab("route");
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "The shade route",
+      text: "Red paths are in full sun, blue ones in shade. Compare Quickest with More shade: same walk, far less sun, a minute or so longer.",
+      action: "Show the shade route",
+      run: () => {
+        setMode("explore");
+        setTab("route");
+        setPref("shade");
+        setHeatMap(true);
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "The hottest streets",
+      text: "Every street and park ranked by how it feels right now. Tap one to see its day: when it peaks, and how much shade it has.",
+      action: "Rank the heat",
+      run: () => {
+        setMode("explore");
+        setTab("heat");
+        setHeatMap(true);
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "A day in the life",
+      text: "Coffee, class, lunch outside, the library, home: six walks, each planned in shade at its own hour.",
+      action: "Plan and play my day",
+      run: () => {
+        setMode("explore");
+        setTab("route");
+        setPanelOpen(true);
+        const day = planDayNow();
+        const lunch = day?.legs.find((l) => l.hour >= 12) ?? day?.legs[0];
+        if (lunch) {
+          setPref("shade");
+          setStart(lunch.from.id);
+          setEnd(lunch.to.id);
+          setLocalHour(lunch.hour);
+        }
+      },
+    },
+    {
+      title: "Plant trees, watch it cool",
+      text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
+      action: "Plant the hottest street",
+      run: async () => {
+        const hottest = placeHeat(world, heatEnv).find(
+          (p) => p.kind === "street",
+        );
+        if (!hottest) return;
+        const result = (await runTool(
+          toolHost.current,
+          "plant_shade_trees",
+          JSON.stringify({ street: hottest.name }),
+        )) as { error?: string };
+        if (result?.error) flash(result.error);
+        else {
+          setMode("studio");
+          setPanelOpen(true);
+        }
+      },
+    },
+    {
+      title: "Ask Walk-Free",
+      text: "The assistant, built for Meta's Muse Spark, uses the same tools: it plans routes, ranks heat, moves the clock and plants trees, in your language. Press Watch what it does to see it work.",
+      action: "Open the assistant",
+      run: () => {
+        setMode("explore");
+        setTab("ask");
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "Any city you can imagine",
+      text: "Describe a city, real or imagined, and walk it a minute later, with weather you control.",
+      action: "Generate a city",
+      run: () => {
+        setGenPrompt(CITY_IDEAS[0]);
+        setGenOpen(true);
+      },
+    },
+  ];
   /** Builds a generated city, opens it and drops you in the middle. */
   function openGenerated(
     spec: CitySpec,
@@ -2401,20 +2516,7 @@ export default function App({
                       // Let the button show its busy state before the work.
                       setTimeout(() => {
                         try {
-                          const day = planDay(routeWorld, env, {
-                            avoidStairs: stairs,
-                            sunAversion,
-                            hints: prebuiltAreaFor(
-                              world.origin.lat,
-                              world.origin.lon,
-                              1000,
-                            )?.day,
-                          });
-                          setDayPlan(day);
-                          if (!day)
-                            flash(
-                              "This area has too few connected, named places to plan a day here.",
-                            );
+                          planDayNow();
                         } finally {
                           setDayBusy(false);
                         }
@@ -3133,6 +3235,26 @@ export default function App({
                 )}
               </>
             )}
+            {!atlas &&
+              (tourOpen ? (
+                <DemoTour
+                  steps={tourSteps}
+                  left={mapInsets.left}
+                  onClose={() => setTourOpen(false)}
+                />
+              ) : (
+                world.provenance.live &&
+                prebuiltAreaFor(world.origin.lat, world.origin.lon, 1000) && (
+                  <button
+                    type="button"
+                    className="tour-launch"
+                    style={{ left: mapInsets.left + 16 }}
+                    onClick={() => setTourOpen(true)}
+                  >
+                    <Play size={14} aria-hidden /> Take the 1-minute tour
+                  </button>
+                )
+              ))}
             {!atlas && view === "2d" && mode === "explore" && currentRoute && (
               <div className="walk-banner" role="status" aria-live="polite">
                 <strong>
