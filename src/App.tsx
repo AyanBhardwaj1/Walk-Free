@@ -206,6 +206,8 @@ const MOOD_WEATHER = {
   sparks: { temperatureC: 28, humidity: 45, windMps: 6, cloudCover: 10 },
   aurora: { temperatureC: 15, humidity: 60, windMps: 3, cloudCover: 25 },
   mist: { temperatureC: 25, humidity: 82, windMps: 1, cloudCover: 55 },
+  shimmer: { temperatureC: 41, humidity: 14, windMps: 2, cloudCover: 0 },
+  leaves: { temperatureC: 31, humidity: 74, windMps: 2, cloudCover: 30 },
 } as const;
 /** A fictional city's own weather, at its evening or afternoon hour. */
 function moodEnv(
