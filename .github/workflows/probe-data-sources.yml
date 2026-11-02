@@ -52,6 +52,12 @@ jobs:
           check "Web app manifest" "/manifest.webmanifest" 200
           check "Service worker" "/sw.js" 200
           check "Link preview image" "/og.png" 200
+          # Every prebuilt area must be served as JSON, not the app's HTML.
+          for area in ut-austin uc-berkeley umich ucla stanford asu midtown-manhattan; do
+            type=$(curl -sS -o /dev/null -w "%{http_code} %{content_type} %{size_download}" --max-time 60 "$SITE/areas/$area.json")
+            echo "=== area $area: $type"
+            case "$type" in "200 application/json"*) ;; *) echo "AREA $area NOT SERVED AS JSON"; exit 1;; esac
+          done
           check "Outlook without a session (guests use the providers directly)" "/api/outlook?lat=30.29&lon=-97.73" 401
           # The deployed app should contain tonight's features. The workspace
           # is split into lazily loaded chunks, so follow chunk references.
