@@ -1260,7 +1260,17 @@ export default function App({
       if (link.tab) setTab(link.tab);
       return;
     }
-    const area = PREBUILT_AREAS.find((a) => a.slug === link.area);
+    // A guest arriving at the plain demo starts on UT Austin, the most
+    // complete campus, rather than the abstract design study.
+    const fresh =
+      guest &&
+      !link.area &&
+      link.lat === undefined &&
+      !params0.has("generate") &&
+      worldRef.current.id === firstWorld.current.id;
+    const area = PREBUILT_AREAS.find(
+      (a) => a.slug === (link.area ?? (fresh ? "ut-austin" : undefined)),
+    );
     const city: City | null = area
       ? {
           id: area.slug,
