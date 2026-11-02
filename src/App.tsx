@@ -99,7 +99,7 @@ import { spokenShadeHint, sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { FICTION_CITIES, createFictionCity } from "./lib/fiction-cities";
-import { isDarkSky } from "./lib/fiction-catalog";
+import { isDarkSky, skyAt } from "./lib/fiction-catalog";
 import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
 import {
@@ -226,6 +226,7 @@ function moodEnv(
 /** Query parameters a shared walk link uses (lib/walk-links.ts). */
 const WALK_LINK_PARAMS = [
   "fiction",
+  "name",
   "area",
   "lat",
   "lon",
@@ -647,6 +648,15 @@ export default function App({
     heatEnv.weatherMode === "forecast" && forecast
       ? forecast
       : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+  // A fictional city's sky follows the sun: golden at dusk, dark at night.
+  // Rounded so dragging the time slider doesn't redraw for every minute.
+  const sunY = fiction
+    ? Math.round(sunDirection(env, world.origin).y * 60) / 60
+    : 0;
+  const sky = useMemo(
+    () => (fiction ? skyAt(fiction.ambient, sunY) : null),
+    [fiction, sunY],
+  );
   // The fictional sky only shows behind the 3D scene.
   const onSky =
     fiction && !atlas && !(view === "2d" && mode === "explore")
@@ -953,7 +963,11 @@ export default function App({
     },
     async buildArea(query) {
       // A fictional city opens at once, and stays in the conversation.
-      const fictional = matchFiction(query);
+      // Only an exact name opens a fictional city ("Aurora" is a real city).
+      const wanted = query.trim().toLowerCase();
+      const fictional = matchFiction(query).filter(
+        (c) => c.name.toLowerCase() === wanted,
+      );
       if (fictional.length === 1 && openFiction(fictional[0].slug, true))
         return `Opened ${fictional[0].name}, a fictional city: ${fictional[0].mood} Its heat numbers are illustrations.`;
       const city = await lookUpPlace(query);
@@ -1134,6 +1148,11 @@ export default function App({
     openedArea.current = true;
     const link = parseWalkLink(window.location.search);
     const fiction = new URLSearchParams(window.location.search).get("fiction");
+    // A remembered place keeps its own name rather than "Shared walk".
+    const placeName = new URLSearchParams(window.location.search)
+      .get("name")
+      ?.trim()
+      .slice(0, 80);
     // Use the link once; reloading shouldn't replace the scene again.
     const params = new URLSearchParams(window.location.search);
     for (const key of WALK_LINK_PARAMS) params.delete(key);
@@ -1160,7 +1179,7 @@ export default function App({
       : link.lat !== undefined && link.lon !== undefined
         ? {
             id: "shared-walk",
-            name: "Shared walk",
+            name: placeName || "Shared walk",
             state: "",
             lat: link.lat,
             lon: link.lon,
@@ -1299,7 +1318,12 @@ export default function App({
         name: c.name,
         href: shipped
           ? `/app?area=${shipped.slug}`
-          : `/app?lat=${c.lat.toFixed(5)}&lon=${c.lon.toFixed(5)}&radius=${radius}`,
+          : `/app?lat=${c.lat.toFixed(5)}&lon=${c.lon.toFixed(5)}&radius=${radius}&name=${encodeURIComponent(
+              c.name,
+            ).replace(
+              /[!'()*~]/g,
+              (ch) => "%" + ch.charCodeAt(0).toString(16).toUpperCase(),
+            )}`,
       });
       // Meta's canopy arrives after the map: add it in place (not as an
       // undoable edit) if the same area is still open.
@@ -1578,9 +1602,9 @@ export default function App({
       if (!ctx) return;
       if (fiction) {
         const g = ctx.createLinearGradient(0, 0, 0, c.height);
-        g.addColorStop(0, fiction.ambient.sky[0]);
-        g.addColorStop(0.62, fiction.ambient.sky[1]);
-        g.addColorStop(1, fiction.ambient.fog);
+        g.addColorStop(0, sky?.sky[0] ?? fiction.ambient.sky[0]);
+        g.addColorStop(0.62, sky?.sky[1] ?? fiction.ambient.sky[1]);
+        g.addColorStop(1, sky?.fog ?? fiction.ambient.fog);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, c.width, c.height);
       }
@@ -2837,7 +2861,10 @@ export default function App({
             ) : (
               <>
                 {fiction && (
-                  <AmbientBackdrop ambient={fiction.ambient} layer="sky" />
+                  <AmbientBackdrop
+                    ambient={sky ?? fiction.ambient}
+                    layer="sky"
+                  />
                 )}
                 <WorldCanvas
                   key={world.id}
@@ -2859,7 +2886,7 @@ export default function App({
                   heat={heatOverlay}
                   insets={mapInsets}
                   theme={theme}
-                  ambient={fiction?.ambient}
+                  ambient={sky}
                   onCaptureReady={setCapture}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
@@ -2868,7 +2895,10 @@ export default function App({
                   }
                 />
                 {fiction && (
-                  <AmbientBackdrop ambient={fiction.ambient} layer="weather" />
+                  <AmbientBackdrop
+                    ambient={sky ?? fiction.ambient}
+                    layer="weather"
+                  />
                 )}
               </>
             )}
@@ -2916,7 +2946,7 @@ export default function App({
               </button>
             )}
             <div
-              className={`map-heading${onSky ? (isDarkSky(onSky.ambient.sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
+              className={`map-heading${onSky ? (isDarkSky((sky ?? onSky.ambient).sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
               hidden={
                 panelOpen ||
                 (!atlas &&
@@ -3069,7 +3099,7 @@ export default function App({
                   >
                     <Building2 size={19} />
                   </button>
-                  {view === "3d" && (
+                  {!(view === "2d" && mode === "explore") && (
                     <button
                       title="Save a picture of this view"
                       aria-label="Save a picture of this view"
