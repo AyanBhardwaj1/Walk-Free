@@ -80,6 +80,6 @@ jobs:
               text += body
               queue += [m for m in re.findall(r"[\w-]+-[\w-]{8}\.js", body)]
           print("chunks fetched:", len(seen))
-          for word in ["SUN AVERSION", "outlook-notice", "air-quality-api.open-meteo.com", "muse-spark-1.3", "NWS_HeatRisk", "Watch what it does", "Write a proposal", "best_time_to_leave", "Download street heat"]:
+          for word in ["SUN AVERSION", "outlook-notice", "air-quality-api.open-meteo.com", "muse-spark-1.3", "NWS_HeatRisk", "Watch what it does", "Write a proposal", "best_time_to_leave", "Download street heat", "Noir Harbor", "Save a picture of this view", "Midtown Manhattan"]:
               print(("bundle has: " if word in text else "bundle MISSING: ") + word)
           PY
