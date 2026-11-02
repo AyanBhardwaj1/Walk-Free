@@ -3549,8 +3549,27 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
 @media (max-width: 720px) {
   .demo-tour,
   .tour-launch {
-    left: 16px !important;
+    left: 12px !important;
     bottom: auto;
-    top: 76px;
+    top: 64px;
+  }
+  .demo-tour {
+    width: calc(100% - 24px);
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .demo-tour h3 {
+    font-size: 17px;
+  }
+  .demo-tour p {
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .demo-tour-go {
+    padding: 7px 11px;
+    font-size: 12px;
   }
 }
