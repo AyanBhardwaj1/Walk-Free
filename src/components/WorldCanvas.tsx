@@ -239,9 +239,11 @@ function Roads({ world }: { world: World }) {
 function Ground({
   world,
   onClick,
+  color,
 }: {
   world: World;
   onClick: (p: Point) => void;
+  color: string;
 }) {
   const geometry = useMemo(() => {
     const t = world.terrain;
@@ -268,7 +270,38 @@ function Ground({
         onClick([e.point.x, e.point.z]);
       }}
     >
-      <meshStandardMaterial color={sc("#e5e1d5")} roughness={1} />
+      <meshStandardMaterial color={color} roughness={1} />
+    </mesh>
+  );
+}
+/**
+ * Land beyond the mapped area, out to the horizon, so the city doesn't float
+ * on a tile: it fades into the fog instead of ending at a hard edge.
+ */
+function Horizon({
+  world,
+  color,
+  reach = 9,
+}: {
+  world: World;
+  color: string;
+  /** How far the land runs, in multiples of the area's width. */
+  reach?: number;
+}) {
+  const y = useMemo(() => {
+    const h = world.terrain?.heights;
+    return (h && h.length ? Math.min(...h) : 0) - 0.6;
+  }, [world.terrain]);
+  return (
+    <mesh
+      rotation-x={-Math.PI / 2}
+      position-y={y}
+      receiveShadow
+      // Clicks beyond the map have nothing to pick.
+      raycast={() => null}
+    >
+      <circleGeometry args={[world.extent * reach, 64]} />
+      <meshStandardMaterial color={color} roughness={1} />
     </mesh>
   );
 }
@@ -410,6 +443,13 @@ export default function WorldCanvas({
     new THREE.Color("#ffb46b"),
     Math.min(1, Math.max(0, 1 - sun.y / 0.35)),
   );
+  // Fictional cities tint the land toward their own haze.
+  const ground = ambient
+    ? "#" +
+      new THREE.Color(sc("#e5e1d5"))
+        .lerp(new THREE.Color(ambient.fog), 0.55)
+        .getHexString()
+    : sc("#e5e1d5");
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
@@ -493,7 +533,9 @@ export default function WorldCanvas({
         shadow-camera-far={extent * 4}
         shadow-bias={-0.0002}
       />
-      <Ground world={world} onClick={onGroundClick} />
+      <Ground world={world} onClick={onGroundClick} color={ground} />
+      {/* A fictional city's land melts into its painted sky sooner. */}
+      <Horizon world={world} color={ground} reach={ambient ? 2.4 : 9} />
       {world.landscapes.map((l) => (
         <Area
           key={l.id}
