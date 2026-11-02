@@ -822,6 +822,14 @@ export default function LandingPage({
             </p>
           </div>
           <FictionGallery base={signedIn ? "/app" : "/demo"} reveal />
+          <a
+            className="fiction-generate reveal"
+            href={signedIn ? "/app?generate=" : "/demo?generate="}
+          >
+            <Sparkles size={16} aria-hidden /> Or describe any city, real or
+            imagined, and walk it in a minute{" "}
+            <ArrowUpRight size={15} aria-hidden />
+          </a>
         </section>
 
         <section className="landing-ask reveal" id="assistant">
