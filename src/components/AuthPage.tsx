@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ArrowUpRight, Eye, EyeOff, Trees } from "lucide-react";
 import { accountRequest, AccountError, type Account } from "../lib/account";
-import { Brand } from "./LandingPage";
+import { Brand, HeroHeat, type Preview } from "./LandingPage";
 import { friendlyError } from "../lib/errors";
 
 export default function AuthPage({
@@ -22,6 +22,19 @@ export default function AuthPage({
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [done, setDone] = useState(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/landing/speedway.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setPreview(d))
+      .catch(() => {
+        /* The story panel reads fine without the live heat slice. */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
   const isNew = mode === "signup";
   const reset = mode === "reset-password";
   const forgot = mode === "forgot-password";
@@ -139,16 +152,20 @@ export default function AuthPage({
       </header>
       <main className="auth-main">
         <section className="auth-story">
-          <Trees size={50} strokeWidth={1} />
-          <span className="landing-eyebrow">
+          <HeroHeat preview={preview} />
+          <Trees className="home-rise" size={50} strokeWidth={1} />
+          <span
+            className="landing-eyebrow light home-rise"
+            style={{ ["--d" as string]: 1 }}
+          >
             A LITTLE MORE SHADE. A LITTLE MORE WONDER.
           </span>
-          <h1>
+          <h1 className="home-rise" style={{ ["--d" as string]: 2 }}>
             Good things
             <br />
             are <em>on the way.</em>
           </h1>
-          <p>
+          <p className="home-rise" style={{ ["--d" as string]: 3 }}>
             Your city is more than a way to get somewhere. Make time to see it.
           </p>
         </section>
