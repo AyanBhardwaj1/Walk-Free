@@ -46,6 +46,7 @@ export default function OmniSearch({
   onPlace,
   onCity,
   onFiction,
+  onGenerate,
 }: {
   catalog: Destination[];
   areaName: string;
@@ -53,6 +54,8 @@ export default function OmniSearch({
   onCity: (city: City) => void;
   /** Open a generated fictional city by its slug. */
   onFiction?: (slug: string) => void;
+  /** Build a whole city from the words typed. */
+  onGenerate?: (query: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
@@ -171,6 +174,22 @@ export default function OmniSearch({
               )}
             </li>
           ))}
+          {onGenerate && query.trim().length >= 3 && (
+            <li className="omni-generate">
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onGenerate(query.trim());
+                  setQuery("");
+                  input.current?.blur();
+                }}
+              >
+                <Sparkles size={14} aria-hidden /> Generate “{query.trim()}” as
+                a whole city
+              </button>
+            </li>
+          )}
           <li className="omni-google">
             <a
               href={googleMapsSearch(

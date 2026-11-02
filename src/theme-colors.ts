@@ -3,6 +3,7 @@
 export const THEME_COLORS = [
   "bg-17241bb3",
   "bg-24382b",
+  "bg-2f4a33",
   "bg-354c30",
   "bg-3f5938",
   "bg-45633e",
@@ -33,6 +34,7 @@ export const THEME_COLORS = [
   "bg-f4f2e8",
   "bg-f5f3ec",
   "bg-f6e6df",
+  "bg-f6f4ea",
   "bg-f8f6ef",
   "bg-f8f6efef",
   "bg-f9f7f0",
@@ -149,6 +151,7 @@ export const THEME_COLORS = [
   "line-a5b594",
   "line-b3bca7",
   "line-b9c2a8",
+  "line-b9c4a8",
   "line-c9d6bb",
   "line-c9d7bf",
   "line-d1d7c7",

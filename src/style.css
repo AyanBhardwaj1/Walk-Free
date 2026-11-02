@@ -3352,3 +3352,90 @@ dialog.city-gen::backdrop {
 .july-nudge strong {
   color: var(--c-fg-4f2c12, #4f2c12);
 }
+.generate-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px dashed var(--c-line-b9c4a8, #b9c4a8);
+  background: var(--c-bg-f6f4ea, #f6f4ea);
+  color: var(--c-fg-22301f, #22301f);
+  text-align: left;
+  transition:
+    border-color 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+    transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.generate-entry:active {
+  transform: scale(0.98);
+}
+.generate-entry strong {
+  display: block;
+  font-size: 13px;
+}
+.generate-entry small {
+  font-size: 11px;
+  color: var(--c-fg-5f6956, #5f6956);
+}
+@media (hover: hover) and (pointer: fine) {
+  .generate-entry:hover {
+    border-color: var(--c-line-3f5938, #3f5938);
+  }
+}
+.omni-generate button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--c-line-e6e6db, #e6e6db);
+  color: var(--c-fg-3f5938, #3f5938);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+/* The dialog sits inside the panel; keep the panel's header look out. */
+dialog.city-gen header {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+dialog.city-gen {
+  overflow-y: auto;
+}
+dialog.city-gen form {
+  padding-bottom: 32px;
+}
+.city-gen-go:disabled {
+  opacity: 0.55;
+}
+dialog.city-gen .city-gen-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  border: 0;
+  background: var(--c-bg-3f5938, #3f5938);
+  color: var(--c-fg-fffdf6, #fffdf6);
+  font-size: 15px;
+  font-weight: 600;
+  transition:
+    transform 0.16s cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+dialog.city-gen .city-gen-go:active:not(:disabled) {
+  transform: scale(0.98);
+}
+@media (hover: hover) and (pointer: fine) {
+  dialog.city-gen .city-gen-go:hover:not(:disabled) {
+    background: var(--c-bg-2f4a33, #2f4a33);
+  }
+}
