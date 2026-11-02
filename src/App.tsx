@@ -1260,7 +1260,17 @@ export default function App({
       if (link.tab) setTab(link.tab);
       return;
     }
-    const area = PREBUILT_AREAS.find((a) => a.slug === link.area);
+    // A guest arriving at the plain demo starts on UT Austin, the most
+    // complete campus, rather than the abstract design study.
+    const fresh =
+      guest &&
+      !link.area &&
+      link.lat === undefined &&
+      !params0.has("generate") &&
+      worldRef.current.id === firstWorld.current.id;
+    const area = PREBUILT_AREAS.find(
+      (a) => a.slug === (link.area ?? (fresh ? "ut-austin" : undefined)),
+    );
     const city: City | null = area
       ? {
           id: area.slug,
@@ -1440,9 +1450,16 @@ export default function App({
       text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
       action: "Plant the hottest street",
       run: async () => {
-        const hottest = placeHeat(world, heatEnv).find(
+        const streets = placeHeat(world, heatEnv).filter(
           (p) => p.kind === "street",
         );
+        // Prefer a name that reads as a street ("Speedway", "24th Street").
+        const hottest =
+          streets.find((p) =>
+            /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
+              p.name,
+            ),
+          ) ?? streets[0];
         if (!hottest) return;
         const result = (await runTool(
           toolHost.current,

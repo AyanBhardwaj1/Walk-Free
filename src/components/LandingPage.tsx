@@ -580,7 +580,8 @@ export default function LandingPage({
   useReveal();
   const hero = useRef<HTMLElement>(null);
   useHeroTilt(hero);
-  const start = signedIn ? "/home" : "/demo";
+  // Guests start on UT Austin with the guided tour open.
+  const start = signedIn ? "/home" : "/demo?area=ut-austin&tour=1";
   const totals = {
     buildings: campuses.reduce((s, c) => s + c.buildings, 0),
     km: campuses.reduce((s, c) => s + c.paths_km, 0),

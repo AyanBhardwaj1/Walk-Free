@@ -44,7 +44,8 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
 Heat illness is preventable when people know where and when the heat is. Walk-Free turns open data into a decision: leave at 7:30 instead of 3, and take Speedway, not 24th Street. It also gives campus planners a tool to show where a row of trees would help most.
 
 ## How to demo (3 minutes)
-1. Open https://walk-free.vercel.app/demo?area=ut-austin. Drag the time slider to 3 PM and watch the streets turn red.
+0. Fastest path: https://walk-free.vercel.app/demo?area=ut-austin&tour=1 opens UT Austin with a 1-minute guided tour that does each step for you.
+1. Open https://walk-free.vercel.app/demo?area=ut-austin. Tap the weather chip, then **July afternoon**, and watch the streets turn red.
 2. Compare **Quickest** with **More shade**. Push the **sun aversion** slider and watch the shade route change.
 3. Open **Best time to go** and tap the coolest hour.
 4. In Design studio, plant a row of trees on a hot street and read the before/after feels-like.

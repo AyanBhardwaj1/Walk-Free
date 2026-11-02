@@ -598,14 +598,20 @@ export default function WorldCanvas({
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
+  const [lowPower] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(max-width: 720px), (pointer: coarse)").matches,
+  );
   const merged = useMemo(
     () =>
       world.objects.length >= MERGE_THRESHOLD
         ? world.objects.filter(
             (o) =>
               o.kind !== "tree" &&
-              // Shaped landmarks keep their silhouettes.
-              !o.shape &&
+              // Shaped landmarks keep their silhouettes; on phones only
+              // named landmarks do, and decorative towers merge (fewer draws).
+              (!o.shape || (lowPower && o.kind !== "landmark")) &&
               (o.source === "osm" ||
                 // Generated towers and landmarks keep their own shapes.
                 ((o.source === "study" || o.source === "ai") &&
@@ -614,7 +620,7 @@ export default function WorldCanvas({
               o.id !== selectedId,
           )
         : null,
-    [world.objects, selectedId],
+    [world.objects, selectedId, lowPower],
   );
   // Whatever is merged is drawn once, never again on its own.
   const mergedIds = useMemo(
