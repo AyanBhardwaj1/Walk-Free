@@ -1,13 +1,38 @@
 import { useId, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Building2, MapPin, Search } from "lucide-react";
+import {
+  ArrowUpRight,
+  Building2,
+  MapPin,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import type { City } from "../../shared/types";
 import { rankDestinations, type Destination } from "../lib/destinations";
 import { searchCities } from "../../server/cities";
 import { prebuiltAreaFor } from "../../shared/areas";
 import { googleMapsSearch } from "../lib/google-maps";
+import { FICTION_CITIES, type FictionCity } from "../lib/fiction-catalog";
 
 type Result =
-  { kind: "place"; place: Destination } | { kind: "city"; city: City };
+  | { kind: "place"; place: Destination }
+  | { kind: "city"; city: City }
+  | { kind: "fiction"; fiction: FictionCity };
+
+/** Fictional cities whose name matches, or all of them for "fiction". */
+export function matchFiction(query: string) {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  if ("fictional cities".startsWith(q) || q.startsWith("fiction"))
+    return [...FICTION_CITIES];
+  return FICTION_CITIES.filter(
+    (c) =>
+      c.name
+        .toLowerCase()
+        .split(" ")
+        .some((word) => word.startsWith(q)) ||
+      c.name.toLowerCase().startsWith(q),
+  );
+}
 const PLACES = 5;
 const CITIES = 4;
 
@@ -20,11 +45,14 @@ export default function OmniSearch({
   areaName,
   onPlace,
   onCity,
+  onFiction,
 }: {
   catalog: Destination[];
   areaName: string;
   onPlace: (id: string) => void;
   onCity: (city: City) => void;
+  /** Open a generated fictional city by its slug. */
+  onFiction?: (slug: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
@@ -40,10 +68,15 @@ export default function OmniSearch({
       ...searchCities(query.toLowerCase())
         .slice(0, CITIES)
         .map((city) => ({ kind: "city" as const, city })),
+      ...(onFiction ? matchFiction(query) : []).map((fiction) => ({
+        kind: "fiction" as const,
+        fiction,
+      })),
     ];
-  }, [catalog, query]);
+  }, [catalog, query, onFiction]);
   function choose(r: Result) {
     if (r.kind === "place") onPlace(r.place.id);
+    else if (r.kind === "fiction") onFiction?.(r.fiction.slug);
     else onCity(r.city);
     setQuery("");
     input.current?.blur();
@@ -89,7 +122,13 @@ export default function OmniSearch({
         <ul className="omni-results" role="listbox" id={listId}>
           {results.map((r, i) => (
             <li
-              key={r.kind === "place" ? `p-${r.place.id}` : `c-${r.city.id}`}
+              key={
+                r.kind === "place"
+                  ? `p-${r.place.id}`
+                  : r.kind === "fiction"
+                    ? `f-${r.fiction.slug}`
+                    : `c-${r.city.id}`
+              }
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
@@ -104,6 +143,14 @@ export default function OmniSearch({
                   <span>
                     <strong>{r.place.label}</strong>
                     <small>Walk here · {r.place.detail}</small>
+                  </span>
+                </>
+              ) : r.kind === "fiction" ? (
+                <>
+                  <Sparkles size={15} aria-hidden />
+                  <span>
+                    <strong>{r.fiction.name}</strong>
+                    <small>Fictional city · {r.fiction.tagline}</small>
                   </span>
                 </>
               ) : (

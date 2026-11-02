@@ -20,6 +20,7 @@ import {
   Boxes,
   AlertTriangle,
 } from "lucide-react";
+import FictionGallery from "./FictionGallery";
 
 export function Brand() {
   return (
@@ -54,7 +55,7 @@ interface CampusStat {
     extra_distance_percent: number;
   };
 }
-interface Preview {
+export interface Preview {
   name: string;
   half: number;
   hours: number[];
@@ -86,6 +87,49 @@ function useJson<T>(url: string) {
     };
   }, [url]);
   return data;
+}
+
+/**
+ * Counts up to a number the first time it scrolls into view (an ease-out
+ * over about a second); shows the final value at once under reduced motion
+ * or without IntersectionObserver.
+ */
+function CountUp({ value, suffix = "" }: { value: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [shown, setShown] = useState(value);
+  useEffect(() => {
+    const el = ref.current;
+    if (
+      !el ||
+      typeof IntersectionObserver === "undefined" ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    setShown(0);
+    let frame = 0;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      const start = performance.now();
+      const tick = (t: number) => {
+        const k = Math.min(1, (t - start) / 1100);
+        setShown(Math.round(value * (1 - Math.pow(1 - k, 4))));
+        if (k < 1) frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [value]);
+  return (
+    <span ref={ref} className="count-up">
+      {shown.toLocaleString("en-US")}
+      {suffix}
+    </span>
+  );
 }
 
 /** Adds .in to elements with .reveal as they scroll into view. */
@@ -200,7 +244,7 @@ function SliceCanvas({
 }
 
 /** Real UT Austin paths that warm and cool through a July day. */
-function HeroHeat({ preview }: { preview: Preview | null }) {
+export function HeroHeat({ preview }: { preview: Preview | null }) {
   const [hourIndex, setHourIndex] = useState(9);
   useEffect(() => {
     if (!preview || matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -505,7 +549,7 @@ export default function LandingPage({
   const campuses = campusData?.campuses ?? [];
   const ut = campuses.find((c) => c.slug === "ut-austin");
   useReveal();
-  const start = signedIn ? "/app" : "/demo";
+  const start = signedIn ? "/home" : "/demo";
   const totals = {
     buildings: campuses.reduce((s, c) => s + c.buildings, 0),
     km: campuses.reduce((s, c) => s + c.paths_km, 0),
@@ -549,7 +593,7 @@ export default function LandingPage({
             </p>
             <div className="hero-actions">
               <a className="landing-button bright" href={start}>
-                {signedIn ? "Open the map" : "Try the demo, no sign-up"}{" "}
+                {signedIn ? "Go to your home" : "Try the demo, no sign-up"}{" "}
                 <ArrowUpRight size={19} />
               </a>
               <a className="text-link light" href="#preview">
@@ -576,13 +620,21 @@ export default function LandingPage({
           </div>
           <div>
             <strong>
-              {totals.buildings ? totals.buildings.toLocaleString() : "10,000+"}
+              {totals.buildings ? (
+                <CountUp value={totals.buildings} />
+              ) : (
+                "10,000+"
+              )}
             </strong>
             <span>buildings mapped</span>
           </div>
           <div>
             <strong>
-              {totals.km ? `${totals.km.toLocaleString()} km` : "900+ km"}
+              {totals.km ? (
+                <CountUp value={totals.km} suffix=" km" />
+              ) : (
+                "900+ km"
+              )}
             </strong>
             <span>of walkable paths</span>
           </div>
@@ -726,6 +778,23 @@ export default function LandingPage({
               </a>
             ))}
           </div>
+        </section>
+
+        <section className="fiction-section" id="fictional-cities">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">FICTIONAL CITIES</span>
+            <h2>
+              Five invented cities,
+              <br />
+              <em>each with its own weather.</em>
+            </h2>
+            <p className="fine-note">
+              Rain-dark harbor towers, a sunlit boulevard city, a golden citadel
+              under the aurora. Walk them in 3D and watch how street shape
+              changes the shade.
+            </p>
+          </div>
+          <FictionGallery base={signedIn ? "/app" : "/demo"} reveal />
         </section>
 
         <section className="landing-ask reveal" id="assistant">

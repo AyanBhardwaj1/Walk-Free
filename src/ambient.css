@@ -1,0 +1,225 @@
+/* Fictional cities: the sky behind the scene and weather over it. Decorative,
+   transform/opacity only, and still under reduced motion. */
+.ambient-sky,
+.ambient-weather {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ambient-sky {
+  background:
+    radial-gradient(
+      120% 70% at 70% 0%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(
+      to bottom,
+      var(--sky-top),
+      var(--sky-bottom) 62%,
+      var(--fog)
+    );
+  animation: ambient-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ambient-weather {
+  z-index: 1;
+  animation: ambient-in 1.2s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ambient-weather i {
+  position: absolute;
+  display: block;
+  will-change: transform, opacity;
+}
+@keyframes ambient-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Rain: thin streaks falling at a slant. */
+.ambient-rain i {
+  top: -12%;
+  width: 1px;
+  height: calc(50px + var(--s) * 50px);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--accent) 55%, white 10%)
+  );
+  opacity: calc(0.18 + var(--s) * 0.3);
+  animation: rain-fall calc(0.55s + var(--s) * 0.5s) linear infinite;
+  animation-delay: calc(var(--d) * -1.2s);
+}
+@keyframes rain-fall {
+  from {
+    transform: translate3d(0, 0, 0) rotate(14deg);
+  }
+  to {
+    transform: translate3d(-24vh, 125vh, 0) rotate(14deg);
+  }
+}
+
+/* Sun: a warm glare and slow dust drifting up through it. */
+.ambient-weather.ambient-sun::before {
+  content: "";
+  position: absolute;
+  right: -20%;
+  top: -35%;
+  width: 90%;
+  height: 90%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 34%, transparent),
+    transparent
+  );
+  mix-blend-mode: screen;
+  animation: sun-breathe 9s ease-in-out infinite alternate;
+}
+@keyframes sun-breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+.ambient-sun i {
+  top: 100%;
+  width: calc(3px + var(--s) * 4px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 70%, white);
+  opacity: 0;
+  animation: mote-rise calc(14s + var(--s) * 10s) linear infinite;
+  animation-delay: calc(var(--d) * -24s);
+}
+@keyframes mote-rise {
+  10% {
+    opacity: 0.55;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(var(--s) * 8vw), -110vh, 0);
+  }
+}
+
+/* Sparks: speed streaks whipping across the sky, then gone. */
+.ambient-sparks i {
+  top: calc(var(--d) * 55%);
+  left: 0 !important;
+  width: calc(80px + var(--s) * 140px);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--accent) 70%, white),
+    white
+  );
+  opacity: 0;
+  animation: speed-streak calc(2.6s + var(--s) * 3.4s) linear infinite;
+  animation-delay: calc(var(--d) * -7s);
+}
+@keyframes speed-streak {
+  0% {
+    opacity: 0;
+    transform: translate3d(-30vw, 0, 0);
+  }
+  4% {
+    opacity: 0.8;
+  }
+  22% {
+    opacity: 0;
+    transform: translate3d(120vw, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(120vw, 0, 0);
+  }
+}
+
+/* Aurora: wide soft curtains swaying across the top of the sky. */
+.ambient-aurora i {
+  width: 70%;
+  height: 34%;
+  margin-left: -35%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 50%, transparent),
+    transparent
+  );
+  mix-blend-mode: screen;
+  opacity: 0.6;
+  animation: aurora-sway calc(16s + var(--s) * 10s) ease-in-out infinite
+    alternate;
+  animation-delay: calc(var(--d) * -20s);
+}
+.ambient-aurora i:nth-child(even) {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--accent) 30%, #7a5cff 40%),
+    transparent
+  );
+}
+@keyframes aurora-sway {
+  from {
+    transform: translate3d(-12%, 0, 0) scaleY(0.8) skewX(-8deg);
+    opacity: 0.35;
+  }
+  to {
+    transform: translate3d(12%, 4%, 0) scaleY(1.15) skewX(8deg);
+    opacity: 0.8;
+  }
+}
+
+/* Mist: low banks drifting across the city. */
+.ambient-mist i {
+  width: 90%;
+  height: 26%;
+  margin-left: -45%;
+  margin-top: 18%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--fog) 70%, white 20%),
+    transparent
+  );
+  opacity: 0.4;
+  animation: mist-drift calc(38s + var(--s) * 30s) linear infinite alternate;
+  animation-delay: calc(var(--d) * -40s);
+}
+@keyframes mist-drift {
+  from {
+    transform: translate3d(-18vw, 0, 0);
+  }
+  to {
+    transform: translate3d(18vw, 0, 0);
+  }
+}
+
+@media (max-width: 720px) {
+  .ambient-rain i:nth-child(n + 36),
+  .ambient-sparks i:nth-child(n + 18) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-sky,
+  .ambient-weather,
+  .ambient-weather::before,
+  .ambient-weather i {
+    animation: none;
+  }
+  .ambient-rain i,
+  .ambient-sparks i,
+  .ambient-sun i {
+    display: none;
+  }
+}

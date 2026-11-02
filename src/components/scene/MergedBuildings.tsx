@@ -15,6 +15,50 @@ const wallColors = [
   "#c9c4af",
 ];
 
+/** One window bay is this wide and one floor this tall, in meters. */
+const BAY_M = 4;
+const FLOOR_M = 3.6;
+/** The window texture covers 8 x 8 bays before it repeats. */
+const TILE_BAYS = 8;
+let windowTexture: THREE.CanvasTexture | null = null;
+/**
+ * Lit and dark windows for night views: an 8 x 8 grid of bays, about 55%
+ * lit in warm tones of varying brightness, deterministic so it doesn't
+ * flicker between renders.
+ */
+function windows() {
+  if (windowTexture || typeof document === "undefined") return windowTexture;
+  const size = 256,
+    bay = size / TILE_BAYS;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, size, size);
+  let seed = 7;
+  const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  for (let row = 0; row < TILE_BAYS; row++)
+    for (let col = 0; col < TILE_BAYS; col++) {
+      if (random() > 0.55) continue;
+      const warm = 200 + Math.round(random() * 55);
+      const glow = 0.45 + random() * 0.55;
+      ctx.fillStyle = `rgba(255, ${warm}, ${Math.round(warm * 0.62)}, ${glow})`;
+      ctx.fillRect(
+        col * bay + bay * 0.22,
+        row * bay + bay * 0.25,
+        bay * 0.56,
+        bay * 0.45,
+      );
+    }
+  windowTexture = new THREE.CanvasTexture(canvas);
+  windowTexture.wrapS = windowTexture.wrapT = THREE.RepeatWrapping;
+  windowTexture.repeat.set(1 / (TILE_BAYS * BAY_M), 1 / (TILE_BAYS * FLOOR_M));
+  windowTexture.colorSpace = THREE.SRGBColorSpace;
+  windowTexture.anisotropy = 4;
+  return windowTexture;
+}
+
 /**
  * All mapped buildings as one mesh: a real campus has thousands, and one
  * draw call keeps orbiting smooth. Clicks resolve to a building through the
@@ -24,10 +68,16 @@ export default function MergedBuildings({
   objects,
   terrain,
   onPick,
+  lightsOn = 0,
+  windowTint = "#ffffff",
 }: {
   objects: SceneObject[];
   terrain?: Terrain;
   onPick?: (object: SceneObject) => void;
+  /** 0 by day, up to 1 after dark: how brightly windows glow. */
+  lightsOn?: number;
+  /** Colour the lit windows lean toward, e.g. a neon city's accent. */
+  windowTint?: string;
 }) {
   const theme = sceneTheme();
   const { geometry, ranges } = useMemo(() => {
@@ -54,14 +104,19 @@ export default function MergedBuildings({
           ? GLASS
           : color.set(sc(wallColors[hash(object.id) % wallColors.length]));
       const colors = new Float32Array(g.attributes.position.count * 3);
+      // Wall UVs from the extrusion are in meters (along the wall, and
+      // height), which the window texture repeats over. Roofs and floors
+      // point at a dark corner of it so they never show windows.
+      const uv = g.getAttribute("uv") as THREE.BufferAttribute | undefined;
       for (const group of g.groups) {
         const c = group.materialIndex === 0 ? ROOF : wall;
-        for (let v = group.start; v < group.start + group.count; v++)
+        for (let v = group.start; v < group.start + group.count; v++) {
           colors.set([c.r, c.g, c.b], v * 3);
+          if (uv && group.materialIndex === 0) uv.setXY(v, 0.1, 0.1);
+        }
       }
       g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
       g.clearGroups();
-      g.deleteAttribute("uv");
       triangles += g.attributes.position.count / 3;
       ranges.push({ end: triangles, object });
       parts.push(g);
@@ -101,7 +156,13 @@ export default function MergedBuildings({
           : undefined
       }
     >
-      <meshStandardMaterial vertexColors roughness={0.9} />
+      <meshStandardMaterial
+        vertexColors
+        roughness={0.86}
+        emissive={windowTint}
+        emissiveMap={windows()}
+        emissiveIntensity={lightsOn * 1.15}
+      />
     </mesh>
   );
 }
