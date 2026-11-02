@@ -52,6 +52,22 @@ export const WEATHER_PRESETS = [
   },
 ] as const;
 
+/** A typical hot July afternoon, for seeing shade at its most useful. */
+const JULY = { temperatureC: 36, humidity: 42, cloudCover: 5, windMps: 2 };
+/** The same place on a typical July afternoon at 3 PM local time. */
+export function julyAfternoon(previous: Environment, timeZone: string) {
+  return {
+    ...previous,
+    ...JULY,
+    dateTime: atLocalHour(
+      `${new Date(previous.dateTime).getUTCFullYear()}-07-15T12:00:00Z`,
+      timeZone,
+      15,
+    ),
+    weatherMode: "scenario" as const,
+  };
+}
+
 /** The local calendar date (YYYY-MM-DD) of an instant in a time zone. */
 export function localDate(iso: string, timeZone: string) {
   try {
@@ -105,6 +121,11 @@ export default function WeatherControls({
       p.cloudCover === env.cloudCover &&
       p.windMps === env.windMps,
   )?.id;
+  const julyActive =
+    !live &&
+    localDate(env.dateTime, world.timezone).slice(5) === "07-15" &&
+    env.temperatureC === JULY.temperatureC &&
+    env.humidity === JULY.humidity;
   const minC = -10,
     maxC = 48;
   return (
@@ -134,6 +155,16 @@ export default function WeatherControls({
             <Radio size={14} aria-hidden /> Live
           </button>
         )}
+        <button
+          type="button"
+          aria-pressed={julyActive}
+          title="Mid-July at 3 PM local time, a typical hot afternoon"
+          onClick={() =>
+            setEnv((previous) => julyAfternoon(previous, world.timezone))
+          }
+        >
+          <Flame size={14} aria-hidden /> July afternoon
+        </button>
         {WEATHER_PRESETS.map((p) => (
           <button
             key={p.id}

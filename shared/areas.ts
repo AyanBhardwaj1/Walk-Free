@@ -33,7 +33,9 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lat: 30.285,
     lon: -97.7341,
     radius: 1000,
-    walk: { from: "UT Tower", to: "Gregory Gymnasium" },
+    // Dorm to library: on a July afternoon the shade route doubles the shade
+    // (23% → 45%) for 3% more walking.
+    walk: { from: "Kinsolving Dormitory", to: "Perry-Castañeda Library" },
     day: {
       home: "Jester Center",
       coffee: "Union Building",

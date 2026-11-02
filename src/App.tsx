@@ -102,7 +102,7 @@ import { FICTION_CITIES, createFictionCity } from "./lib/fiction-cities";
 import { isDarkSky, skyAt } from "./lib/fiction-catalog";
 import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
-import WeatherControls from "./components/WeatherControls";
+import WeatherControls, { julyAfternoon } from "./components/WeatherControls";
 import DayInLife from "./components/DayInLife";
 import { planDay, type DayPlan } from "./lib/day-plan";
 import {
@@ -2157,6 +2157,27 @@ export default function App({
                     />
                     Spoken guidance
                   </label>
+                  {!fiction &&
+                    world.provenance.live &&
+                    env.temperatureC < 29 && (
+                      <button
+                        type="button"
+                        className="july-nudge"
+                        onClick={() => {
+                          setPlaying(false);
+                          setEnv((previous) =>
+                            julyAfternoon(previous, world.timezone),
+                          );
+                        }}
+                      >
+                        <Sun size={16} aria-hidden />
+                        <span>
+                          <strong>It&apos;s mild here right now.</strong> See
+                          how this walk feels on a July afternoon
+                        </span>
+                        <ArrowUpRight size={15} aria-hidden />
+                      </button>
+                    )}
                   <div className="field-label section-label">
                     WHAT MATTERS TODAY?
                   </div>

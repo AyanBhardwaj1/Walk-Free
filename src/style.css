@@ -3330,3 +3330,25 @@ dialog.city-gen::backdrop {
   gap: 6px;
   width: auto;
 }
+.july-nudge {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 11px 12px;
+  border: 1px solid var(--c-line-ecd7b8, #ecd7b8);
+  background: var(--c-bg-fbefdc, #fbefdc);
+  color: var(--c-fg-6b3f1d, #6b3f1d);
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.45;
+  transition: transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.july-nudge:active {
+  transform: scale(0.98);
+}
+.july-nudge strong {
+  color: var(--c-fg-4f2c12, #4f2c12);
+}
