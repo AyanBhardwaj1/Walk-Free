@@ -480,6 +480,101 @@ function CaptureBridge({
   }, [gl, scene, camera, onReady]);
   return null;
 }
+/** Eye height for the street-level walk (a touch above a person). */
+const EYE_M = 6;
+/**
+ * Street level: the camera walks the route, looking a little way ahead,
+ * then hands control back where it was. Any drag stops it.
+ */
+function StreetWalk({
+  points,
+  terrain,
+  onDone,
+}: {
+  points: Point[];
+  terrain?: World["terrain"];
+  onDone: () => void;
+}) {
+  const { camera, controls, invalidate } = useThree();
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    if (points.length < 2) return;
+    const orbit = controls as unknown as
+      | (THREE.EventDispatcher<{ start: object }> & {
+          target: THREE.Vector3;
+          enabled: boolean;
+          update: () => void;
+        })
+      | null;
+    const saved = {
+      position: camera.position.clone(),
+      target: orbit?.target.clone(),
+    };
+    if (orbit) orbit.enabled = false;
+    const lengths = [0];
+    for (let i = 1; i < points.length; i++)
+      lengths.push(
+        lengths[i - 1] +
+          Math.hypot(
+            points[i][0] - points[i - 1][0],
+            points[i][1] - points[i - 1][1],
+          ),
+      );
+    const total = lengths.at(-1)!;
+    const at = (d: number): Point => {
+      let i = 1;
+      while (i < lengths.length - 1 && lengths[i] < d) i++;
+      const span = lengths[i] - lengths[i - 1] || 1;
+      const t = Math.min(1, Math.max(0, (d - lengths[i - 1]) / span));
+      const [a, b] = [points[i - 1], points[i]];
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+    // A brisk, watchable pace: 8 to 40 seconds whatever the length.
+    const seconds = Math.min(40, Math.max(8, total / 22));
+    const start = performance.now();
+    let frame = 0;
+    const eye = new THREE.Vector3();
+    const look = new THREE.Vector3();
+    const tick = (t: number) => {
+      const d = (((t - start) / 1000) * total) / seconds;
+      if (d >= total) {
+        done.current();
+        return;
+      }
+      const p = at(d),
+        ahead = at(Math.min(total, d + 35));
+      const y = terrainHeight(p, terrain) + EYE_M;
+      // Ease the view so corners turn smoothly rather than snapping.
+      look.lerp(
+        new THREE.Vector3(
+          ahead[0],
+          terrainHeight(ahead, terrain) + EYE_M - 1.5,
+          ahead[1],
+        ),
+        d === 0 ? 1 : 0.12,
+      );
+      eye.set(p[0], y, p[1]);
+      camera.position.copy(eye);
+      camera.lookAt(look);
+      invalidate();
+      frame = requestAnimationFrame(tick);
+    };
+    look.set(points[1][0], EYE_M, points[1][1]);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      camera.position.copy(saved.position);
+      if (orbit && saved.target) {
+        orbit.target.copy(saved.target);
+        orbit.enabled = true;
+        orbit.update();
+      }
+      invalidate();
+    };
+  }, [points, terrain, camera, controls, invalidate]);
+  return null;
+}
 const DRAW_MS = 900;
 /** The route line, drawing itself from start to finish when it appears. */
 function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
@@ -543,6 +638,8 @@ export default function WorldCanvas({
   ambient,
   onCaptureReady,
   crowd,
+  walkthrough,
+  onWalkthroughDone,
 }: {
   world: World;
   environment: Environment;
@@ -569,6 +666,9 @@ export default function WorldCanvas({
   onCaptureReady?: (capture: (() => string) | null) => void;
   /** People walking the streets (null for none). */
   crowd?: { count: number; shade?: Map<string, number>; hot: boolean } | null;
+  /** Walk this route at street level (null when not walking). */
+  walkthrough?: Point[] | null;
+  onWalkthroughDone?: () => void;
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
@@ -663,6 +763,13 @@ export default function WorldCanvas({
           cities fade sooner into their own haze. */}
       {ambient && <FogFollowsCamera />}
       {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
+      {walkthrough && (
+        <StreetWalk
+          points={walkthrough}
+          terrain={world.terrain}
+          onDone={() => onWalkthroughDone?.()}
+        />
+      )}
       {crowd && !reducedMotion && (
         <Crowd
           world={world}

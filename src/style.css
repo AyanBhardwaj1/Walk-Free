@@ -3573,3 +3573,40 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
     font-size: 12px;
   }
 }
+
+/* Street-level walk */
+.walk-3d {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  margin: 10px 0 2px;
+  padding: 9px 13px;
+  border: 1px solid var(--c-line-3f5938, #3f5938);
+  background: var(--c-bg-3f5938, #3f5938);
+  color: var(--c-fg-fffdf6, #fffdf6);
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.walk-3d:active {
+  transform: scale(0.97);
+}
+.walk-3d-stop {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 7;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 9px 14px;
+  border: 0;
+  background: var(--c-bg-22301f, #22301f);
+  color: var(--c-fg-fffdf6, #fffdf6);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 12px 28px -12px var(--c-shadow-1d2a1f99, #1d2a1f99);
+}
