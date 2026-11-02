@@ -1280,9 +1280,16 @@ aside.collapsed ~ .viewport .map-heading {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  white-space: nowrap;
+}
+.place-name svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.place-name span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .place-temp {
   font-variant-numeric: tabular-nums;
