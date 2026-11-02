@@ -16,6 +16,14 @@ export interface PrebuiltArea {
   kind?: "campus" | "city";
   /** Overpass tiles per side when building (default 2). */
   tiles?: number;
+  /** Real stops for "a day in the life" here. */
+  day?: {
+    home: string;
+    coffee: string;
+    work: string;
+    lunch: string;
+    errand: string;
+  };
 }
 
 export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
@@ -26,6 +34,13 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lon: -97.7341,
     radius: 1000,
     walk: { from: "UT Tower", to: "Gregory Gymnasium" },
+    day: {
+      home: "Jester Center",
+      coffee: "Union Building",
+      work: "UT Tower",
+      lunch: "South Mall",
+      errand: "Perry-Castañeda Library",
+    },
   },
   {
     slug: "uc-berkeley",

@@ -103,6 +103,8 @@ import { isDarkSky, skyAt } from "./lib/fiction-catalog";
 import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
 import WeatherControls from "./components/WeatherControls";
+import DayInLife from "./components/DayInLife";
+import { planDay, type DayPlan } from "./lib/day-plan";
 import {
   clampSunAversion,
   compareRoutes,
@@ -322,6 +324,14 @@ export default function App({
   const [world, setWorld] = useState<World>(createStudyWorld);
   const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
   const [weatherOpen, setWeatherOpen] = useState(false);
+  const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
+  const [dayBusy, setDayBusy] = useState(false);
+  // A day planned for one area means nothing in the next.
+  const [dayFor, setDayFor] = useState(world.id);
+  if (dayFor !== world.id) {
+    setDayFor(world.id);
+    setDayPlan(null);
+  }
   // Escape closes the weather popover.
   useEffect(() => {
     if (!weatherOpen) return;
@@ -2162,6 +2172,42 @@ export default function App({
                     onPick={(hour, dayOffset) => {
                       setPlaying(false);
                       setLocalHour(hour, dayOffset);
+                    }}
+                  />
+                  <DayInLife
+                    plan={dayPlan}
+                    busy={dayBusy}
+                    onPlan={() => {
+                      setDayBusy(true);
+                      // Let the button show its busy state before the work.
+                      setTimeout(() => {
+                        try {
+                          const day = planDay(routeWorld, env, {
+                            avoidStairs: stairs,
+                            sunAversion,
+                            hints: prebuiltAreaFor(
+                              world.origin.lat,
+                              world.origin.lon,
+                              1000,
+                            )?.day,
+                          });
+                          setDayPlan(day);
+                          if (!day)
+                            flash(
+                              "This area has too few connected, named places to plan a day here.",
+                            );
+                        } finally {
+                          setDayBusy(false);
+                        }
+                      }, 30);
+                    }}
+                    onShow={(leg) => {
+                      setPlaying(false);
+                      setPicking(null);
+                      setPref("shade");
+                      setStart(leg.from.id);
+                      setEnd(leg.to.id);
+                      setLocalHour(leg.hour);
                     }}
                   />
                   <label className="check">
