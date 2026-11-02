@@ -16,6 +16,7 @@ import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
 import { sc, sceneTheme, setSceneTheme } from "../lib/scene-theme";
 import type { ThemeName } from "../lib/theme";
+import type { Ambient } from "./AmbientBackdrop";
 /** Screen space covered by panels, in CSS pixels, so the map frames around it. */
 export interface MapInsets {
   left: number;
@@ -364,6 +365,7 @@ export default function WorldCanvas({
   onHeatSelect,
   insets = NO_INSETS,
   theme = "editorial",
+  ambient,
 }: {
   world: World;
   environment: Environment;
@@ -384,19 +386,26 @@ export default function WorldCanvas({
   insets?: MapInsets;
   /** Interface style; the scene's colours follow it. */
   theme?: ThemeName;
+  /** A fictional city's own sky; the canvas turns see-through over it. */
+  ambient?: Ambient | null;
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
   const sun = sunDirection(environment, world.origin);
   // Windows light up through dusk; full by the time the sun is ~5° down.
-  const lightsOn = Math.min(1, Math.max(0, (0.06 - sun.y) / 0.14));
+  // Night-life cities keep some windows lit even before dusk.
+  const lightsOn = Math.max(
+    ambient?.night ? 0.35 : 0,
+    Math.min(1, Math.max(0, (0.06 - sun.y) / 0.14)),
+  );
   // Daylight warms toward the horizon and cools to moonlight at night.
   // The sky deepens toward night as the lights come on.
-  const sky =
-    "#" +
-    new THREE.Color(sc("#eeece3"))
-      .lerp(new THREE.Color("#1b2233"), lightsOn * 0.85)
-      .getHexString();
+  const sky = ambient
+    ? ambient.fog
+    : "#" +
+      new THREE.Color(sc("#eeece3"))
+        .lerp(new THREE.Color("#1b2233"), lightsOn * 0.85)
+        .getHexString();
   const sunColor = new THREE.Color("#fff4dc").lerp(
     new THREE.Color("#ffb46b"),
     Math.min(1, Math.max(0, 1 - sun.y / 0.35)),
@@ -426,7 +435,7 @@ export default function WorldCanvas({
         far: 20000,
       }}
       dpr={[1, 1.6]}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, alpha: !!ambient }}
       // Draw only when the camera or scene changes, not 60 times a second.
       frameloop="demand"
       raycaster={{ params: { Line: { threshold: 3 } } } as never}
@@ -436,15 +445,30 @@ export default function WorldCanvas({
         insets={insets}
         focus={startPoint && endPoint ? [startPoint, endPoint] : []}
       />
-      <color attach="background" args={[sky]} />
-      {/* Depth: far streets fade into the background colour. */}
-      <fog attach="fog" args={[sky, extent * 1.6, extent * 5]} />
+      {!ambient && <color attach="background" args={[sky]} />}
+      {/* Depth: far streets fade into the background colour; fictional
+          cities fade sooner into their own haze. */}
+      <fog
+        attach="fog"
+        args={[
+          sky,
+          extent * (ambient ? 0.9 : 1.6),
+          extent * (ambient ? 3.4 : 5),
+        ]}
+      />
       {/* Less flat fill than before so shade reads, plus cool moonlight at
           night instead of darkness. */}
       <ambientLight intensity={sun.y > 0 ? 0.62 : 0.32} />
       <hemisphereLight
         args={[
-          sun.y > 0 ? "#fff7e2" : "#5b6f9a",
+          ambient
+            ? "#" +
+              new THREE.Color(sun.y > 0 ? "#fff7e2" : "#5b6f9a")
+                .lerp(new THREE.Color(ambient.sky[1]), 0.45)
+                .getHexString()
+            : sun.y > 0
+              ? "#fff7e2"
+              : "#5b6f9a",
           sun.y > 0 ? "#9aab91" : "#22283a",
           sun.y > 0 ? 0.95 : 0.55,
         ]}
@@ -506,6 +530,14 @@ export default function WorldCanvas({
             objects={merged}
             terrain={world.terrain}
             lightsOn={lightsOn}
+            windowTint={
+              ambient?.night
+                ? "#" +
+                  new THREE.Color("#ffffff")
+                    .lerp(new THREE.Color(ambient.accent), 0.5)
+                    .getHexString()
+                : undefined
+            }
             onPick={(o) => {
               if (!pickingEndpoint) onSelect(o.id);
             }}

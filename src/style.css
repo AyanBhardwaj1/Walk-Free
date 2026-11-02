@@ -472,6 +472,28 @@ footer {
   font-size: 10px;
   color: var(--c-fg-929880, #929880);
 }
+/* The heading shows while the panel is closed; clear its reopen button. */
+aside.collapsed ~ .viewport .map-heading {
+  top: 76px;
+}
+/* Over a fictional city's dark sky. */
+.map-heading.on-dark h2,
+.map-heading.on-dark .eyebrow,
+.map-heading.on-dark > span {
+  color: #f4efe2;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 45%);
+}
+.map-heading.on-sky > span {
+  display: block;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-fg-48533c, #48533c);
+}
+.map-heading.on-dark > span {
+  color: #f4efe2;
+  opacity: 0.85;
+}
 .weather-chip {
   position: absolute;
   top: 29px;

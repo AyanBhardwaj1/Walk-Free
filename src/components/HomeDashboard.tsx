@@ -11,6 +11,7 @@ import {
   Trees,
 } from "lucide-react";
 import { Brand, HeroHeat, type Preview } from "./LandingPage";
+import FictionGallery from "./FictionGallery";
 import { PREBUILT_AREAS } from "../../shared/areas";
 import { loadSavedWalks, type SavedWalk } from "../lib/saved-walks";
 import type { Account } from "../lib/account";
@@ -203,6 +204,17 @@ export default function HomeDashboard({
               );
             })}
           </ul>
+        </section>
+
+        <section className="home-section" aria-labelledby="home-fiction">
+          <div className="home-section-head">
+            <h2 id="home-fiction">Fictional cities</h2>
+            <p>
+              Five invented cities, each with its own sky and weather. Walk them
+              for fun, or to see how street shape changes the heat.
+            </p>
+          </div>
+          <FictionGallery base="/app" start={4} />
         </section>
 
         <section className="home-section" aria-labelledby="home-walks">

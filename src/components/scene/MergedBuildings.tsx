@@ -53,10 +53,7 @@ function windows() {
     }
   windowTexture = new THREE.CanvasTexture(canvas);
   windowTexture.wrapS = windowTexture.wrapT = THREE.RepeatWrapping;
-  windowTexture.repeat.set(
-    1 / (TILE_BAYS * BAY_M),
-    1 / (TILE_BAYS * FLOOR_M),
-  );
+  windowTexture.repeat.set(1 / (TILE_BAYS * BAY_M), 1 / (TILE_BAYS * FLOOR_M));
   windowTexture.colorSpace = THREE.SRGBColorSpace;
   windowTexture.anisotropy = 4;
   return windowTexture;
@@ -72,12 +69,15 @@ export default function MergedBuildings({
   terrain,
   onPick,
   lightsOn = 0,
+  windowTint = "#ffffff",
 }: {
   objects: SceneObject[];
   terrain?: Terrain;
   onPick?: (object: SceneObject) => void;
   /** 0 by day, up to 1 after dark: how brightly windows glow. */
   lightsOn?: number;
+  /** Colour the lit windows lean toward, e.g. a neon city's accent. */
+  windowTint?: string;
 }) {
   const theme = sceneTheme();
   const { geometry, ranges } = useMemo(() => {
@@ -159,7 +159,7 @@ export default function MergedBuildings({
       <meshStandardMaterial
         vertexColors
         roughness={0.86}
-        emissive="#ffffff"
+        emissive={windowTint}
         emissiveMap={windows()}
         emissiveIntensity={lightsOn * 1.15}
       />

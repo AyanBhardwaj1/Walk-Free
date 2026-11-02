@@ -20,6 +20,7 @@ import {
   Boxes,
   AlertTriangle,
 } from "lucide-react";
+import FictionGallery from "./FictionGallery";
 
 export function Brand() {
   return (
@@ -629,7 +630,11 @@ export default function LandingPage({
           </div>
           <div>
             <strong>
-              {totals.km ? <CountUp value={totals.km} suffix=" km" /> : "900+ km"}
+              {totals.km ? (
+                <CountUp value={totals.km} suffix=" km" />
+              ) : (
+                "900+ km"
+              )}
             </strong>
             <span>of walkable paths</span>
           </div>
@@ -773,6 +778,23 @@ export default function LandingPage({
               </a>
             ))}
           </div>
+        </section>
+
+        <section className="fiction-section" id="fictional-cities">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow">FICTIONAL CITIES</span>
+            <h2>
+              Five invented cities,
+              <br />
+              <em>each with its own weather.</em>
+            </h2>
+            <p className="fine-note">
+              Rain-dark harbor towers, a sunlit boulevard city, a golden citadel
+              under the aurora. Walk them in 3D and watch how street shape
+              changes the shade.
+            </p>
+          </div>
+          <FictionGallery base={signedIn ? "/app" : "/demo"} reveal />
         </section>
 
         <section className="landing-ask reveal" id="assistant">
