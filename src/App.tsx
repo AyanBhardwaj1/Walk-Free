@@ -7,6 +7,7 @@ import {
   lazy,
   Suspense,
   useDeferredValue,
+  useCallback,
 } from "react";
 import {
   ArrowUpRight,
@@ -20,6 +21,7 @@ import {
   Layers,
   Undo2,
   Download,
+  Camera,
   FileText,
   Upload,
   Trash2,
@@ -313,6 +315,10 @@ export default function App({
     }
   });
   const [world, setWorld] = useState<World>(createStudyWorld);
+  const captureRef = useRef<(() => string) | null>(null);
+  const setCapture = useCallback((capture: (() => string) | null) => {
+    captureRef.current = capture;
+  }, []);
   /** The open fictional city, if any; it brings its own sky and weather. */
   const fiction = useMemo(
     () => FICTION_CITIES.find((c) => `fiction-${c.slug}` === world.id) ?? null,
@@ -1546,6 +1552,58 @@ export default function App({
       return `Could not draft a design: ${friendlyError(e)}`;
     } finally {
       setBusy("");
+    }
+  }
+  /** Save the 3D view as a picture, with its sky and a small caption. */
+  async function saveImage() {
+    const shot = captureRef.current?.();
+    if (!shot) return;
+    try {
+      const img = new Image();
+      img.src = shot;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+      if (fiction) {
+        const g = ctx.createLinearGradient(0, 0, 0, c.height);
+        g.addColorStop(0, fiction.ambient.sky[0]);
+        g.addColorStop(0.62, fiction.ambient.sky[1]);
+        g.addColorStop(1, fiction.ambient.fog);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, c.width, c.height);
+      }
+      ctx.drawImage(img, 0, 0);
+      const k = Math.max(1, c.width / 1200);
+      let when = "";
+      try {
+        when = new Date(env.dateTime).toLocaleString("en-US", {
+          timeZone: world.timezone || undefined,
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      } catch {
+        /* An unknown time zone just leaves the time out. */
+      }
+      const title = world.name.split(" · ")[0];
+      const line = [title, when].filter(Boolean).join(" · ");
+      ctx.font = `600 ${16 * k}px "DM Sans", system-ui, sans-serif`;
+      const w = ctx.measureText(line).width + 32 * k;
+      ctx.fillStyle = "rgba(23, 36, 27, 0.78)";
+      ctx.fillRect(16 * k, c.height - 64 * k, w, 48 * k);
+      ctx.fillStyle = "#f4f1e6";
+      ctx.fillText(line, 32 * k, c.height - 34 * k);
+      const a = document.createElement("a");
+      a.href = c.toDataURL("image/png");
+      a.download = `walk-free-${world.id.replace(/[^a-z0-9-]+/gi, "-")}.png`;
+      a.click();
+      flash("Saved a picture of this view.");
+    } catch {
+      setMessage("This view couldn't be saved as a picture. Try again.");
     }
   }
   function exportWorld() {
@@ -2793,6 +2851,7 @@ export default function App({
                   insets={mapInsets}
                   theme={theme}
                   ambient={fiction?.ambient}
+                  onCaptureReady={setCapture}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
                       ? selectHeatEdge
@@ -3001,6 +3060,15 @@ export default function App({
                   >
                     <Building2 size={19} />
                   </button>
+                  {view === "3d" && (
+                    <button
+                      title="Save a picture of this view"
+                      aria-label="Save a picture of this view"
+                      onClick={() => void saveImage()}
+                    >
+                      <Camera size={19} />
+                    </button>
+                  )}
                   <button
                     className="desktop-only"
                     title="Import scene"

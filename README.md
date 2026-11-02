@@ -78,6 +78,7 @@ npm start
   - Soft shadows, distance fog and land that runs out to a fogged horizon.
   - A warmer sun as it lowers, moonlight after sunset, and lit windows from dusk.
   - The weather chip shows a sun, moon, cloud or rain to match the conditions.
+  - The camera button saves a picture of the 3D view (with a fictional city's sky) captioned with the place and time.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.
