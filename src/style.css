@@ -3610,3 +3610,16 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
   font-weight: 600;
   box-shadow: 0 12px 28px -12px var(--c-shadow-1d2a1f99, #1d2a1f99);
 }
+@media (max-width: 720px) {
+  /* Below the tool row, and the horizon left clear while walking. */
+  .walk-3d-stop {
+    top: 62px;
+  }
+  .timeline.is-walking {
+    display: none;
+  }
+  .demo-tour.is-low {
+    top: auto;
+    bottom: 144px;
+  }
+}

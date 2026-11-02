@@ -18,6 +18,7 @@ export default function DemoTour({
   onClose,
   left,
   waiting = false,
+  low = false,
 }: {
   steps: TourStep[];
   onClose: () => void;
@@ -25,6 +26,8 @@ export default function DemoTour({
   left: number;
   /** The area is still loading: actions wait for it. */
   waiting?: boolean;
+  /** Sit low on phones, clear of the horizon, during a street walk. */
+  low?: boolean;
 }) {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -41,7 +44,7 @@ export default function DemoTour({
   }
   return (
     <section
-      className="demo-tour"
+      className={`demo-tour${low ? " is-low" : ""}`}
       style={{ left: left + 16 }}
       aria-label="Guided tour"
     >
