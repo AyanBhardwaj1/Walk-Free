@@ -12,6 +12,7 @@ import type {
 import Building from "./scene/Buildings";
 import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
+import Crowd from "./scene/Crowd";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
 import { partialLine, type P3 } from "../lib/polyline";
@@ -541,6 +542,7 @@ export default function WorldCanvas({
   theme = "editorial",
   ambient,
   onCaptureReady,
+  crowd,
 }: {
   world: World;
   environment: Environment;
@@ -565,6 +567,8 @@ export default function WorldCanvas({
   ambient?: Ambient | null;
   /** Receives a snapshot function while the scene is mounted. */
   onCaptureReady?: (capture: (() => string) | null) => void;
+  /** People walking the streets (null for none). */
+  crowd?: { count: number; shade?: Map<string, number>; hot: boolean } | null;
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
@@ -598,6 +602,11 @@ export default function WorldCanvas({
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
+  const [reducedMotion] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const [lowPower] = useState(
     () =>
       typeof matchMedia !== "undefined" &&
@@ -654,6 +663,16 @@ export default function WorldCanvas({
           cities fade sooner into their own haze. */}
       {ambient && <FogFollowsCamera />}
       {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
+      {crowd && !reducedMotion && (
+        <Crowd
+          world={world}
+          terrain={world.terrain}
+          count={crowd.count}
+          night={lightsOn}
+          shade={crowd.shade}
+          hot={crowd.hot}
+        />
+      )}
       <fog
         attach="fog"
         args={[
