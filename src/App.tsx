@@ -342,7 +342,15 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-  const [walk3d, setWalk3d] = useState(false);
+  // The route being walked at street level: a copy taken when the walk
+  // starts, so recomputed routes (time slider, play the day) don't restart it.
+  const [walk3d, setWalk3d] = useState<Point[] | null>(null);
+  // A different area, or leaving the 3D view, ends the walk.
+  const [walkFor, setWalkFor] = useState(world.id);
+  if (walkFor !== world.id) {
+    setWalkFor(world.id);
+    setWalk3d(null);
+  }
   const cityThisTurn = useRef(false);
   const genToken = useRef(0);
   const [genPrompt, setGenPrompt] = useState("");
@@ -706,10 +714,18 @@ export default function App({
     id: "",
     on: false,
   });
+  // Phones and tablets start without them to spare the battery; the
+  // toggle still turns them on.
+  const [lowPowerDevice] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(max-width: 720px), (pointer: coarse)").matches,
+  );
   const people =
     peopleFor.id === world.id
       ? peopleFor.on
-      : world.id.startsWith("fiction-") || world.id.startsWith("ai-");
+      : !lowPowerDevice &&
+        (world.id.startsWith("fiction-") || world.id.startsWith("ai-"));
   const edgeShade = useMemo(
     () =>
       edgeHeat
@@ -746,6 +762,12 @@ export default function App({
     () => (themed ? skyAt(themed.ambient, sunY) : null),
     [themed, sunY],
   );
+  const walking =
+    walk3d !== null && !atlas && !(view === "2d" && mode === "explore");
+  // Switching to the flat walking map ends a street-level walk for good.
+  useEffect(() => {
+    if (view === "2d" && mode === "explore") setWalk3d(null);
+  }, [view, mode]);
   // The fictional sky only shows behind the 3D scene.
   const onSky =
     themed && !atlas && !(view === "2d" && mode === "explore") ? themed : null;
@@ -1286,7 +1308,8 @@ export default function App({
       !link.area &&
       link.lat === undefined &&
       !params0.has("generate") &&
-      worldRef.current.id === firstWorld.current.id;
+      // Only when nothing was restored: a guest's own saved study stays.
+      worldRef.current === firstWorld.current;
     const area = PREBUILT_AREAS.find(
       (a) => a.slug === (link.area ?? (fresh ? "ut-austin" : undefined)),
     );
@@ -1443,7 +1466,8 @@ export default function App({
         setMode("explore");
         setTab("route");
         setPlaying(false);
-        setWalk3d(true);
+        if (currentRoute) setWalk3d(currentRoute.points);
+        else flash("Choose a start and end first, then walk it.");
       },
     },
     {
@@ -2478,7 +2502,7 @@ export default function App({
                       className="walk-3d"
                       onClick={() => {
                         setPlaying(false);
-                        setWalk3d(true);
+                        setWalk3d(currentRoute.points);
                       }}
                     >
                       <Footprints size={15} aria-hidden /> Walk it at street
@@ -3286,10 +3310,8 @@ export default function App({
                   insets={mapInsets}
                   theme={theme}
                   ambient={sky}
-                  walkthrough={
-                    walk3d && currentRoute ? currentRoute.points : null
-                  }
-                  onWalkthroughDone={() => setWalk3d(false)}
+                  walkthrough={walking ? walk3d : null}
+                  onWalkthroughDone={() => setWalk3d(null)}
                   crowd={
                     people
                       ? {
@@ -3341,11 +3363,11 @@ export default function App({
                 )}
               </>
             )}
-            {walk3d && (
+            {walking && (
               <button
                 type="button"
                 className="walk-3d-stop"
-                onClick={() => setWalk3d(false)}
+                onClick={() => setWalk3d(null)}
               >
                 <X size={15} aria-hidden /> Stop walking
               </button>
@@ -3354,6 +3376,7 @@ export default function App({
               (tourOpen ? (
                 <DemoTour
                   steps={tourSteps}
+                  waiting={!!busy}
                   left={mapInsets.left}
                   onClose={() => setTourOpen(false)}
                 />
