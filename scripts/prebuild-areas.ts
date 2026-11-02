@@ -21,23 +21,30 @@ import { canopyCells, withCanopy } from "../shared/canopy.js";
 const limits = { budgetMs: 10 * 60_000, mirrorTimeoutMs: 180_000 };
 
 async function buildArea(area: PrebuiltArea) {
-  const half = area.radius / 2;
-  const dLat = half / (RAD * EARTH_RADIUS),
-    dLon = dLat / Math.cos(area.lat * RAD);
+  // n×n tiles; dense downtowns use more, smaller queries.
+  const n = area.tiles ?? 2;
+  const half = area.radius / n;
+  const metresToLat = 1 / (RAD * EARTH_RADIUS);
+  const metresToLon = metresToLat / Math.cos(area.lat * RAD);
   const elements = new Map<string, OsmElement>();
-  for (const [sy, sx] of [
-    [1, -1],
-    [1, 1],
-    [-1, -1],
-    [-1, 1],
-  ]) {
-    const tile = await fetchOverpass(
-      overpassQuery(area.lat + sy * dLat, area.lon + sx * dLon, half, 180),
-      limits,
-    );
-    for (const e of tile.elements) elements.set(`${e.type}:${e.id}`, e);
-    console.log(`${area.slug}: tile ${sy},${sx} -> ${tile.elements.length}`);
-  }
+  for (let row = 0; row < n; row++)
+    for (let col = 0; col < n; col++) {
+      const north = -area.radius + half * (2 * row + 1);
+      const east = -area.radius + half * (2 * col + 1);
+      const tile = await fetchOverpass(
+        overpassQuery(
+          area.lat + north * metresToLat,
+          area.lon + east * metresToLon,
+          half,
+          180,
+        ),
+        limits,
+      );
+      for (const e of tile.elements) elements.set(`${e.type}:${e.id}`, e);
+      console.log(
+        `${area.slug}: tile ${row},${col} -> ${tile.elements.length}`,
+      );
+    }
   const origin = worldOrigin(area.lat, area.lon);
   const world = parseOsmWorld(
     { elements: [...elements.values()] },

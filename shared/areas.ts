@@ -14,6 +14,8 @@ export interface PrebuiltArea {
   walk?: { from: string; to: string };
   /** Campuses by default; a city district is listed on its own. */
   kind?: "campus" | "city";
+  /** Overpass tiles per side when building (default 2). */
+  tiles?: number;
 }
 
 export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
@@ -74,6 +76,7 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     radius: 650,
     walk: { from: "Grand Central Terminal", to: "Empire State Building" },
     kind: "city",
+    tiles: 3,
   },
 ];
 
