@@ -1782,6 +1782,29 @@ export default function App({
               }
               onFiction={openFiction}
             />
+            {fiction && !atlas && (
+              <nav className="fiction-switch" aria-label="Fictional cities">
+                {FICTION_CITIES.map((c) => (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    aria-current={c.slug === fiction.slug ? "true" : undefined}
+                    title={c.tagline}
+                    style={{
+                      ["--sky-top" as string]: c.ambient.sky[0],
+                      ["--sky-bottom" as string]: c.ambient.sky[1],
+                      ["--accent" as string]: c.ambient.accent,
+                    }}
+                    onClick={() =>
+                      c.slug !== fiction.slug && openFiction(c.slug)
+                    }
+                  >
+                    <i aria-hidden />
+                    {c.name}
+                  </button>
+                ))}
+              </nav>
+            )}
             {!atlas && (
               // The tabs inside take focus; per WAI-ARIA the list itself doesn't.
               // eslint-disable-next-line jsx-a11y/interactive-supports-focus
