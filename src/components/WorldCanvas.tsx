@@ -1,4 +1,4 @@
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import { useMemo, useEffect, useState } from "react";
 import * as THREE from "three";
@@ -381,6 +381,22 @@ function Endpoint({
     </group>
   );
 }
+/**
+ * Keeps a fictional city's haze at the same depth on screen however far the
+ * camera sits (phones frame the area from further away).
+ */
+function FogFollowsCamera() {
+  useFrame(({ scene, camera, controls }) => {
+    if (!(scene.fog instanceof THREE.Fog)) return;
+    const target =
+      (controls as unknown as { target?: THREE.Vector3 } | null)?.target ??
+      new THREE.Vector3();
+    const d = camera.position.distanceTo(target);
+    scene.fog.near = d * 0.75;
+    scene.fog.far = d * 2.8;
+  });
+  return null;
+}
 const DRAW_MS = 900;
 /** The route line, drawing itself from start to finish when it appears. */
 function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
@@ -531,6 +547,7 @@ export default function WorldCanvas({
       {!ambient && <color attach="background" args={[sky]} />}
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
+      {ambient && <FogFollowsCamera />}
       <fog
         attach="fog"
         args={[
