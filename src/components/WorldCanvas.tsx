@@ -388,6 +388,19 @@ export default function WorldCanvas({
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
   const sun = sunDirection(environment, world.origin);
+  // Windows light up through dusk; full by the time the sun is ~5° down.
+  const lightsOn = Math.min(1, Math.max(0, (0.06 - sun.y) / 0.14));
+  // Daylight warms toward the horizon and cools to moonlight at night.
+  // The sky deepens toward night as the lights come on.
+  const sky =
+    "#" +
+    new THREE.Color(sc("#eeece3"))
+      .lerp(new THREE.Color("#1b2233"), lightsOn * 0.85)
+      .getHexString();
+  const sunColor = new THREE.Color("#fff4dc").lerp(
+    new THREE.Color("#ffb46b"),
+    Math.min(1, Math.max(0, 1 - sun.y / 0.35)),
+  );
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
@@ -396,14 +409,16 @@ export default function WorldCanvas({
       world.objects.length >= MERGE_THRESHOLD
         ? world.objects.filter(
             (o) =>
-              o.kind !== "tree" && o.source === "osm" && o.id !== selectedId,
+              o.kind !== "tree" &&
+              (o.source === "osm" || o.source === "study") &&
+              o.id !== selectedId,
           )
         : null,
     [world.objects, selectedId],
   );
   return (
     <Canvas
-      shadows
+      shadows="soft"
       camera={{
         position: [extent * 0.65, extent * 0.72, extent * 0.7],
         fov: 40,
@@ -421,12 +436,30 @@ export default function WorldCanvas({
         insets={insets}
         focus={startPoint && endPoint ? [startPoint, endPoint] : []}
       />
-      <color attach="background" args={[sc("#eeece3")]} />
-      <ambientLight intensity={1.1} />
-      <hemisphereLight args={["#fff7e2", "#9aab91", 1.2]} />
+      <color attach="background" args={[sky]} />
+      {/* Depth: far streets fade into the background colour. */}
+      <fog attach="fog" args={[sky, extent * 1.6, extent * 5]} />
+      {/* Less flat fill than before so shade reads, plus cool moonlight at
+          night instead of darkness. */}
+      <ambientLight intensity={sun.y > 0 ? 0.62 : 0.32} />
+      <hemisphereLight
+        args={[
+          sun.y > 0 ? "#fff7e2" : "#5b6f9a",
+          sun.y > 0 ? "#9aab91" : "#22283a",
+          sun.y > 0 ? 0.95 : 0.55,
+        ]}
+      />
+      {sun.y <= 0 && (
+        <directionalLight
+          intensity={0.35}
+          color="#9fb4e6"
+          position={[-extent * 0.4, extent * 0.9, extent * 0.3]}
+        />
+      )}
       <directionalLight
         castShadow
-        intensity={sun.y > 0 ? 2.3 * (1 - environment.cloudCover / 120) : 0}
+        color={sunColor}
+        intensity={sun.y > 0 ? 3.0 * (1 - environment.cloudCover / 120) : 0}
         position={[sun.x * extent, sun.y * extent, sun.z * extent]}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-extent * 0.7}
@@ -472,6 +505,7 @@ export default function WorldCanvas({
           <MergedBuildings
             objects={merged}
             terrain={world.terrain}
+            lightsOn={lightsOn}
             onPick={(o) => {
               if (!pickingEndpoint) onSelect(o.id);
             }}
