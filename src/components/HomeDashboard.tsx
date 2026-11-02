@@ -15,6 +15,7 @@ import FictionGallery from "./FictionGallery";
 import { PREBUILT_AREAS } from "../../shared/areas";
 import { loadSavedWalks, type SavedWalk } from "../lib/saved-walks";
 import type { Account } from "../lib/account";
+import { lastPlace } from "../lib/last-place";
 
 interface CampusStat {
   slug: string;
@@ -76,6 +77,7 @@ export default function HomeDashboard({
   const [campuses, setCampuses] = useState<CampusStat[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [walks] = useState<SavedWalk[]>(() => loadSavedWalks().slice(0, 6));
+  const [resume] = useState(lastPlace);
   useEffect(() => {
     let live = true;
     fetch("/landing/campuses.json")
@@ -142,9 +144,20 @@ export default function HomeDashboard({
               className="hero-actions home-rise"
               style={{ ["--d" as string]: 2 }}
             >
-              <a className="landing-button bright" href="/app">
-                Open the map <ArrowUpRight size={18} aria-hidden />
-              </a>
+              {resume ? (
+                <>
+                  <a className="landing-button bright" href={resume.href}>
+                    Back to {resume.name} <ArrowUpRight size={18} aria-hidden />
+                  </a>
+                  <a className="text-link light" href="/app">
+                    Open the map <MapIcon size={15} aria-hidden />
+                  </a>
+                </>
+              ) : (
+                <a className="landing-button bright" href="/app">
+                  Open the map <ArrowUpRight size={18} aria-hidden />
+                </a>
+              )}
               <a className="text-link light" href="/app?tab=ask">
                 Ask the assistant <Sparkles size={15} aria-hidden />
               </a>

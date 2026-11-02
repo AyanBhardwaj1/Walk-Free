@@ -1654,6 +1654,20 @@
   position: relative;
   max-width: 780px;
 }
+/* Keeps the greeting legible where it crosses the heat map. */
+.home-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--forest) 92%, transparent) 0%,
+    color-mix(in srgb, var(--forest) 70%, transparent) 38%,
+    transparent 62%
+  );
+}
 .home-hero h1 {
   font:
     clamp(40px, 6vw, 76px) / 1.04 "Playfair Display",

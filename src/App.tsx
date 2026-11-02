@@ -100,6 +100,7 @@ import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { FICTION_CITIES, createFictionCity } from "./lib/fiction-cities";
 import { isDarkSky } from "./lib/fiction-catalog";
+import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
 import {
   clampSunAversion,
@@ -1243,6 +1244,7 @@ export default function App({
     setShowPaths(true);
     setForecast(null);
     setEnv((previous) => moodEnv(previous, meta));
+    rememberPlace({ name: meta.name, href: `/app?fiction=${meta.slug}` });
     flash(
       `Welcome to ${meta.name}, a fictional city. ${meta.tagline} Shade and heat here are illustrations.`,
     );
@@ -1292,6 +1294,13 @@ export default function App({
         c.timezone ? { ...(loaded as object), timezone: c.timezone } : loaded,
       );
       edit(w);
+      const shipped = prebuiltAreaFor(c.lat, c.lon, radius);
+      rememberPlace({
+        name: c.name,
+        href: shipped
+          ? `/app?area=${shipped.slug}`
+          : `/app?lat=${c.lat.toFixed(5)}&lon=${c.lon.toFixed(5)}&radius=${radius}`,
+      });
       // Meta's canopy arrives after the map: add it in place (not as an
       // undoable edit) if the same area is still open.
       void canopy?.then((cells) => {
