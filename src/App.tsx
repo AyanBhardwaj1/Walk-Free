@@ -1362,15 +1362,23 @@ export default function App({
     edit(w);
     setAtlas(null);
     setSelected(null);
-    // You start in the middle of the city, heading for a named place a
-    // short walk away.
-    const centre = nearestWalkNode(w, [0, 0], w.extent / 2);
+    // You start at the named corner nearest the middle of the city, heading
+    // for one of its landmarks a short walk away.
     const point = new Map(w.graph.nodes.map((n) => [n.id, n.point]));
+    const connected = new Set(w.graph.edges.flatMap((e) => [e.from, e.to]));
+    const named = w.graph.nodes.filter((n) => n.name && connected.has(n.id));
+    const centre =
+      named.sort(
+        (a, b) => Math.hypot(...a.point) - Math.hypot(...b.point),
+      )[0] ?? nearestWalkNode(w, [0, 0], w.extent / 2);
     const from = centre?.id ?? defaultEndpoints(w)[0];
     const fromAt = point.get(from) ?? [0, 0];
-    const to =
-      destinationCatalog(w)
-        .filter((d) => d.id !== from && d.keys.some((k) => k.place))
+    const landmarkNames = new Set(
+      spec.landmarks.map((l) => l.name.toLowerCase()),
+    );
+    const catalog = destinationCatalog(w).filter((d) => d.id !== from);
+    const near = (list: typeof catalog) =>
+      list
         .map((d) => {
           const p = point.get(d.id) ?? [0, 0];
           return {
@@ -1378,7 +1386,15 @@ export default function App({
             gap: Math.abs(Math.hypot(p[0] - fromAt[0], p[1] - fromAt[1]) - 450),
           };
         })
-        .sort((a, b) => a.gap - b.gap)[0]?.d.id ?? defaultEndpoints(w)[1];
+        .sort((a, b) => a.gap - b.gap)[0]?.d.id;
+    const to =
+      near(
+        catalog.filter((d) =>
+          [...landmarkNames].some((n) => d.label.toLowerCase().includes(n)),
+        ),
+      ) ??
+      near(catalog.filter((d) => d.keys.some((k) => k.place))) ??
+      defaultEndpoints(w)[1];
     setStart(from);
     setEnd(to);
     setHypothetical(false);
