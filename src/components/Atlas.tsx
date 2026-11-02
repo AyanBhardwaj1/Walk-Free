@@ -119,8 +119,9 @@ export default function Atlas({
           /* The summary card still shows the route. */
         }
       };
+      // "load" fires once per map; while tiles stream, wait for the next idle.
       if (m.isStyleLoaded()) draw();
-      else m.once("load", draw);
+      else m.once("idle", draw);
     } catch {
       setWalkError("The walking route couldn't be found. Try again shortly.");
     } finally {

@@ -33,14 +33,22 @@ export default function DayInLife({
   const [playing, setPlaying] = useState(false);
   const show = useRef(onShow);
   show.current = onShow;
+  // A new plan starts from the top, not where the last one stopped.
+  const [planned, setPlanned] = useState(plan);
+  if (planned !== plan) {
+    setPlanned(plan);
+    setActive(null);
+    setPlaying(false);
+  }
   useEffect(() => {
     if (!playing || !plan) return;
-    let i = active === null ? 0 : active;
+    let i = active === null || active >= plan.legs.length ? 0 : active;
+    if (!plan.legs[i]) return;
     show.current(plan.legs[i]);
     setActive(i);
     const timer = setInterval(() => {
       i += 1;
-      if (i >= plan.legs.length) {
+      if (!plan.legs[i]) {
         setPlaying(false);
         return;
       }

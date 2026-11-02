@@ -54,13 +54,38 @@ export const WEATHER_PRESETS = [
 
 /** A typical hot July afternoon, for seeing shade at its most useful. */
 const JULY = { temperatureC: 36, humidity: 42, cloudCover: 5, windMps: 2 };
+/**
+ * An instant at local noon on a calendar day in a time zone, so the day is
+ * right even far east of UTC (Auckland, Tonga), where UTC noon is tomorrow.
+ */
+export function localNoon(day: string, timeZone: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  const wall = Date.UTC(y, m - 1, d, 12);
+  let guess = wall;
+  for (let i = 0; i < 2; i++) {
+    const shown = localDate(new Date(guess).toISOString(), timeZone);
+    const [sy, sm, sd] = shown.split("-").map(Number);
+    const hour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: timeZone || "UTC",
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(guess)),
+    );
+    guess += wall - Date.UTC(sy, sm - 1, sd, hour);
+  }
+  return new Date(guess).toISOString();
+}
 /** The same place on a typical July afternoon at 3 PM local time. */
 export function julyAfternoon(previous: Environment, timeZone: string) {
   return {
     ...previous,
     ...JULY,
     dateTime: atLocalHour(
-      `${new Date(previous.dateTime).getUTCFullYear()}-07-15T12:00:00Z`,
+      localNoon(
+        `${new Date(previous.dateTime).getUTCFullYear()}-07-15`,
+        timeZone,
+      ),
       timeZone,
       15,
     ),
@@ -257,7 +282,7 @@ export default function WeatherControls({
                 setEnv((previous) => ({
                   ...previous,
                   dateTime: atLocalHour(
-                    `${day}T12:00:00Z`,
+                    localNoon(day, world.timezone),
                     world.timezone,
                     localHour(previous.dateTime, world.timezone),
                   ),

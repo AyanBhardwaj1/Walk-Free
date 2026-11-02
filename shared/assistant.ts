@@ -159,7 +159,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: "generate_city",
       description:
-        "Generate a whole new walkable 3D city from a description (any real, fictional or imagined city, mood or climate) and drop the person in its middle. Pass their description in their own words. Realism: sketch (quick, small), detailed (default), dense (large, intricate; uses more credits). Use when they ask to create, generate or imagine a city.",
+        "Generate a whole new walkable 3D city from a description (any real, fictional or imagined city, mood or climate) and drop the person in its middle. Pass their description in their own words. Realism: sketch (quick, small), detailed (default), dense (large, intricate; uses more credits; only when the person asks for it). Call at most once per request. Use when they ask to create, generate or imagine a city.",
       parameters: {
         type: "object",
         properties: {

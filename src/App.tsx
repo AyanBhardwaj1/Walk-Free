@@ -340,6 +340,8 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const cityThisTurn = useRef(false);
+  const genToken = useRef(0);
   const [genPrompt, setGenPrompt] = useState("");
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [dayBusy, setDayBusy] = useState(false);
@@ -349,14 +351,25 @@ export default function App({
     setDayFor(world.id);
     setDayPlan(null);
   }
-  // Escape closes the weather popover.
+  const weatherChip = useRef<HTMLButtonElement>(null);
+  const weatherPop = useRef<HTMLDivElement>(null);
+  // The weather popover takes focus when it opens, gives it back to the chip
+  // when it closes, and closes on Escape only while focus is in it.
   useEffect(() => {
     if (!weatherOpen) return;
+    weatherPop.current?.querySelector<HTMLElement>("button")?.focus();
+    const chip = weatherChip.current;
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setWeatherOpen(false);
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      const at = document.activeElement;
+      if (weatherPop.current?.contains(at) || at === chip)
+        setWeatherOpen(false);
     };
     window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      chip?.focus();
+    };
   }, [weatherOpen]);
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
@@ -1019,6 +1032,10 @@ export default function App({
       setComparePlaceId(null);
     },
     async generateCity(description, realism) {
+      // One generated city per question: each costs credits.
+      if (cityThisTurn.current)
+        return "A city was already generated for this question.";
+      cityThisTurn.current = true;
       return planAndOpenCity(description, realism, true);
     },
     async buildArea(query) {
@@ -1059,6 +1076,7 @@ export default function App({
     },
   };
   async function sendChat(text: string) {
+    cityThisTurn.current = false;
     setChatError("");
     const history: ChatMessage[] = [...chat, { role: "user", content: text }];
     setChat(history);
@@ -1297,8 +1315,11 @@ export default function App({
     stopSpeech();
     setProposal(null);
     // A different area makes any before/after planting comparison meaningless.
-    if (next.id !== world.id) clearHeatImpact();
-    setHistory((h) => [...h.slice(-29), world]);
+    // Read the scene now on screen, not the one this closure saw: a city
+    // generated over a slow AI call must not undo past later changes.
+    const current = worldRef.current;
+    if (next.id !== current.id) clearHeatImpact();
+    setHistory((h) => [...h.slice(-29), current]);
     setWorld(next);
   }
   function clearHeatImpact() {
@@ -1548,6 +1569,8 @@ export default function App({
     realism: Realism,
     fromAssistant = false,
   ) {
+    // Anything opened meanwhile (or a closed dialog) makes this stale.
+    const request = ++buildRequest.current;
     let spec: CitySpec | null = null;
     let note = "";
     if (!guest) {
@@ -1566,6 +1589,8 @@ export default function App({
     spec ??= specFromPrompt(prompt, realism);
     // Let the dialog paint its progress before the build runs.
     await new Promise((r) => setTimeout(r, 40));
+    if (request !== buildRequest.current)
+      return "The city wasn't opened: something else was opened meanwhile.";
     const w = openGenerated(spec, realism, via, prompt, fromAssistant);
     if (note && !fromAssistant)
       setMessage(
@@ -1574,8 +1599,10 @@ export default function App({
     return `Generated ${spec.name} (${realism}, ${via === "ai" ? "planned by AI" : "offline designer"}${note ? `; the AI planner was unavailable: ${note}` : ""}): ${w.objects.filter((o) => o.kind !== "tree").length} buildings, ${w.graph.nodes.length} street corners. ${spec.tagline} The person now stands in the middle of the city with a first walk on the map.`;
   }
   async function generateCity(prompt: string, realism: Realism) {
+    const token = ++genToken.current;
     await planAndOpenCity(prompt, realism);
-    setGenOpen(false);
+    // A dialog closed or reopened meanwhile is left alone.
+    if (token === genToken.current) setGenOpen(false);
   }
   async function loadCity(
     c: City,
@@ -2223,7 +2250,12 @@ export default function App({
               key={genOpen ? `open-${genPrompt}` : "closed"}
               open={genOpen}
               initialPrompt={genPrompt}
-              onClose={() => setGenOpen(false)}
+              onClose={() => {
+                // Closing mid-generation abandons it: nothing opens later.
+                ++buildRequest.current;
+                ++genToken.current;
+                setGenOpen(false);
+              }}
               onGenerate={generateCity}
               aiNote={
                 guest
@@ -2509,6 +2541,7 @@ export default function App({
                     }}
                   />
                   <DayInLife
+                    key={world.id}
                     plan={dayPlan}
                     busy={dayBusy}
                     onPlan={() => {
@@ -3347,9 +3380,10 @@ export default function App({
             {!atlas && (
               <button
                 type="button"
+                ref={weatherChip}
                 className="weather-chip"
                 aria-expanded={weatherOpen}
-                aria-controls="weather-pop"
+                aria-controls={weatherOpen ? "weather-pop" : undefined}
                 title="Change the weather"
                 onClick={() => setWeatherOpen((open) => !open)}
               >
@@ -3413,6 +3447,7 @@ export default function App({
             {!atlas && weatherOpen && (
               <div
                 id="weather-pop"
+                ref={weatherPop}
                 className="weather-pop"
                 role="dialog"
                 aria-label="Weather"
