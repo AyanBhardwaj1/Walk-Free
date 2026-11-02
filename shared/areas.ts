@@ -70,7 +70,8 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     name: "Midtown Manhattan, NY",
     lat: 40.7536,
     lon: -73.9832,
-    radius: 800,
+    // Dense: a smaller square keeps the Overpass tiles within time limits.
+    radius: 650,
     walk: { from: "Grand Central Terminal", to: "Empire State Building" },
     kind: "city",
   },
