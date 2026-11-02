@@ -165,8 +165,9 @@ agentRouter.post("/city", async (q, r, next) => {
       })
       .parse(q.body);
     requireVerifiedForSharedKey(config, r.locals.account);
-    for (let i = 0; i < CITY_CREDITS[input.realism]; i++)
-      await chargeAiCall(r.locals.account.id, new Date(), config.own);
+    // One credit gates the call; the rest are charged only for a city that
+    // was actually planned, so a failed or timed-out plan costs one.
+    await chargeAiCall(r.locals.account.id, new Date(), config.own);
     const { content } = await chatCompletion(
       config,
       [
@@ -175,28 +176,27 @@ agentRouter.post("/city", async (q, r, next) => {
       ],
       { json: true, maxTokens: REALISM[input.realism].maxTokens },
     );
-    let raw: unknown;
-    try {
-      raw = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim());
-    } catch {
-      throw new ServiceError(
-        "INVALID_CITY",
-        "The AI returned an unreadable city plan. Try again, or a simpler description.",
-      );
-    }
     let spec;
     try {
-      spec = parseCitySpec(raw);
+      // Tolerates code fences and prose around the JSON.
+      spec = parseCitySpec(content);
     } catch {
       throw new ServiceError(
         "INVALID_CITY",
         "The AI's city plan was incomplete. Try again with a little more detail.",
       );
     }
+    let charged = 1;
+    try {
+      for (; charged < CITY_CREDITS[input.realism]; charged++)
+        await chargeAiCall(r.locals.account.id, new Date(), config.own);
+    } catch {
+      // Out of credits partway: the plan is already made, so deliver it.
+    }
     r.json({
       spec,
       realism: input.realism,
-      credits: CITY_CREDITS[input.realism],
+      credits: charged,
     });
   } catch (e) {
     next(e);

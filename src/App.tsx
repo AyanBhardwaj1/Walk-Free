@@ -88,7 +88,9 @@ import {
   clockLabel,
 } from "./lib/heat";
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
-import { matchDestinations } from "./lib/assistant-tools";
+import { matchDestinations, runTool } from "./lib/assistant-tools";
+import DemoTour, { type TourStep } from "./components/DemoTour";
+import { CITY_IDEAS } from "./components/CityGenerator";
 import PlaceField from "./components/PlaceField";
 import OmniSearch, { matchFiction } from "./components/OmniSearch";
 import Select from "./components/Select";
@@ -240,6 +242,7 @@ function moodEnv(
 /** Query parameters a shared walk link uses (lib/walk-links.ts). */
 const WALK_LINK_PARAMS = [
   "fiction",
+  "tour",
   "generate",
   "generated",
   "name",
@@ -336,6 +339,9 @@ export default function App({
   const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const cityThisTurn = useRef(false);
+  const genToken = useRef(0);
   const [genPrompt, setGenPrompt] = useState("");
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [dayBusy, setDayBusy] = useState(false);
@@ -345,14 +351,25 @@ export default function App({
     setDayFor(world.id);
     setDayPlan(null);
   }
-  // Escape closes the weather popover.
+  const weatherChip = useRef<HTMLButtonElement>(null);
+  const weatherPop = useRef<HTMLDivElement>(null);
+  // The weather popover takes focus when it opens, gives it back to the chip
+  // when it closes, and closes on Escape only while focus is in it.
   useEffect(() => {
     if (!weatherOpen) return;
+    weatherPop.current?.querySelector<HTMLElement>("button")?.focus();
+    const chip = weatherChip.current;
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setWeatherOpen(false);
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      const at = document.activeElement;
+      if (weatherPop.current?.contains(at) || at === chip)
+        setWeatherOpen(false);
     };
     window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      chip?.focus();
+    };
   }, [weatherOpen]);
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
@@ -1015,6 +1032,10 @@ export default function App({
       setComparePlaceId(null);
     },
     async generateCity(description, realism) {
+      // One generated city per question: each costs credits.
+      if (cityThisTurn.current)
+        return "A city was already generated for this question.";
+      cityThisTurn.current = true;
       return planAndOpenCity(description, realism, true);
     },
     async buildArea(query) {
@@ -1055,6 +1076,7 @@ export default function App({
     },
   };
   async function sendChat(text: string) {
+    cityThisTurn.current = false;
     setChatError("");
     const history: ChatMessage[] = [...chat, { role: "user", content: text }];
     setChat(history);
@@ -1229,6 +1251,7 @@ export default function App({
       openGenerated(stored.spec, stored.realism, stored.via, stored.prompt);
       return;
     }
+    if (params0.has("tour")) setTourOpen(true);
     if (params0.has("generate")) {
       setGenPrompt((params0.get("generate") ?? "").slice(0, 600));
       setGenOpen(true);
@@ -1292,8 +1315,11 @@ export default function App({
     stopSpeech();
     setProposal(null);
     // A different area makes any before/after planting comparison meaningless.
-    if (next.id !== world.id) clearHeatImpact();
-    setHistory((h) => [...h.slice(-29), world]);
+    // Read the scene now on screen, not the one this closure saw: a city
+    // generated over a slow AI call must not undo past later changes.
+    const current = worldRef.current;
+    if (next.id !== current.id) clearHeatImpact();
+    setHistory((h) => [...h.slice(-29), current]);
     setWorld(next);
   }
   function clearHeatImpact() {
@@ -1340,6 +1366,116 @@ export default function App({
     );
     return true;
   }
+  /** Plans the day here and shows it; null when the area can't. */
+  function planDayNow() {
+    const day = planDay(routeWorld, env, {
+      avoidStairs: stairs,
+      sunAversion,
+      hints: prebuiltAreaFor(world.origin.lat, world.origin.lon, 1000)?.day,
+    });
+    setDayPlan(day);
+    if (!day)
+      flash(
+        "This area has too few connected, named places to plan a day here.",
+      );
+    return day;
+  }
+  /** The guided tour: each step explains a feature and does it. */
+  const tourSteps: TourStep[] = [
+    {
+      title: "A July afternoon",
+      text: `This is ${world.name.split(" · ")[0]}, mapped building by building with Meta and WRI's canopy map. Shade matters most in summer heat, so let's set a July afternoon.`,
+      action: "Make it July, 3 PM",
+      run: () => {
+        setPlaying(false);
+        setEnv((previous) => julyAfternoon(previous, world.timezone));
+        setMode("explore");
+        setTab("route");
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "The shade route",
+      text: "Red paths are in full sun, blue ones in shade. Compare Quickest with More shade: same walk, far less sun, a minute or so longer.",
+      action: "Show the shade route",
+      run: () => {
+        setMode("explore");
+        setTab("route");
+        setPref("shade");
+        setHeatMap(true);
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "The hottest streets",
+      text: "Every street and park ranked by how it feels right now. Tap one to see its day: when it peaks, and how much shade it has.",
+      action: "Rank the heat",
+      run: () => {
+        setMode("explore");
+        setTab("heat");
+        setHeatMap(true);
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "A day in the life",
+      text: "Coffee, class, lunch outside, the library, home: six walks, each planned in shade at its own hour.",
+      action: "Plan and play my day",
+      run: () => {
+        setMode("explore");
+        setTab("route");
+        setPanelOpen(true);
+        const day = planDayNow();
+        const lunch = day?.legs.find((l) => l.hour >= 12) ?? day?.legs[0];
+        if (lunch) {
+          setPref("shade");
+          setStart(lunch.from.id);
+          setEnd(lunch.to.id);
+          setLocalHour(lunch.hour);
+        }
+      },
+    },
+    {
+      title: "Plant trees, watch it cool",
+      text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
+      action: "Plant the hottest street",
+      run: async () => {
+        const hottest = placeHeat(world, heatEnv).find(
+          (p) => p.kind === "street",
+        );
+        if (!hottest) return;
+        const result = (await runTool(
+          toolHost.current,
+          "plant_shade_trees",
+          JSON.stringify({ street: hottest.name }),
+        )) as { error?: string };
+        if (result?.error) flash(result.error);
+        else {
+          setMode("studio");
+          setPanelOpen(true);
+        }
+      },
+    },
+    {
+      title: "Ask Walk-Free",
+      text: "The assistant, built for Meta's Muse Spark, uses the same tools: it plans routes, ranks heat, moves the clock and plants trees, in your language. Press Watch what it does to see it work.",
+      action: "Open the assistant",
+      run: () => {
+        setMode("explore");
+        setTab("ask");
+        setPanelOpen(true);
+      },
+    },
+    {
+      title: "Any city you can imagine",
+      text: "Describe a city, real or imagined, and walk it a minute later, with weather you control.",
+      action: "Generate a city",
+      run: () => {
+        setGenPrompt(CITY_IDEAS[0]);
+        setGenOpen(true);
+      },
+    },
+  ];
   /** Builds a generated city, opens it and drops you in the middle. */
   function openGenerated(
     spec: CitySpec,
@@ -1433,6 +1569,8 @@ export default function App({
     realism: Realism,
     fromAssistant = false,
   ) {
+    // Anything opened meanwhile (or a closed dialog) makes this stale.
+    const request = ++buildRequest.current;
     let spec: CitySpec | null = null;
     let note = "";
     if (!guest) {
@@ -1451,6 +1589,8 @@ export default function App({
     spec ??= specFromPrompt(prompt, realism);
     // Let the dialog paint its progress before the build runs.
     await new Promise((r) => setTimeout(r, 40));
+    if (request !== buildRequest.current)
+      return "The city wasn't opened: something else was opened meanwhile.";
     const w = openGenerated(spec, realism, via, prompt, fromAssistant);
     if (note && !fromAssistant)
       setMessage(
@@ -1459,8 +1599,10 @@ export default function App({
     return `Generated ${spec.name} (${realism}, ${via === "ai" ? "planned by AI" : "offline designer"}${note ? `; the AI planner was unavailable: ${note}` : ""}): ${w.objects.filter((o) => o.kind !== "tree").length} buildings, ${w.graph.nodes.length} street corners. ${spec.tagline} The person now stands in the middle of the city with a first walk on the map.`;
   }
   async function generateCity(prompt: string, realism: Realism) {
+    const token = ++genToken.current;
     await planAndOpenCity(prompt, realism);
-    setGenOpen(false);
+    // A dialog closed or reopened meanwhile is left alone.
+    if (token === genToken.current) setGenOpen(false);
   }
   async function loadCity(
     c: City,
@@ -2108,7 +2250,12 @@ export default function App({
               key={genOpen ? `open-${genPrompt}` : "closed"}
               open={genOpen}
               initialPrompt={genPrompt}
-              onClose={() => setGenOpen(false)}
+              onClose={() => {
+                // Closing mid-generation abandons it: nothing opens later.
+                ++buildRequest.current;
+                ++genToken.current;
+                setGenOpen(false);
+              }}
               onGenerate={generateCity}
               aiNote={
                 guest
@@ -2394,6 +2541,7 @@ export default function App({
                     }}
                   />
                   <DayInLife
+                    key={world.id}
                     plan={dayPlan}
                     busy={dayBusy}
                     onPlan={() => {
@@ -2401,20 +2549,7 @@ export default function App({
                       // Let the button show its busy state before the work.
                       setTimeout(() => {
                         try {
-                          const day = planDay(routeWorld, env, {
-                            avoidStairs: stairs,
-                            sunAversion,
-                            hints: prebuiltAreaFor(
-                              world.origin.lat,
-                              world.origin.lon,
-                              1000,
-                            )?.day,
-                          });
-                          setDayPlan(day);
-                          if (!day)
-                            flash(
-                              "This area has too few connected, named places to plan a day here.",
-                            );
+                          planDayNow();
                         } finally {
                           setDayBusy(false);
                         }
@@ -3133,6 +3268,26 @@ export default function App({
                 )}
               </>
             )}
+            {!atlas &&
+              (tourOpen ? (
+                <DemoTour
+                  steps={tourSteps}
+                  left={mapInsets.left}
+                  onClose={() => setTourOpen(false)}
+                />
+              ) : (
+                world.provenance.live &&
+                prebuiltAreaFor(world.origin.lat, world.origin.lon, 1000) && (
+                  <button
+                    type="button"
+                    className="tour-launch"
+                    style={{ left: mapInsets.left + 16 }}
+                    onClick={() => setTourOpen(true)}
+                  >
+                    <Play size={14} aria-hidden /> Take the 1-minute tour
+                  </button>
+                )
+              ))}
             {!atlas && view === "2d" && mode === "explore" && currentRoute && (
               <div className="walk-banner" role="status" aria-live="polite">
                 <strong>
@@ -3225,9 +3380,10 @@ export default function App({
             {!atlas && (
               <button
                 type="button"
+                ref={weatherChip}
                 className="weather-chip"
                 aria-expanded={weatherOpen}
-                aria-controls="weather-pop"
+                aria-controls={weatherOpen ? "weather-pop" : undefined}
                 title="Change the weather"
                 onClick={() => setWeatherOpen((open) => !open)}
               >
@@ -3291,6 +3447,7 @@ export default function App({
             {!atlas && weatherOpen && (
               <div
                 id="weather-pop"
+                ref={weatherPop}
                 className="weather-pop"
                 role="dialog"
                 aria-label="Weather"

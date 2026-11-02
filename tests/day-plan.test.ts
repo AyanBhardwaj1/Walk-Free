@@ -39,3 +39,18 @@ describe("a day in the life", () => {
     expect(new Set(Object.values(a).map((s) => s.id)).size).toBe(5);
   });
 });
+
+import { localDate, localNoon } from "../src/components/WeatherControls.js";
+describe("local dates far east of UTC", () => {
+  for (const tz of [
+    "Pacific/Auckland",
+    "Pacific/Kiritimati",
+    "America/Chicago",
+    "Asia/Tokyo",
+    "UTC",
+  ])
+    it(`keeps the chosen day in ${tz}`, () => {
+      expect(localDate(localNoon("2026-01-20", tz), tz)).toBe("2026-01-20");
+      expect(localDate(localNoon("2026-07-15", tz), tz)).toBe("2026-07-15");
+    });
+});

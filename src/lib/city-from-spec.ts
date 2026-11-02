@@ -1546,7 +1546,8 @@ export function buildCityFromSpec(
   for (const o of b.objects) o.source = "ai";
 
   return {
-    id: `ai-${slug}-${shortHash(`${seed}|${realism}`)}`,
+    // Two different plans with the same name are different cities.
+    id: `ai-${slug}-${shortHash(`${seed}|${realism}|${JSON.stringify(spec)}`)}`,
     name: `${spec.name} · generated city`,
     origin: { lat: spec.origin.lat, lon: spec.origin.lon },
     timezone: spec.timezone,

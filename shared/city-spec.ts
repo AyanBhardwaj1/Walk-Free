@@ -161,7 +161,7 @@ function matchEnum<T extends readonly string[]>(
     .toLowerCase()
     .replace(/[\s_]+/g, "-");
   if ((values as readonly string[]).includes(key)) return key as T[number];
-  if (synonyms[key]) return synonyms[key];
+  if (Object.hasOwn(synonyms, key)) return synonyms[key];
   const bare = key.replace(/-/g, "");
   return values.find((x) => x.replace(/-/g, "") === bare);
 }

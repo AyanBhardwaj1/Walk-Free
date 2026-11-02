@@ -79,6 +79,19 @@ npm start
   - A warmer sun as it lowers, moonlight after sunset, and lit windows from dusk.
   - The weather chip shows a sun, moon, cloud or rain to match the conditions.
   - The camera button saves a picture of the 3D view (with a fictional city's sky) captioned with the place and time.
+- Generate a city: describe any city and Walk-Free builds a walkable 3D city from it.
+  - The AI (Meta Muse Spark or your own key) plans districts, landmarks (16 signature shapes), street names, climate and sky via `POST /api/agent/city`. Credits scale with realism: Sketch 1, Detailed 2, Dense 4.
+  - `buildCityFromSpec` (`src/lib/city-from-spec.ts`) builds it deterministically, with an offline designer (`spec-from-prompt.ts`) when no AI is available.
+  - You can open it from the panel, from search, from the assistant's `generate_city` tool, or with `/app?generate=…`. Cities you've made are kept in the browser (`/app?generated=…`).
+- A day in the life (Route tab): six everyday walks planned in shade at their own hours, with a playable timeline. Prebuilt areas can name real stops (`day` in `shared/areas.ts`).
+- Weather controls:
+  - Presets: Heatwave, Hot & humid, Summer, Mild, Cool, July afternoon, Live.
+  - Sliders, a local-date picker, and air, shade and sun feels-like.
+  - Available in the Climate tab and from the weather chip on the map.
+- Quick walk anywhere (city atlas):
+  - Places from Photon, then Nominatim.
+  - Routes from OSRM foot, then Valhalla, then a labelled straight-line estimate.
+  - Shows the source, links to Google Maps, and can build the walk in 3D.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.

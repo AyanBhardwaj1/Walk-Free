@@ -217,3 +217,25 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - The camera button was missing in Design studio.
   - "Aurora" matched the fictional city instead of the real one.
 - **Totals.** `npm test` 408 pass; lint and build clean. PRs #27–#33 are merged, and the production probe passed after each deploy.
+
+## Generate a city, landmarks, day in the life, weather, quick walks — 2026-11-02 (evening)
+
+- **Generate a city.**
+  - Server: `/api/agent/city` tests cover a validated plan, 4 credits charged for dense, the trademark rule in the prompt, an unreadable reply giving `INVALID_CITY`, and an empty prompt rejected before any model call.
+  - Builder: 135 tests across prompts and realism levels:
+    - Schema-valid worlds with one connected graph.
+    - No building on a walking edge.
+    - Deterministic output, with landmarks present.
+    - Timings: dense under 200 ms for a 10-district, 24-landmark plan.
+  - Browser:
+    - Guest offline generation: "Mournefall", 793 buildings.
+    - Signed-in AI path with a mocked plan: "Ravenmoor", 930 buildings. The first walk runs from "Central Precinct Steps" to "Ravenmoor Chemical Works Walk".
+- **Landmarks.**
+  - 16 shapes, each at most about 30 meshes, with shared geometry and materials.
+  - Signature landmarks are tested per city, and a test enforces that no trademarked names appear.
+  - Noir Harbor and Skyline Prime were rendered and checked.
+- **Day in the life.** UT Austin, July 15 at 3 PM, scenario weather: 33 min of walking, 9.7 min in the sun on shade routes against 12.9 on the quickest.
+- **UT Austin feature run** (browser, zero errors): July preset, routes, best time, heat rankings and detail, compare walks (20% of the sun avoidable), CSV, brief, assistant demo, planting (one street 115°F → 104°F), proposal, 2D view.
+- **New UT default walk:** Kinsolving Dormitory → Perry-Castañeda Library, chosen from a scored search of landmark pairs. Shade rises 23% → 45% for 3% more walking.
+- **Quick walk.** Unit tests cover each fallback layer. In the browser, the atlas route was found and drawn, with no false error when the map style was still loading.
+- **Totals.** `npm test` 587 pass; lint and build clean. PR #34 is merged, and the production probe passed on 829cf4f.
