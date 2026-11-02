@@ -225,7 +225,16 @@ function PlaceList({
             {p.name}
           </span>
           <span className="place-temp">{degrees(p.feelsLikeC)}</span>
-          <small>{percent(p.shade)} shade</small>
+          <small>
+            <span className="sun-bar" aria-hidden>
+              <i
+                style={{
+                  transform: `scaleX(${Math.min(1, Math.max(0, p.shade))})`,
+                }}
+              />
+            </span>
+            {percent(p.shade)} shade
+          </small>
         </button>
       ))}
     </div>

@@ -95,6 +95,13 @@ export default function RouteChoices({
                   {Math.round(route.shadeFraction * 100)}% shade ·{" "}
                   {Math.round(heat!.sunMinutes)} min in sun
                 </span>
+                <span className="sun-bar" aria-hidden>
+                  <i
+                    style={{
+                      transform: `scaleX(${Math.min(1, Math.max(0, route.shadeFraction))})`,
+                    }}
+                  />
+                </span>
                 {preference === "indoors" &&
                   (route.coolStop ? (
                     <span className="route-extra">
