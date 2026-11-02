@@ -1450,9 +1450,16 @@ export default function App({
       text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
       action: "Plant the hottest street",
       run: async () => {
-        const hottest = placeHeat(world, heatEnv).find(
+        const streets = placeHeat(world, heatEnv).filter(
           (p) => p.kind === "street",
         );
+        // Prefer a name that reads as a street ("Speedway", "24th Street").
+        const hottest =
+          streets.find((p) =>
+            /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
+              p.name,
+            ),
+          ) ?? streets[0];
         if (!hottest) return;
         const result = (await runTool(
           toolHost.current,
