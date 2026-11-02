@@ -1,4 +1,4 @@
-import { Thermometer, Trees, X } from "lucide-react";
+import { Footprints, Thermometer, Trees, X } from "lucide-react";
 import {
   HEAT_LEVELS,
   HEAT_RAMP,
@@ -221,8 +221,12 @@ function PlaceList({
             style={{ background: relativeHeatColor(p) }}
           />
           <span className="place-name">
-            {p.kind === "park" && <Trees size={12} />}
-            {p.name}
+            {p.kind === "park" ? (
+              <Trees size={12} aria-hidden />
+            ) : (
+              <Footprints size={12} aria-hidden />
+            )}
+            <span>{p.name}</span>
           </span>
           <span className="place-temp">{degrees(p.feelsLikeC)}</span>
           <small>

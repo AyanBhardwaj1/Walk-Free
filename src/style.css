@@ -1280,9 +1280,16 @@ aside.collapsed ~ .viewport .map-heading {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  white-space: nowrap;
+}
+.place-name svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.place-name span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .place-temp {
   font-variant-numeric: tabular-nums;
@@ -3609,4 +3616,17 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
   font-size: 13px;
   font-weight: 600;
   box-shadow: 0 12px 28px -12px var(--c-shadow-1d2a1f99, #1d2a1f99);
+}
+@media (max-width: 720px) {
+  /* Below the tool row, and the horizon left clear while walking. */
+  .walk-3d-stop {
+    top: 62px;
+  }
+  .timeline.is-walking {
+    display: none;
+  }
+  .demo-tour.is-low {
+    top: auto;
+    bottom: 144px;
+  }
 }

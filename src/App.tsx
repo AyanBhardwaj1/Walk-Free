@@ -1292,7 +1292,7 @@ export default function App({
       openGenerated(stored.spec, stored.realism, stored.via, stored.prompt);
       return;
     }
-    if (params0.has("tour")) setTourOpen(true);
+    if (params0.has("tour")) openTour();
     if (params0.has("generate")) {
       setGenPrompt((params0.get("generate") ?? "").slice(0, 600));
       setGenOpen(true);
@@ -1432,6 +1432,18 @@ export default function App({
       );
     return day;
   }
+  /**
+   * Opens the panel for a tour step. On phones the sheet drops to a peek
+   * for steps that happen on the map, and rises halfway for panel steps.
+   */
+  function tourPanel(level: 0 | 1) {
+    setPanelOpen(true);
+    if (window.matchMedia("(max-width: 720px)").matches) setSheet(level);
+  }
+  function openTour() {
+    setTourOpen(true);
+    if (window.matchMedia("(max-width: 720px)").matches) setSheet(0);
+  }
   /** The guided tour: each step explains a feature and does it. */
   const tourSteps: TourStep[] = [
     {
@@ -1443,7 +1455,7 @@ export default function App({
         setEnv((previous) => julyAfternoon(previous, world.timezone));
         setMode("explore");
         setTab("route");
-        setPanelOpen(true);
+        tourPanel(0);
       },
     },
     {
@@ -1455,7 +1467,7 @@ export default function App({
         setTab("route");
         setPref("shade");
         setHeatMap(true);
-        setPanelOpen(true);
+        tourPanel(0);
       },
     },
     {
@@ -1466,6 +1478,7 @@ export default function App({
         setMode("explore");
         setTab("route");
         setPlaying(false);
+        tourPanel(0);
         if (currentRoute) setWalk3d(currentRoute.points);
         else flash("Choose a start and end first, then walk it.");
       },
@@ -1478,7 +1491,7 @@ export default function App({
         setMode("explore");
         setTab("heat");
         setHeatMap(true);
-        setPanelOpen(true);
+        tourPanel(0);
       },
     },
     {
@@ -1488,7 +1501,7 @@ export default function App({
       run: () => {
         setMode("explore");
         setTab("route");
-        setPanelOpen(true);
+        tourPanel(0);
         const day = planDayNow();
         const lunch = day?.legs.find((l) => l.hour >= 12) ?? day?.legs[0];
         if (lunch) {
@@ -1523,7 +1536,7 @@ export default function App({
         if (result?.error) flash(result.error);
         else {
           setMode("studio");
-          setPanelOpen(true);
+          tourPanel(1);
         }
       },
     },
@@ -1534,7 +1547,7 @@ export default function App({
       run: () => {
         setMode("explore");
         setTab("ask");
-        setPanelOpen(true);
+        tourPanel(1);
       },
     },
     {
@@ -3377,6 +3390,7 @@ export default function App({
                 <DemoTour
                   steps={tourSteps}
                   waiting={!!busy}
+                  low={walking}
                   left={mapInsets.left}
                   onClose={() => setTourOpen(false)}
                 />
@@ -3387,7 +3401,7 @@ export default function App({
                     type="button"
                     className="tour-launch"
                     style={{ left: mapInsets.left + 16 }}
-                    onClick={() => setTourOpen(true)}
+                    onClick={openTour}
                   >
                     <Play size={14} aria-hidden /> Take the 1-minute tour
                   </button>
@@ -3694,7 +3708,7 @@ export default function App({
               </>
             )}
             {!atlas && (
-              <div className="timeline">
+              <div className={`timeline${walking ? " is-walking" : ""}`}>
                 <div>
                   <Sun size={18} />
                   <strong>Time of day</strong>

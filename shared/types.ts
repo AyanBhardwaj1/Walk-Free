@@ -36,7 +36,8 @@ export interface SceneObject {
   footprint?: Point[]; // offsets from position, meters
   source: SourceKind;
   sourceId?: string;
-  heightMethod: "mapped" | "levels" | "estimated" | "designed";
+  /** "published": a cited figure from shared/landmark-heights.ts. */
+  heightMethod: "mapped" | "levels" | "estimated" | "designed" | "published";
   /** Other names: OSM ref, short_name, alt_name and similar. */
   aliases?: string[];
   /** A landmark's signature silhouette (generated cities). */
