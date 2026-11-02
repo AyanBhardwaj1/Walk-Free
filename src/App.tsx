@@ -1104,7 +1104,11 @@ export default function App({
             timezone: "",
           }
         : null;
-    if (!city) return;
+    if (!city) {
+      // A link to a tab without an area, such as /app?tab=ask from home.
+      if (link.tab) setTab(link.tab);
+      return;
+    }
     void loadCity(city, true, area?.radius ?? link.radius ?? 800, link);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
@@ -1560,7 +1564,7 @@ export default function App({
     <UnitContext.Provider value={unit}>
       <div className="app">
         <header>
-          <a className="brand" href="/">
+          <a className="brand" href={guest ? "/" : "/home"}>
             <span className="brand-icon">
               w<span>f</span>
             </span>

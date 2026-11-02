@@ -6,6 +6,7 @@ import "./public.css";
 import { friendlyError } from "./lib/errors";
 
 const Workspace = lazy(() => import("./App"));
+const HomeDashboard = lazy(() => import("./components/HomeDashboard"));
 
 function PrivacyPage() {
   return (
@@ -138,9 +139,29 @@ export default function Website() {
   }
   const signedIn = (account: Account) => {
     setUser(account);
-    window.location.assign("/app");
+    window.location.assign("/home");
   };
   if (path === "/privacy") return <PrivacyPage />;
+  // The signed-in home: a clean start page; guests are sent to log in.
+  if (path === "/home") {
+    if (loading)
+      return (
+        <div className="public-site public-loading" role="status">
+          Opening your home…
+        </div>
+      );
+    if (!user) {
+      window.location.replace("/login");
+      return null;
+    }
+    return (
+      <Suspense
+        fallback={<div className="public-site public-loading">Loading…</div>}
+      >
+        <HomeDashboard user={user} onSignOut={signOut} />
+      </Suspense>
+    );
+  }
   if (path === "/") return <LandingPage signedIn={Boolean(user)} />;
   // Guest demo: the map without an account; signed-in people get their own.
   if (path === "/demo" && loading)

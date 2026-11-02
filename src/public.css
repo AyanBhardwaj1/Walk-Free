@@ -1501,11 +1501,345 @@
   color: #4f5a45;
 }
 .landing-meta .meta-trees strong {
-  font: 26px "Playfair Display", Georgia, serif;
+  font:
+    26px "Playfair Display",
+    Georgia,
+    serif;
   color: #2f3f2c;
 }
 
 /* Comfortable line length for running text (45-75 characters). */
 .landing-v2 p {
   max-width: 68ch;
+}
+
+/* ---------- Signed-in home ---------- */
+.home-dash {
+  --forest: #17241b;
+  --forest-2: #223427;
+  --ivory: #f7f5ed;
+  --sage: #9db58a;
+  --ink: #293d2e;
+  background: #f5f3ec;
+  min-height: 100vh;
+}
+.home-header {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.home-nav {
+  display: flex;
+  gap: 22px;
+  margin-left: auto;
+  font-size: 14px;
+}
+.home-nav a {
+  color: #4f5a45;
+  text-decoration: none;
+  padding: 6px 0;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+.home-nav a:hover,
+.home-nav a[aria-current="page"] {
+  color: #23331f;
+  border-color: #3f5938;
+}
+.home-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid #d9dccc;
+  color: #4f5a45;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+.home-signout:hover {
+  background: #23331f;
+  color: #f5f3ec;
+}
+.home-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 520px;
+  background:
+    radial-gradient(ellipse at 78% 40%, #2f4a33 0%, transparent 60%),
+    var(--forest);
+  color: #f4f1e6;
+  padding: 96px 6% 88px;
+}
+.home-hero-copy {
+  position: relative;
+  max-width: 780px;
+}
+.home-hero h1 {
+  font:
+    clamp(40px, 6vw, 76px) / 1.04 "Playfair Display",
+    Georgia,
+    serif;
+  margin: 18px 0 30px;
+}
+.home-hero h1 em {
+  color: #c9d8b4;
+}
+/* Heat lines drifting across the hero, like streets warming through the day. */
+.home-hero-lines span {
+  position: absolute;
+  left: -40%;
+  width: 180%;
+  height: 2px;
+  top: calc(8% + var(--i) * 10.5%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #4f8a9c 20%,
+    #d9b142 45%,
+    #d7772d 60%,
+    #b13a2b 75%,
+    transparent
+  );
+  opacity: 0.22;
+  transform: translateX(calc(var(--i) * -3%)) rotate(-8deg);
+  animation: home-drift calc(16s + var(--i) * 2s) linear infinite alternate;
+}
+@keyframes home-drift {
+  to {
+    transform: translateX(18%) rotate(-8deg);
+  }
+}
+.home-section {
+  padding: 64px 6% 8px;
+}
+.home-section:last-of-type {
+  padding-bottom: 80px;
+}
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.home-section-head h2 {
+  font:
+    32px "Playfair Display",
+    Georgia,
+    serif;
+  margin: 0;
+  color: #23331f;
+}
+.home-section-head p {
+  margin: 0;
+  color: #5f6956;
+  font-size: 14px;
+}
+.home-grid,
+.home-tools,
+.home-walks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.home-card a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 168px;
+  padding: 22px 22px 20px;
+  background: #fffdf6;
+  color: #23331f;
+  text-decoration: none;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+    background-color 0.35s ease;
+}
+.home-card a:hover {
+  transform: translateY(-4px);
+  background: #ffffff;
+}
+.home-card strong {
+  font:
+    26px "Playfair Display",
+    Georgia,
+    serif;
+}
+.home-card-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5f6956;
+}
+.home-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #4f5a45;
+}
+.home-card-bar {
+  display: block;
+  height: 4px;
+  background: #ebe8dc;
+  overflow: hidden;
+}
+.home-card-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4f8a9c, #6f9b5f);
+  transform-origin: left;
+  animation: home-bar 1.2s 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes home-bar {
+  from {
+    transform: scaleX(0);
+  }
+}
+.home-card small {
+  font-size: 12px;
+  color: #5f6956;
+}
+.home-card-go {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: #3f5938;
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.home-card a:hover .home-card-go {
+  transform: translate(3px, -3px);
+}
+.home-walks li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fffdf6;
+  margin-bottom: 8px;
+}
+.home-walks li span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.home-walks small {
+  color: #5f6956;
+  font-size: 12px;
+}
+.home-walks a {
+  color: #3f5938;
+  font-weight: 600;
+  font-size: 13px;
+}
+.home-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  background: #fffdf6;
+  color: #23331f;
+  text-decoration: none;
+  font-weight: 600;
+}
+.home-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.home-tools a {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  height: 100%;
+  box-sizing: border-box;
+  background: #ebe8dc;
+  color: #23331f;
+  text-decoration: none;
+  transition: background-color 0.25s ease;
+}
+.home-tools a:hover {
+  background: #e2dfd0;
+}
+.home-tools svg {
+  color: #3f5938;
+}
+.home-tools span {
+  font-size: 13px;
+  color: #4f5a45;
+  line-height: 1.55;
+}
+/* Entrance: content rises in, one after another. */
+.home-rise {
+  animation: home-rise 0.7s calc(var(--d, 0) * 70ms)
+    cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-rise,
+  .home-card-bar i,
+  .home-hero-lines span {
+    animation: none;
+  }
+  .home-card a,
+  .home-card-go {
+    transition: none;
+  }
+}
+@media (max-width: 650px) {
+  .home-nav {
+    display: none;
+  }
+  .home-signout {
+    margin-left: auto;
+  }
+  .home-hero {
+    padding: 64px 20px 56px;
+  }
+  .home-section {
+    padding: 44px 20px 4px;
+  }
+}
+.home-dash main {
+  display: block;
+  width: 100%;
+}
+
+/* The same live heat slice as the landing hero, on the right. */
+.home-hero .hero-heat {
+  z-index: -1;
+  opacity: 0.85;
+}
+.home-hero .hero-tilt {
+  width: min(50vw, 720px);
+}
+@media (max-width: 900px) {
+  .home-hero .hero-heat {
+    opacity: 0.35;
+  }
 }

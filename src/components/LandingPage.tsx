@@ -54,7 +54,7 @@ interface CampusStat {
     extra_distance_percent: number;
   };
 }
-interface Preview {
+export interface Preview {
   name: string;
   half: number;
   hours: number[];
@@ -200,7 +200,7 @@ function SliceCanvas({
 }
 
 /** Real UT Austin paths that warm and cool through a July day. */
-function HeroHeat({ preview }: { preview: Preview | null }) {
+export function HeroHeat({ preview }: { preview: Preview | null }) {
   const [hourIndex, setHourIndex] = useState(9);
   useEffect(() => {
     if (!preview || matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -505,7 +505,7 @@ export default function LandingPage({
   const campuses = campusData?.campuses ?? [];
   const ut = campuses.find((c) => c.slug === "ut-austin");
   useReveal();
-  const start = signedIn ? "/app" : "/demo";
+  const start = signedIn ? "/home" : "/demo";
   const totals = {
     buildings: campuses.reduce((s, c) => s + c.buildings, 0),
     km: campuses.reduce((s, c) => s + c.paths_km, 0),
@@ -549,7 +549,7 @@ export default function LandingPage({
             </p>
             <div className="hero-actions">
               <a className="landing-button bright" href={start}>
-                {signedIn ? "Open the map" : "Try the demo, no sign-up"}{" "}
+                {signedIn ? "Go to your home" : "Try the demo, no sign-up"}{" "}
                 <ArrowUpRight size={19} />
               </a>
               <a className="text-link light" href="#preview">
