@@ -518,11 +518,20 @@ export default function WorldCanvas({
         ? world.objects.filter(
             (o) =>
               o.kind !== "tree" &&
-              (o.source === "osm" || o.source === "study") &&
+              (o.source === "osm" ||
+                // Generated towers and landmarks keep their own shapes.
+                (o.source === "study" &&
+                  o.kind !== "tower" &&
+                  o.kind !== "landmark")) &&
               o.id !== selectedId,
           )
         : null,
     [world.objects, selectedId],
+  );
+  // Whatever is merged is drawn once, never again on its own.
+  const mergedIds = useMemo(
+    () => new Set(merged?.map((o) => o.id) ?? []),
+    [merged],
   );
   return (
     <Canvas
@@ -647,11 +656,7 @@ export default function WorldCanvas({
         )}
         {showBuildings &&
           world.objects
-            .filter(
-              (o) =>
-                o.kind !== "tree" &&
-                (!merged || o.source !== "osm" || o.id === selectedId),
-            )
+            .filter((o) => o.kind !== "tree" && !mergedIds.has(o.id))
             .map((o) => (
               <Building
                 key={o.id}

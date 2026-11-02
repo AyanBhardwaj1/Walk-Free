@@ -102,7 +102,11 @@ export default function MergedBuildings({
       const wall =
         object.kind === "skyscraper"
           ? GLASS
-          : color.set(sc(wallColors[hash(object.id) % wallColors.length]));
+          : color.set(
+              sc(
+                object.color ?? wallColors[hash(object.id) % wallColors.length],
+              ),
+            );
       const colors = new Float32Array(g.attributes.position.count * 3);
       // Wall UVs from the extrusion are in meters (along the wall, and
       // height), which the window texture repeats over. Roofs and floors
