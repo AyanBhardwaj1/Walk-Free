@@ -157,6 +157,22 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "generate_city",
+      description:
+        "Generate a whole new walkable 3D city from a description (any real, fictional or imagined city, mood or climate) and drop the person in its middle. Pass their description in their own words. Realism: sketch (quick, small), detailed (default), dense (large, intricate; uses more credits). Use when they ask to create, generate or imagine a city.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: { type: "string" },
+          realism: { type: "string", enum: ["sketch", "detailed", "dense"] },
+        },
+        required: ["description"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "plant_shade_trees",
       description:
         "Plant a row of shade trees along both sides of a named street or path and return its shade and feels-like before and after, at the time shown. Prefer this over propose_design for adding street trees.",

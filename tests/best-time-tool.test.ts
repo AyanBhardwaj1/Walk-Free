@@ -33,6 +33,7 @@ function host(nowIso: string) {
     setDateTime: (iso) => calls.push(`time ${iso}`),
     highlightPlace: vi.fn(),
     buildArea: vi.fn(),
+    generateCity: vi.fn(),
     applyPlanting: vi.fn(),
     proposeDesign: vi.fn(),
   };

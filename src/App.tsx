@@ -1014,6 +1014,9 @@ export default function App({
       setHeatPlaceId(id);
       setComparePlaceId(null);
     },
+    async generateCity(description, realism) {
+      return planAndOpenCity(description, realism, true);
+    },
     async buildArea(query) {
       // A fictional city opens at once, and stays in the conversation.
       // Only an exact name opens a fictional city ("Aurora" is a real city).
@@ -1095,6 +1098,7 @@ export default function App({
               heat_ranking: "Ranking heat…",
               place_heat: "Checking the heat…",
               build_area: "Building the area…",
+              generate_city: "Planning and building your city…",
               propose_design: "Sketching a design…",
             }[name] ?? "Working…",
           ),
@@ -1342,6 +1346,7 @@ export default function App({
     realism: Realism,
     via: "ai" | "offline",
     prompt: string,
+    fromAssistant = false,
   ) {
     const w = buildCityFromSpec(spec, realism);
     rememberGenerated({
@@ -1378,7 +1383,7 @@ export default function App({
     setEnd(to);
     setHypothetical(false);
     setMode("explore");
-    setTab("route");
+    if (!fromAssistant) setTab("route");
     setPicking(null);
     setTrees(true);
     setBuildings(true);
@@ -1401,9 +1406,17 @@ export default function App({
         via === "ai" ? "planned by AI" : "designed from your words offline"
       }. Change the weather from the chip on the map.`,
     );
+    return w;
   }
-  /** Plans a city with the AI when it can, or offline when it can't. */
-  async function generateCity(prompt: string, realism: Realism) {
+  /**
+   * Plans a city with the AI when it can, or offline when it can't, then
+   * opens it. Returns a one-line summary for the assistant.
+   */
+  async function planAndOpenCity(
+    prompt: string,
+    realism: Realism,
+    fromAssistant = false,
+  ) {
     let spec: CitySpec | null = null;
     let note = "";
     if (!guest) {
@@ -1422,12 +1435,16 @@ export default function App({
     spec ??= specFromPrompt(prompt, realism);
     // Let the dialog paint its progress before the build runs.
     await new Promise((r) => setTimeout(r, 40));
-    openGenerated(spec, realism, via, prompt);
-    setGenOpen(false);
-    if (note)
+    const w = openGenerated(spec, realism, via, prompt, fromAssistant);
+    if (note && !fromAssistant)
       setMessage(
         `${note} Built it with the offline designer instead, from your words.`,
       );
+    return `Generated ${spec.name} (${realism}, ${via === "ai" ? "planned by AI" : "offline designer"}${note ? `; the AI planner was unavailable: ${note}` : ""}): ${w.objects.filter((o) => o.kind !== "tree").length} buildings, ${w.graph.nodes.length} street corners. ${spec.tagline} The person now stands in the middle of the city with a first walk on the map.`;
+  }
+  async function generateCity(prompt: string, realism: Realism) {
+    await planAndOpenCity(prompt, realism);
+    setGenOpen(false);
   }
   async function loadCity(
     c: City,

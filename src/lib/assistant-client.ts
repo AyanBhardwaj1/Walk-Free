@@ -124,7 +124,10 @@ export async function converse(
         };
       }
       // Let React re-render after a new area so later tools see it.
-      if (call.function.name === "build_area")
+      if (
+        call.function.name === "build_area" ||
+        call.function.name === "generate_city"
+      )
         await new Promise((resolve) => setTimeout(resolve, 250));
       results.push({
         role: "tool",

@@ -49,6 +49,10 @@ export interface ToolHost {
   setDateTime(iso: string): void;
   highlightPlace(id: string): void;
   buildArea(query: string): Promise<string>;
+  generateCity(
+    description: string,
+    realism: "sketch" | "detailed" | "dense",
+  ): Promise<string>;
   applyPlanting(result: PlantingResult, before: World): void;
   proposeDesign(request: string): Promise<string>;
 }
@@ -83,6 +87,10 @@ const schemas = {
       .optional(),
   }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
+  generate_city: z.object({
+    description: z.string().min(3).max(600),
+    realism: z.enum(["sketch", "detailed", "dense"]).optional(),
+  }),
   propose_design: z.object({ request: z.string().min(1).max(1000) }),
   plant_shade_trees: z.object({ street: z.string().min(1).max(120) }),
 };
@@ -397,6 +405,10 @@ export async function runTool(
     }
     case "build_area":
       return { result: await host.buildArea(a.place) };
+    case "generate_city":
+      return {
+        result: await host.generateCity(a.description, a.realism ?? "detailed"),
+      };
     case "plant_shade_trees": {
       // Edit the saved scene, never the copy split at the walker's location.
       const scene = host.scene ?? host.world;
