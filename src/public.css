@@ -416,7 +416,7 @@
   margin-bottom: 10px;
 }
 .auth-panel > p {
-  color: #747c6a;
+  color: #5f6956;
   font-size: 13px;
   line-height: 1.8;
 }
@@ -432,6 +432,7 @@
   gap: 9px;
   font-size: 12px;
   font-weight: 500;
+  color: #4f5a45;
 }
 .auth-form input {
   width: 100%;
@@ -463,7 +464,7 @@
 .auth-form small {
   font-size: 11px;
   font-weight: 400;
-  color: #78826d;
+  color: #5f6956;
   line-height: 1.6;
 }
 .auth-form .form-message {
@@ -483,6 +484,7 @@
 .public-site .auth-switch {
   margin-top: 25px;
   font-size: 12px;
+  color: #5f6956;
 }
 .auth-switch a,
 .auth-form > a,
@@ -1093,7 +1095,7 @@
   top: 22px;
   right: 22px;
   font-size: 12px;
-  color: #b0b59f;
+  color: #6b7462;
   letter-spacing: 1px;
 }
 .step-cards h3 {
@@ -1325,7 +1327,7 @@
   margin-left: auto;
   font-weight: 400;
   font-size: 11px;
-  color: #8b9080;
+  color: #6b7462;
 }
 .chat-demo p {
   margin: 0;
@@ -1381,6 +1383,7 @@
 .faq-list summary {
   cursor: pointer;
   list-style: none;
+  color: #33452e;
   font:
     20px "Playfair Display",
     Georgia,
