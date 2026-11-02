@@ -102,6 +102,7 @@ import { FICTION_CITIES, createFictionCity } from "./lib/fiction-cities";
 import { isDarkSky, skyAt } from "./lib/fiction-catalog";
 import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
+import WeatherControls from "./components/WeatherControls";
 import {
   clampSunAversion,
   compareRoutes,
@@ -320,6 +321,16 @@ export default function App({
   });
   const [world, setWorld] = useState<World>(createStudyWorld);
   const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  // Escape closes the weather popover.
+  useEffect(() => {
+    if (!weatherOpen) return;
+    const close = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setWeatherOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [weatherOpen]);
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
     captureRef.current = capture;
@@ -2395,24 +2406,13 @@ export default function App({
                 <div className="section-title">
                   <Sun size={17} /> The atmosphere
                 </div>
-                <label>
-                  SCENARIO DATE & TIME · UTC
-                  <input
-                    className="text-field"
-                    type="datetime-local"
-                    value={new Date(env.dateTime).toISOString().slice(0, 16)}
-                    onChange={(e) => {
-                      if (e.target.value)
-                        setEnv({
-                          ...env,
-                          dateTime: new Date(
-                            e.target.value + "Z",
-                          ).toISOString(),
-                          weatherMode: "scenario",
-                        });
-                    }}
-                  />
-                </label>
+                <WeatherControls
+                  env={env}
+                  setEnv={setEnv}
+                  world={world}
+                  unit={unit}
+                  onLive={() => void weather()}
+                />
                 <div className="probe-summary">
                   <div className="eyebrow">
                     SELECTED POINT · {Math.round(probe[0])} E /{" "}
@@ -2474,71 +2474,6 @@ export default function App({
                     />
                   </div>
                 )}
-                <label>
-                  SCENARIO AIR TEMPERATURE ·{" "}
-                  {formatTemp(env.temperatureC, unit)}
-                  <input
-                    type="range"
-                    min="-10"
-                    max="45"
-                    value={env.temperatureC}
-                    onChange={(e) =>
-                      setEnv({
-                        ...env,
-                        temperatureC: +e.target.value,
-                        weatherMode: "scenario",
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  RELATIVE HUMIDITY · {env.humidity}%
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={env.humidity}
-                    onChange={(e) =>
-                      setEnv({
-                        ...env,
-                        humidity: +e.target.value,
-                        weatherMode: "scenario",
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  CLOUD COVER · {env.cloudCover}%
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={env.cloudCover}
-                    onChange={(e) =>
-                      setEnv({
-                        ...env,
-                        cloudCover: +e.target.value,
-                        weatherMode: "scenario",
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  WIND · {env.windMps} m/s
-                  <input
-                    type="range"
-                    min="0"
-                    max="20"
-                    value={env.windMps}
-                    onChange={(e) =>
-                      setEnv({
-                        ...env,
-                        windMps: +e.target.value,
-                        weatherMode: "scenario",
-                      })
-                    }
-                  />
-                </label>
                 <p className="fine">
                   Air temperature is an area forecast or your scenario input.
                   Shadows estimate solar exposure from mapped or designed
@@ -3017,7 +2952,14 @@ export default function App({
               </span>
             </div>
             {!atlas && (
-              <div className="weather-chip">
+              <button
+                type="button"
+                className="weather-chip"
+                aria-expanded={weatherOpen}
+                aria-controls="weather-pop"
+                title="Change the weather"
+                onClick={() => setWeatherOpen((open) => !open)}
+              >
                 {env.cloudCover >= 70 && env.humidity >= 85 ? (
                   <CloudRain size={23} aria-hidden />
                 ) : env.cloudCover >= 70 ? (
@@ -3073,6 +3015,45 @@ export default function App({
                     </small>
                   )}
                 </div>
+              </button>
+            )}
+            {!atlas && weatherOpen && (
+              <div
+                id="weather-pop"
+                className="weather-pop"
+                role="dialog"
+                aria-label="Weather"
+              >
+                <div className="weather-pop-head">
+                  <strong>Weather</strong>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Close weather"
+                    onClick={() => setWeatherOpen(false)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <WeatherControls
+                  env={env}
+                  setEnv={setEnv}
+                  world={world}
+                  unit={unit}
+                  onLive={() => void weather()}
+                  compact
+                />
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setWeatherOpen(false);
+                    setTab("climate");
+                    setPanelOpen(true);
+                  }}
+                >
+                  More weather settings
+                </button>
               </div>
             )}
             {!atlas && (
