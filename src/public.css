@@ -1699,6 +1699,9 @@
 .home-card-bar {
   margin-top: auto;
 }
+.home-card.wide {
+  grid-column: 1 / -1;
+}
 .home-card a {
   position: relative;
   display: flex;

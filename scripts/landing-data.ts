@@ -2,7 +2,7 @@
 // landing page from the shipped campus data. Run: npm run landing:data
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PREBUILT_AREAS } from "../shared/areas.js";
+import { PREBUILT_CAMPUSES } from "../shared/areas.js";
 import type { Environment, World } from "../shared/types.js";
 import {
   areaHeat,
@@ -52,7 +52,7 @@ const load = (slug: string) =>
   ) as World;
 
 const campuses = await Promise.all(
-  PREBUILT_AREAS.map(async (area) => {
+  PREBUILT_CAMPUSES.map(async (area) => {
     const world = load(area.slug);
     const env = {
       ...summer(area.slug),
