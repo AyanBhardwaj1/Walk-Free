@@ -810,14 +810,15 @@ export default function LandingPage({
           <div className="section-intro reveal">
             <span className="landing-eyebrow">FICTIONAL CITIES</span>
             <h2>
-              Five invented cities,
+              Seven invented cities,
               <br />
               <em>each with its own weather.</em>
             </h2>
             <p className="fine-note">
-              Rain-dark harbor towers, a sunlit boulevard city, a golden citadel
-              under the aurora. Walk them in 3D and watch how street shape
-              changes the shade.
+              Rain-dark harbor towers, a golden citadel under the aurora, a
+              garden city under a forest canopy. In the desert city of Dune
+              Reach at 3 PM, the boulevard has no shade at all while the old
+              quarter's lanes keep the shade route 68% shaded.
             </p>
           </div>
           <FictionGallery base={signedIn ? "/app" : "/demo"} reveal />

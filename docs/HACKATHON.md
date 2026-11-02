@@ -22,7 +22,7 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
 - **Heat brief:** a one-page summary of an area's hottest and coolest walks, its trees and how much shade routing helps, for planners.
 - **Works for everyone:** replies in your language (and read aloud in a matching voice), °F or °C, keyboard shortcuts, WCAG AA contrast, and installable as an app that opens offline.
 - **Four interface styles,** including a high-contrast Sunlight mode for outdoor glare.
-- **Five fictional cities to explore,** each in its own weather: rain-dark Noir Harbor, sunlit Skyline Prime, breezy Velocity Bay, golden Aurora Realm under the aurora, and Neon District at night. They are generated, fully walkable, and show how street shape changes shade.
+- **Seven fictional cities to explore,** each in its own weather: rain-dark Noir Harbor, sunlit Skyline Prime, breezy Velocity Bay, golden Aurora Realm under the aurora, Neon District at night, and a heat lesson in two cities. In sun-scorched **Dune Reach** at 3 PM the quickest route runs down a treeless boulevard in full sun (0% shade), while the shade route threads the old quarter's narrow lanes (68% shade). In **Verdant Canopy** 87% of walking is in shade. They are generated, fully walkable, and show how street shape changes shade.
 - **Midtown Manhattan** as a ready-made city district (from Times Square to the Chrysler Building), lit window by window after dark.
 - **A home dashboard** for signed-in people, with campuses, saved walks and tools in one place.
 - **Share links** that reopen the exact walk, saved walks, and keyboard shortcuts.

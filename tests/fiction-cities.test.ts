@@ -10,7 +10,8 @@ import {
   createFictionCity,
   type FictionCity,
 } from "../src/lib/fiction-cities.js";
-import { compareRoutes } from "../src/lib/routing.js";
+import { compareRoutes, samplePolyline } from "../src/lib/routing.js";
+import { createShadeTester } from "../src/lib/environment.js";
 import { placeHeat } from "../src/lib/heat.js";
 import {
   destinationCatalog,
@@ -31,6 +32,8 @@ const SLUGS = [
   "velocity-bay",
   "aurora-realm",
   "neon-district",
+  "dune-reach",
+  "verdant-canopy",
 ] as const;
 const BUILDING_KINDS = new Set(["building", "skyscraper", "tower", "landmark"]);
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -56,6 +59,39 @@ const polylineLength = (points: Point[]) =>
       (sum, p, i) => sum + Math.hypot(p[0] - points[i][0], p[1] - points[i][1]),
       0,
     );
+
+/** 3 PM local time on 15 July, as UTC, for each city's time zone. */
+const THREE_PM: Record<(typeof SLUGS)[number], string> = {
+  "noir-harbor": "2026-07-15T19:00:00Z",
+  "skyline-prime": "2026-07-15T20:00:00Z",
+  "velocity-bay": "2026-07-15T22:00:00Z",
+  "aurora-realm": "2026-07-15T13:00:00Z",
+  "neon-district": "2026-07-15T06:00:00Z",
+  "dune-reach": "2026-07-15T22:00:00Z",
+  "verdant-canopy": "2026-07-15T07:00:00Z",
+};
+const afternoon = (slug: (typeof SLUGS)[number]): Environment => ({
+  ...environment,
+  dateTime: THREE_PM[slug],
+});
+/** Each walking edge with its shaded share, sampled as routing samples it. */
+function edgeShade(slug: (typeof SLUGS)[number]) {
+  const w = city(slug);
+  const shaded = createShadeTester(w, afternoon(slug));
+  return w.graph.edges.map((e) => {
+    const samples = samplePolyline(
+      e.points,
+      Math.max(1, Math.min(32, Math.ceil(e.distance / 15))),
+    );
+    return {
+      edge: e,
+      shade: e.covered ? 1 : samples.filter(shaded).length / samples.length,
+    };
+  });
+}
+const shadedMetres = (list: ReturnType<typeof edgeShade>) =>
+  list.reduce((s, x) => s + x.shade * x.edge.distance, 0) /
+  list.reduce((s, x) => s + x.edge.distance, 0);
 
 /** World corners of an object's rectangle, turned as the scene turns it. */
 function corners(o: SceneObject): Point[] {
@@ -102,7 +138,7 @@ function rectangleTouchesSegment(rect: Point[], a: Point, b: Point) {
 }
 
 describe("fictional city catalog", () => {
-  it("lists five original cities with a distinct ambient mood", () => {
+  it("lists seven original cities with a distinct ambient mood", () => {
     expect(FICTION_CITIES.map((c) => c.slug)).toEqual([...SLUGS]);
     const particles = new Set<string>();
     for (const c of FICTION_CITIES as readonly FictionCity[]) {
@@ -122,7 +158,7 @@ describe("fictional city catalog", () => {
       particles.add(c.ambient.particles);
       expect(typeof c.ambient.night).toBe("boolean");
     }
-    expect(particles.size).toBe(5);
+    expect(particles.size).toBe(7);
     expect(
       FICTION_CITIES.find((c) => c.slug === "aurora-realm")!.origin.lat,
     ).toBeGreaterThan(58);
@@ -423,5 +459,117 @@ describe("city moods differ in the data", () => {
     const neonHeights = heights("neon-district");
     expect(Math.min(...neonHeights)).toBeLessThan(16);
     expect(Math.max(...neonHeights)).toBeGreaterThan(150);
+  });
+});
+
+describe("the desert and the garden", () => {
+  const BOULEVARD_X = 60;
+
+  it("gives Dune Reach a low walled maze, wind towers, a treeless boulevard district and an oasis", () => {
+    const dune = city("dune-reach");
+    const houses = dune.objects.filter((o) => o.name === "Courtyard house");
+    expect(houses.length).toBeGreaterThan(400);
+    for (const h of houses) {
+      expect(h.height).toBeGreaterThanOrEqual(6);
+      expect(h.height).toBeLessThanOrEqual(14);
+    }
+    const towers = dune.objects.filter((o) => /wind/i.test(o.name));
+    expect(towers.length).toBeGreaterThanOrEqual(3);
+    for (const t of towers) {
+      expect(["tower", "landmark"]).toContain(t.kind);
+      expect(Math.max(t.width, t.depth)).toBeLessThanOrEqual(10);
+      expect(t.height).toBeGreaterThan(
+        median(houses.map((h) => h.height)) * 1.5,
+      );
+    }
+    const lanes = dune.roads.filter((r) => /Lane$|Alley$/.test(r.name));
+    expect(lanes.length).toBeGreaterThan(40);
+    expect(Math.max(...lanes.map((r) => r.width))).toBeLessThanOrEqual(3);
+    const boulevards = dune.roads.filter((r) => r.kind === "road");
+    expect(median(boulevards.map((r) => r.width))).toBeGreaterThanOrEqual(30);
+    expect(trees(dune).filter((t) => t.position[0] > BOULEVARD_X - 10)).toEqual(
+      [],
+    );
+    expect(
+      dune.landscapes.some((l) => l.kind === "water" && /oasis/i.test(l.name)),
+    ).toBe(true);
+    expect(
+      dune.landscapes.some((l) => l.kind === "park" && /oasis/i.test(l.name)),
+    ).toBe(true);
+    expect(
+      trees(dune).filter((t) => /palm/i.test(t.name)).length,
+    ).toBeGreaterThan(150);
+  });
+
+  it("sends Dune Reach's 3 PM shade route through the old-quarter lanes", () => {
+    const dune = city("dune-reach");
+    const id = (name: string) =>
+      dune.graph.nodes.find((n) => n.name === name)!.id;
+    const routes = compareRoutes(dune, id("Caravan Gate"), id("Mirage Gate"), {
+      avoidStairs: false,
+      allowHypothetical: false,
+      maxDetour: 1.6,
+      environment: afternoon("dune-reach"),
+    });
+    const quickest = routes.quickest!,
+      shade = routes.shade!;
+    expect(quickest.edges.every((e) => e.name === "Sun Boulevard")).toBe(true);
+    expect(quickest.shadeFraction).toBeLessThan(0.1);
+    expect(shade.shadeFraction).toBeGreaterThan(quickest.shadeFraction + 0.4);
+    const laneMetres = shade.edges
+      .filter((e) => / Lane$/.test(e.name))
+      .reduce((s, e) => s + e.distance, 0);
+    expect(laneMetres / shade.distance).toBeGreaterThan(0.5);
+    expect(shade.warnings).toEqual([]);
+  });
+
+  it("gives Verdant Canopy terraced mid-rises, the most trees, arcades, a river and a botanic garden", () => {
+    const verdant = city("verdant-canopy");
+    const homes = verdant.objects.filter((o) => o.name === "Terraced homes");
+    expect(homes.length).toBeGreaterThan(200);
+    for (const h of homes) {
+      expect(h.height).toBeGreaterThanOrEqual(15);
+      expect(h.height).toBeLessThanOrEqual(40);
+    }
+    const count = trees(verdant).length;
+    for (const slug of SLUGS)
+      if (slug !== "verdant-canopy")
+        expect(count).toBeGreaterThan(trees(city(slug)).length);
+    expect(verdant.graph.edges.filter((e) => e.covered).length).toBeGreaterThan(
+      30,
+    );
+    expect(verdant.graph.edges.some((e) => /arcade/i.test(e.name))).toBe(true);
+    expect(
+      verdant.landscapes.some(
+        (l) => l.kind === "water" && /river/i.test(l.name),
+      ),
+    ).toBe(true);
+    expect(verdant.landscapes.some((l) => /botanic/i.test(l.name))).toBe(true);
+    expect(
+      verdant.objects.some(
+        (o) => o.kind === "landmark" && /glasshouse/i.test(o.name),
+      ),
+    ).toBe(true);
+    expect(
+      verdant.landscapes.filter((l) => l.kind === "park").length,
+    ).toBeGreaterThanOrEqual(6);
+  });
+
+  it("makes Verdant Canopy the coolest city to walk at 3 PM", () => {
+    const verdant = edgeShade("verdant-canopy");
+    const boulevards = edgeShade("dune-reach").filter(
+      (x) => x.edge.roadClass === "major",
+    );
+    expect(boulevards.length).toBeGreaterThan(30);
+    const verdantMedian = median(verdant.map((x) => x.shade));
+    expect(verdantMedian).toBeGreaterThan(
+      median(boulevards.map((x) => x.shade)) + 0.5,
+    );
+    expect(verdantMedian).toBeGreaterThanOrEqual(0.9);
+    // More of its walking metres lie in shade than in any other city.
+    const share = shadedMetres(verdant);
+    for (const slug of SLUGS)
+      if (slug !== "verdant-canopy")
+        expect(share, slug).toBeGreaterThan(shadedMetres(edgeShade(slug)));
   });
 });

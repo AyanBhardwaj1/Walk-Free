@@ -228,8 +228,8 @@ export default function HomeDashboard({
           <div className="home-section-head">
             <h2 id="home-fiction">Fictional cities</h2>
             <p>
-              Five invented cities, each with its own sky and weather. Walk them
-              for fun, or to see how street shape changes the heat.
+              Seven invented cities, each with its own sky and weather. Walk
+              them for fun, or to see how street shape changes the heat.
             </p>
           </div>
           <FictionGallery base="/app" start={4} />

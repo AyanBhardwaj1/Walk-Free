@@ -1962,9 +1962,14 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 14px;
+}
+/* Four to a row, with a short last row centred. */
+.fiction-gallery > .fiction-card {
+  flex: 0 0 calc((100% - 3 * 14px) / 4);
 }
 .fiction-card a {
   position: relative;
@@ -2097,18 +2102,19 @@
   }
 }
 @media (max-width: 1100px) {
-  .fiction-gallery {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .fiction-gallery > .fiction-card {
+    flex-basis: calc((100% - 2 * 14px) / 3);
   }
 }
 @media (max-width: 640px) {
   .fiction-gallery {
-    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     padding-bottom: 6px;
   }
-  .fiction-card {
+  .fiction-gallery > .fiction-card {
     flex: 0 0 68%;
     scroll-snap-align: start;
   }
