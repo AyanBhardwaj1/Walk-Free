@@ -480,8 +480,8 @@ function CaptureBridge({
   }, [gl, scene, camera, onReady]);
   return null;
 }
-/** Eye height for the street-level walk (a touch above a person). */
-const EYE_M = 6;
+/** Eye height for the street-level walk: a person walking, under the trees. */
+const EYE_M = 2;
 /**
  * Street level: the camera walks the route, looking a little way ahead,
  * then hands control back where it was. Any drag stops it.
@@ -549,7 +549,7 @@ function StreetWalk({
       look.lerp(
         new THREE.Vector3(
           ahead[0],
-          terrainHeight(ahead, terrain) + EYE_M - 1.5,
+          terrainHeight(ahead, terrain) + EYE_M + 0.6,
           ahead[1],
         ),
         d === 0 ? 1 : 0.12,
@@ -905,7 +905,7 @@ export default function WorldCanvas({
           />
         )}
       </group>
-      {route && (
+      {route && !walkthrough && (
         <RouteDraw
           // A new route draws itself in; the same route doesn't replay.
           key={route.points.map((p) => p.join(",")).join(";")}
