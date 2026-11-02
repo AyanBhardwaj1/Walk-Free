@@ -148,7 +148,12 @@ function ArrivalFlight({ framed }: { framed: RefObject<Framing | null> }) {
     const up = new THREE.Vector3(0, 1, 0);
     const start = performance.now();
     const tick = (t: number) => {
-      if (stopped) return;
+      // A street-level walk (which disables orbiting) takes the camera.
+      if (
+        stopped ||
+        (orbit as unknown as { enabled?: boolean })?.enabled === false
+      )
+        return;
       const f = framed.current;
       if (f) {
         const p = Math.min(1, (t - start) / FLIGHT_MS);
@@ -490,10 +495,13 @@ function StreetWalk({
   points,
   terrain,
   onDone,
+  framed,
 }: {
   points: Point[];
   terrain?: World["terrain"];
   onDone: () => void;
+  /** The latest overhead framing, to return to afterwards. */
+  framed: RefObject<Framing | null>;
 }) {
   const { camera, controls, invalidate } = useThree();
   const done = useRef(onDone);
@@ -557,22 +565,37 @@ function StreetWalk({
       eye.set(p[0], y, p[1]);
       camera.position.copy(eye);
       camera.lookAt(look);
+      // Keep the orbit target well ahead, so camera-relative haze stays
+      // at street distances instead of closing in around the walker.
+      if (orbit)
+        orbit.target
+          .copy(look)
+          .sub(eye)
+          .normalize()
+          .multiplyScalar(400)
+          .add(eye);
       invalidate();
       frame = requestAnimationFrame(tick);
     };
     look.set(points[1][0], EYE_M, points[1][1]);
     frame = requestAnimationFrame(tick);
+    // Read at cleanup on purpose: the latest overhead framing, which may
+    // have changed while walking (the panel can move).
+    const latest = framed;
     return () => {
       cancelAnimationFrame(frame);
-      camera.position.copy(saved.position);
-      if (orbit && saved.target) {
-        orbit.target.copy(saved.target);
+      const f = latest.current;
+      const target = f?.target ?? saved.target;
+      camera.position.copy(f ? f.target.clone().add(f.offset) : saved.position);
+      if (target) camera.lookAt(target);
+      if (orbit) {
+        if (target) orbit.target.copy(target);
         orbit.enabled = true;
         orbit.update();
       }
       invalidate();
     };
-  }, [points, terrain, camera, controls, invalidate]);
+  }, [points, terrain, camera, controls, invalidate, framed]);
   return null;
 }
 const DRAW_MS = 900;
@@ -765,6 +788,7 @@ export default function WorldCanvas({
       {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
       {walkthrough && (
         <StreetWalk
+          framed={framed}
           points={walkthrough}
           terrain={world.terrain}
           onDone={() => onWalkthroughDone?.()}
@@ -778,6 +802,7 @@ export default function WorldCanvas({
           night={lightsOn}
           shade={crowd.shade}
           hot={crowd.hot}
+          streetLevel={!!walkthrough}
         />
       )}
       <fog

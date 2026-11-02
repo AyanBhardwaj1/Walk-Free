@@ -58,6 +58,7 @@ export default function Crowd({
   night,
   shade,
   hot,
+  streetLevel = false,
 }: {
   world: World;
   count: number;
@@ -68,6 +69,8 @@ export default function Crowd({
   shade?: Map<string, number>;
   /** Whether heat sends people looking for shade. */
   hot: boolean;
+  /** Seen from eye level: people at human size and walking pace. */
+  streetLevel?: boolean;
 }) {
   const invalidate = useThree((s) => s.invalidate);
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -112,10 +115,23 @@ export default function Crowd({
   }, [walkers]);
   const tmp = useMemo(() => new THREE.Object3D(), []);
   const active = Math.round(walkers.length * (1 - 0.7 * night));
-  useFrame((_, delta) => {
+  // From above people are drawn large enough to see; at eye level they are
+  // human-sized and walk at a human pace.
+  const scale = streetLevel ? 0.18 : 1;
+  const pace = streetLevel ? 1 / 10 : 1;
+  const lift = streetLevel ? 0.95 : 5.4;
+  const last = useRef(0);
+  useFrame((state, delta) => {
     const m = mesh.current;
     if (!m || !walkers.length) return;
-    const dt = Math.min(0.1, delta);
+    // About 20 updates a second is smooth enough and spares the battery.
+    const now = state.clock.elapsedTime;
+    if (now - last.current < 0.05 && !streetLevel) {
+      invalidateSoon();
+      return;
+    }
+    const dt = Math.min(0.1, now - last.current || delta);
+    last.current = now;
     for (let i = 0; i < walkers.length; i++) {
       const w = walkers[i];
       if (i >= active) {
@@ -125,7 +141,7 @@ export default function Crowd({
         m.setMatrixAt(i, tmp.matrix);
         continue;
       }
-      w.at += w.speed * dt;
+      w.at += w.speed * pace * dt;
       if (w.at >= w.leg.total) {
         // At a corner: pick the next street, shade-seeking when it's hot.
         const node = w.dir === 1 ? w.leg.edge.to : w.leg.edge.from;
@@ -147,21 +163,24 @@ export default function Crowd({
       }
       const along = w.dir === 1 ? w.at : w.leg.total - w.at;
       const p = pointAt(w.leg, along);
-      tmp.position.set(p[0], terrainHeight(p, terrain) + 5.4, p[1]);
-      tmp.scale.setScalar(1);
+      tmp.position.set(p[0], terrainHeight(p, terrain) + lift, p[1]);
+      tmp.scale.setScalar(scale);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
     }
     m.instanceMatrix.needsUpdate = true;
-    // The canvas draws on demand; keep the crowd moving.
-    invalidate();
+    invalidateSoon();
   });
+  // The canvas draws on demand; keep the crowd moving, but not while the
+  // tab is hidden.
+  function invalidateSoon() {
+    if (typeof document === "undefined" || !document.hidden) invalidate();
+  }
   if (!walkers.length) return null;
   return (
     <instancedMesh
       ref={mesh}
       args={[undefined, undefined, walkers.length]}
-      castShadow
       // Bounds are computed once, before anyone moves: never cull the crowd.
       frustumCulled={false}
       raycast={() => null}

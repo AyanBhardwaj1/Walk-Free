@@ -17,11 +17,14 @@ export default function DemoTour({
   steps,
   onClose,
   left,
+  waiting = false,
 }: {
   steps: TourStep[];
   onClose: () => void;
   /** Keep clear of the panel. */
   left: number;
+  /** The area is still loading: actions wait for it. */
+  waiting?: boolean;
 }) {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -66,14 +69,16 @@ export default function DemoTour({
         <button
           type="button"
           className="demo-tour-go"
-          disabled={busy}
+          disabled={busy || waiting}
           onClick={() => void run()}
         >
-          {busy
-            ? "Working…"
-            : done.has(i)
-              ? `${step.action} again`
-              : step.action}
+          {waiting
+            ? "Loading the map…"
+            : busy
+              ? "Working…"
+              : done.has(i)
+                ? `${step.action} again`
+                : step.action}
         </button>
         <span>
           <button

@@ -26,6 +26,13 @@ Then redeploy (Vercel → Deployments → Redeploy) and check that `https://walk
    - Press **Test and save**. The provider's own reason is shown.
 4. Note the Meta Model API key prefix. If it starts with `LLM|`, Walk-Free will auto-select the legacy Llama option, so switch the provider by hand and tell me so I can fix the detection.
 
+## 2b. Prove AI city generation (2 minutes, after step 1)
+1. Signed in, open https://walk-free.vercel.app/app?generate= and describe a city, for example "a rain-soaked gothic harbour city from a 90s cartoon". Choose **Detailed** (2 credits).
+2. The welcome message should say "planned by AI". If it says "designed from your words offline", the AI call failed; the red notice above the map names the provider's reason.
+3. In the Ask tab, try: "Generate a sunny art-deco city of heroes and drop me in it." It should call `generate_city`, which allows one city per question.
+
+Without the site key, guests and signed-in people without their own key still get the offline designer.
+
 ## 3. Record the video
 Follow `docs/VIDEO_SCRIPT.md` (2 minutes). Set the Climate tab's date and time to a July afternoon for the strongest heat contrast.
 
