@@ -13,7 +13,79 @@ import {
  * Small drawn scenes for the landing page's feature tour. They echo the
  * app's own UI; every number shown is labelled as an example.
  */
-export type SceneTone = "heat" | "routes" | "ask" | "trees" | "alert";
+export type SceneTone =
+  "heat" | "routes" | "ask" | "trees" | "alert" | "generate" | "street";
+
+/** A city rising from a sentence: the prompt, then its skyline. */
+function GenerateScene() {
+  const towers = [
+    [4, 38],
+    [11, 62],
+    [17, 48],
+    [23, 86, 1],
+    [30, 54],
+    [36, 70],
+    [43, 96, 2],
+    [50, 58],
+    [56, 74],
+    [62, 44],
+    [68, 82, 1],
+    [75, 52],
+    [81, 66],
+    [88, 40],
+    [94, 56],
+  ] as const;
+  return (
+    <div className="scene scene-generate">
+      <p className="scene-prompt">
+        <Sparkles size={13} aria-hidden /> “A rain-soaked gothic city from a 90s
+        noir cartoon”
+      </p>
+      <svg viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden>
+        {towers.map(([x, h, top], i) => (
+          <g key={i} className="scene-tower" style={{ ["--i" as string]: i }}>
+            <rect x={x} y={60 - h * 0.55} width={5} height={h * 0.55} />
+            {top === 1 && (
+              <polygon
+                points={`${x},${60 - h * 0.55} ${x + 2.5},${60 - h * 0.55 - 8} ${x + 5},${60 - h * 0.55}`}
+              />
+            )}
+            {top === 2 && <circle cx={x + 2.5} cy={60 - h * 0.55 - 3} r={3} />}
+          </g>
+        ))}
+      </svg>
+      <p className="scene-built">Ravenmoor · 930 buildings · built in 0.2 s</p>
+    </div>
+  );
+}
+
+/** Eye level between the buildings, with the day's walks below. */
+function StreetScene() {
+  const day = [
+    ["8:00", "Coffee"],
+    ["12:30", "Lunch outside"],
+    ["5:30", "Library"],
+    ["6:15", "Home"],
+  ];
+  return (
+    <div className="scene scene-street">
+      <svg viewBox="0 0 100 62" preserveAspectRatio="none" aria-hidden>
+        <polygon className="street-ground" points="0,62 100,62 56,30 44,30" />
+        <polygon className="street-left" points="0,0 40,24 40,32 0,56" />
+        <polygon className="street-right" points="100,0 60,24 60,32 100,56" />
+        <polygon className="street-shade" points="44,30 56,30 70,46 30,46" />
+        <circle className="street-walker" cx={50} cy={50} r={2.2} />
+      </svg>
+      <ol className="scene-day">
+        {day.map(([t, what], i) => (
+          <li key={t} style={{ ["--i" as string]: i }}>
+            <b>{t}</b> {what}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 /** Street colours from cool (shade) to hot (sun), as in the app. */
 const RAMP = ["#4f8a9c", "#6f9b5f", "#d9b142", "#d7772d", "#b13a2b"];
@@ -219,6 +291,10 @@ export default function FeatureScene({ tone }: { tone: SceneTone }) {
       return <AskScene />;
     case "trees":
       return <TreesScene />;
+    case "generate":
+      return <GenerateScene />;
+    case "street":
+      return <StreetScene />;
     case "alert":
       return <AlertScene />;
   }

@@ -9,6 +9,7 @@ import {
   Navigation,
   Route,
   Sparkles,
+  Footprints,
   Thermometer,
   Trees,
   Languages,
@@ -450,6 +451,18 @@ const FEATURES = [
     title: "A heat map you can touch",
     text: "Tap any street to see how it feels in sun and shade, when it peaks, and compare it with another place.",
     tone: "heat",
+  },
+  {
+    icon: Sparkles,
+    title: "Describe any city. Walk it a minute later.",
+    text: "A rain-soaked noir metropolis, a desert souk, your hometown in a heatwave. Meta's Muse Spark plans the districts and landmarks, Walk-Free builds every street and drops you in the middle, with weather you control.",
+    tone: "generate",
+  },
+  {
+    icon: Footprints,
+    title: "Live a day there, at street level",
+    text: "Coffee, class, lunch outside, home: each walk planned in shade at its own hour. Then drop to eye level and walk it under the trees, with people out on the streets around you.",
+    tone: "street",
   },
   {
     icon: Route,
