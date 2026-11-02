@@ -593,6 +593,7 @@ export default function LandingPage({
           <a href="#preview">See the heat</a>
           <a href="#how-it-works">How it works</a>
           <a href="#campuses">Campuses</a>
+          <a href="#fictional-cities">Fictional cities</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div className="public-header-actions">
