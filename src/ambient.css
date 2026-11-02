@@ -278,3 +278,31 @@ aside .fiction-switch button {
     border-color: var(--accent);
   }
 }
+
+/* After sunset: stars over the city, and daytime haze fades away. */
+.ambient-sky::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 45% 0;
+  opacity: calc(var(--night, 0) * 0.85);
+  background-image:
+    radial-gradient(1.2px 1.2px at 8% 14%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 17% 32%, #fff 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 26% 9%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 41%, #fff 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 43% 22%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 51% 6%, #fff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 59% 29%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 66% 16%, #fff 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 74% 38%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 81% 11%, #fff 50%, transparent 51%),
+    radial-gradient(1.3px 1.3px at 88% 27%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 95% 7%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 4% 44%, #fff 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 47% 47%, #fff 50%, transparent 51%);
+  transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.ambient-weather.ambient-sun,
+.ambient-weather.ambient-sparks {
+  opacity: calc(1 - var(--night, 0));
+}

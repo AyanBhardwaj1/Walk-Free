@@ -113,3 +113,45 @@ export function isDarkSky(hex: string) {
   const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 110;
 }
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+function mix(a: string, b: string, t: number) {
+  const k = clamp01(t);
+  const pa = parseInt(a.slice(1), 16),
+    pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) =>
+    Math.round(((pa >> shift) & 255) * (1 - k) + ((pb >> shift) & 255) * k);
+  return (
+    "#" +
+    ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)
+  );
+}
+
+/**
+ * A fictional city's sky at a given sun height (the y of the unit sun
+ * vector): golden toward the horizon, deep blue after sunset. Night-life
+ * cities stay dark but lift a little by day. `night` is 0 by day and 1 once
+ * the sun is well down.
+ */
+export function skyAt(
+  ambient: FictionAmbient,
+  sunY: number,
+): FictionAmbient & { nightness: number } {
+  const nightness = clamp01((0.06 - sunY) / 0.14);
+  const dusk = clamp01(1 - Math.abs(sunY - 0.04) / 0.14);
+  let [top, bottom] = ambient.sky;
+  let fog = ambient.fog;
+  if (ambient.night) {
+    const day = (1 - nightness) * 0.3;
+    top = mix(top, "#6b7688", day);
+    bottom = mix(bottom, "#8a93a3", day);
+    fog = mix(fog, "#7d8696", day);
+  } else {
+    bottom = mix(bottom, "#f0955a", dusk * 0.55);
+    fog = mix(fog, "#d9a27a", dusk * 0.35);
+    top = mix(top, "#0b1226", nightness * 0.9);
+    bottom = mix(bottom, "#27324f", nightness * 0.85);
+    fog = mix(fog, "#1d2436", nightness * 0.8);
+  }
+  return { ...ambient, sky: [top, bottom], fog, nightness };
+}

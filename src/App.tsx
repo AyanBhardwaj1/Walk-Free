@@ -99,7 +99,7 @@ import { spokenShadeHint, sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
 import { createStudyWorld } from "./lib/study";
 import { FICTION_CITIES, createFictionCity } from "./lib/fiction-cities";
-import { isDarkSky } from "./lib/fiction-catalog";
+import { isDarkSky, skyAt } from "./lib/fiction-catalog";
 import { rememberPlace } from "./lib/last-place";
 import AmbientBackdrop from "./components/AmbientBackdrop";
 import {
@@ -647,6 +647,15 @@ export default function App({
     heatEnv.weatherMode === "forecast" && forecast
       ? forecast
       : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+  // A fictional city's sky follows the sun: golden at dusk, dark at night.
+  // Rounded so dragging the time slider doesn't redraw for every minute.
+  const sunY = fiction
+    ? Math.round(sunDirection(env, world.origin).y * 60) / 60
+    : 0;
+  const sky = useMemo(
+    () => (fiction ? skyAt(fiction.ambient, sunY) : null),
+    [fiction, sunY],
+  );
   // The fictional sky only shows behind the 3D scene.
   const onSky =
     fiction && !atlas && !(view === "2d" && mode === "explore")
@@ -1578,9 +1587,9 @@ export default function App({
       if (!ctx) return;
       if (fiction) {
         const g = ctx.createLinearGradient(0, 0, 0, c.height);
-        g.addColorStop(0, fiction.ambient.sky[0]);
-        g.addColorStop(0.62, fiction.ambient.sky[1]);
-        g.addColorStop(1, fiction.ambient.fog);
+        g.addColorStop(0, sky?.sky[0] ?? fiction.ambient.sky[0]);
+        g.addColorStop(0.62, sky?.sky[1] ?? fiction.ambient.sky[1]);
+        g.addColorStop(1, sky?.fog ?? fiction.ambient.fog);
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, c.width, c.height);
       }
@@ -2837,7 +2846,10 @@ export default function App({
             ) : (
               <>
                 {fiction && (
-                  <AmbientBackdrop ambient={fiction.ambient} layer="sky" />
+                  <AmbientBackdrop
+                    ambient={sky ?? fiction.ambient}
+                    layer="sky"
+                  />
                 )}
                 <WorldCanvas
                   key={world.id}
@@ -2859,7 +2871,7 @@ export default function App({
                   heat={heatOverlay}
                   insets={mapInsets}
                   theme={theme}
-                  ambient={fiction?.ambient}
+                  ambient={sky}
                   onCaptureReady={setCapture}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
@@ -2868,7 +2880,10 @@ export default function App({
                   }
                 />
                 {fiction && (
-                  <AmbientBackdrop ambient={fiction.ambient} layer="weather" />
+                  <AmbientBackdrop
+                    ambient={sky ?? fiction.ambient}
+                    layer="weather"
+                  />
                 )}
               </>
             )}
@@ -2916,7 +2931,7 @@ export default function App({
               </button>
             )}
             <div
-              className={`map-heading${onSky ? (isDarkSky(onSky.ambient.sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
+              className={`map-heading${onSky ? (isDarkSky((sky ?? onSky.ambient).sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
               hidden={
                 panelOpen ||
                 (!atlas &&

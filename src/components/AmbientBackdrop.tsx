@@ -12,6 +12,8 @@ export interface Ambient {
   particles: "rain" | "sun" | "sparks" | "aurora" | "mist";
   /** A city that lives after dark. */
   night: boolean;
+  /** 0 by day to 1 after sunset, when the sky follows the clock. */
+  nightness?: number;
 }
 
 /** Deterministic pseudo-random spread, so renders don't shuffle. */
@@ -60,6 +62,9 @@ export default function AmbientBackdrop({
     ["--sky-bottom" as string]: ambient.sky[1],
     ["--fog" as string]: ambient.fog,
     ["--accent" as string]: ambient.accent,
+    ["--night" as string]: (
+      ambient.nightness ?? (ambient.night ? 1 : 0)
+    ).toFixed(2),
   };
   if (layer === "sky")
     return (
