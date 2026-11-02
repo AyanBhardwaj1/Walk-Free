@@ -2,25 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUpRight,
-  Footprints,
   KeyRound,
   Map as MapIcon,
   MapPin,
   MessageCircle,
-  Moon,
   Navigation,
   Route,
   Sparkles,
-  Sun,
   Thermometer,
   Trees,
-  Accessibility,
-  Snowflake,
   Languages,
   Boxes,
   AlertTriangle,
 } from "lucide-react";
 import FictionGallery from "./FictionGallery";
+import FeatureScene from "./FeatureScene";
 
 export function Brand() {
   return (
@@ -435,18 +431,9 @@ const FEATURES = [
     icon: AlertTriangle,
     title: "Knows when the day turns dangerous",
     text: "Live air quality, National Weather Service heat alerts and the week's HeatRisk change the advice, and the walking view tells you how far it is to the next shade.",
-    tone: "heat",
+    tone: "alert",
   },
-];
-
-const ROUTE_TYPES = [
-  { icon: Footprints, label: "Quickest" },
-  { icon: Sun, label: "More shade" },
-  { icon: Trees, label: "Scenic" },
-  { icon: Snowflake, label: "Cool stops" },
-  { icon: Accessibility, label: "Step-free" },
-  { icon: Moon, label: "Lit at night" },
-];
+] as const;
 
 const CHAT = [
   {
@@ -696,17 +683,7 @@ export default function LandingPage({
                 className={`feature-visual tone-${f.tone}`}
                 aria-hidden="true"
               >
-                <f.icon size={46} strokeWidth={1.2} aria-hidden />
-                {f.tone === "routes" && (
-                  <div className="feature-chips">
-                    {ROUTE_TYPES.map((r) => (
-                      <span key={r.label}>
-                        <r.icon size={14} /> {r.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {f.tone === "heat" && <div className="feature-ramp" />}
+                <FeatureScene tone={f.tone} />
               </div>
               <div className="feature-copy">
                 <h3>{f.title}</h3>
