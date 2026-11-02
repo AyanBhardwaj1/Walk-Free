@@ -166,13 +166,51 @@ function heightFor(
   if (!tree && Number.isFinite(levels) && levels > 0 && levels <= 200)
     return { height: levels * 3.2, heightMethod: "levels" };
   return {
-    height: tree
-      ? 9
-      : tags.building === "garage" || tags.building === "shed"
-        ? 3
-        : 10,
+    height: tree ? 9 : typicalHeight(tags.building),
     heightMethod: "estimated",
   };
+}
+/**
+ * A typical height for an unmapped building of this type, in metres, so a
+ * house doesn't cast a 10 m shadow and an office block isn't a bungalow.
+ */
+const TYPICAL_HEIGHT: Record<string, number> = {
+  garage: 3,
+  garages: 3,
+  shed: 3,
+  hut: 3,
+  carport: 3,
+  roof: 4,
+  kiosk: 3,
+  house: 7,
+  detached: 7,
+  semidetached_house: 7,
+  bungalow: 5,
+  terrace: 8,
+  residential: 9,
+  retail: 6,
+  supermarket: 7,
+  industrial: 8,
+  warehouse: 9,
+  apartments: 14,
+  dormitory: 14,
+  hotel: 18,
+  commercial: 14,
+  office: 16,
+  university: 13,
+  college: 13,
+  school: 9,
+  public: 12,
+  civic: 12,
+  government: 14,
+  church: 16,
+  cathedral: 30,
+  hospital: 20,
+  stadium: 20,
+  parking: 10,
+};
+export function typicalHeight(building?: string) {
+  return TYPICAL_HEIGHT[building ?? ""] ?? 10;
 }
 function finiteGeometry(element: OsmElement): { lat: number; lon: number }[] {
   return (
@@ -537,7 +575,7 @@ export function parseOsmWorld(
     );
   const notes = [
     "OpenStreetMap coverage varies. Unmapped trees and paths are not inferred.",
-    "Building heights use mapped values, levels × 3.2 m, then explicit 10 m estimates (3 m for sheds/garages). Tree heights default to an estimated 9 m; unmapped crown diameters are estimated.",
+    "Building heights use mapped values, then levels × 3.2 m, then a typical height for the building type (for example 7 m for a house, 14 m for apartments, 10 m when the type is unknown). Tree heights default to an estimated 9 m; unmapped crown diameters are estimated.",
     "Walking topology uses shared OSM node IDs, not line intersections. Public access tags are respected; unverified indoor corridors are excluded.",
     "Accessibility reflects mapped tags only; an untagged path is not a verified accessible route.",
     "Terrain is flat unless edited. Building elevations and canopy density are not measured; shade results are estimates.",

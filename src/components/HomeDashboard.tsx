@@ -154,7 +154,7 @@ export default function HomeDashboard({
 
         <section className="home-section" aria-labelledby="home-campuses">
           <div className="home-section-head">
-            <h2 id="home-campuses">Campuses, ready instantly</h2>
+            <h2 id="home-campuses">Ready instantly</h2>
             <p>Every building and path, with live weather and heat.</p>
           </div>
           <ul className="home-grid">
@@ -163,12 +163,13 @@ export default function HomeDashboard({
               return (
                 <li
                   key={a.slug}
-                  className="home-card home-rise"
+                  className={`home-card home-rise${a.kind === "city" ? " wide" : ""}`}
                   style={{ ["--d" as string]: 3 + i }}
                 >
                   <a href={`/app?area=${a.slug}`}>
                     <span className="home-card-kicker">
-                      <MapIcon size={14} aria-hidden /> Campus
+                      <MapIcon size={14} aria-hidden />{" "}
+                      {a.kind === "city" ? "City district" : "Campus"}
                     </span>
                     <strong>{a.name.replace(/, [A-Z]{2}$/, "")}</strong>
                     {s ? (
@@ -177,7 +178,11 @@ export default function HomeDashboard({
                         {s.hottest.name}, {s.hottest.feels_f}°F
                       </span>
                     ) : (
-                      <span className="home-card-stat">Open the 3D map</span>
+                      <span className="home-card-stat">
+                        {a.kind === "city"
+                          ? "Real streets and towers from OpenStreetMap, in 3D"
+                          : "Open the 3D map"}
+                      </span>
                     )}
                     {s?.shade_route && (
                       <span className="home-card-bar" aria-hidden>

@@ -150,6 +150,18 @@ export default function Website() {
           Opening your home…
         </div>
       );
+    // A failed session check is not the same as being signed out.
+    if (error)
+      return (
+        <div className="public-site public-loading">
+          <div>
+            <p role="alert">{error}</p>
+            <a className="landing-button" href="/home">
+              Try again
+            </a>
+          </div>
+        </div>
+      );
     if (!user) {
       window.location.replace("/login");
       return null;

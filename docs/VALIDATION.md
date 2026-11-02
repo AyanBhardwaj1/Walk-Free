@@ -166,3 +166,27 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - Brand-style rules (gradients, ivory palette, italic accents) are kept by design.
 - **Totals.** `npm test` 352 pass; lint and build clean. Coverage of tonight's new modules is 92.5%; `units.ts` was raised from 57%.
 - **Reviews.** Same-family independent reviewers (provisional): perf/retry 7/10 and the silent-failure pass, with findings fixed. The earlier security review of the night's work scored 8/10, "ready".
+
+## Home dashboard, fictional cities, 3D lighting, motion — 2026-11-02
+
+- **Home dashboard** at `/home`; signing in lands there. Checked in the browser with a mocked session at 1440 and 390 px: no page errors and no horizontal overflow.
+- **Fictional cities.** The generator has its own test file (40 tests):
+  - Determinism, generation under 400 ms, one connected walking graph, and no building touching a walking edge.
+  - Routing, `placeHeat` and destination search all work in every city.
+  - Measured locally: 325–594 buildings and 191–654 graph nodes per city, generated in 37–129 ms.
+  - All five render with their ambient layer and no page errors (software WebGL, 1440 px).
+  - The city search matcher and the sky-contrast helper are unit-tested.
+- **3D:**
+  - Soft shadows, fog, warm low sun, moonlight and emissive windows, plus a horizon ground.
+  - Rendered UT Austin at 3 PM, 6:30 PM and 9 PM, and all five fictional cities, with no errors.
+- **Motion:**
+  - Landing hero choreography, count-ups, and drawn feature-tour scenes that play on scroll.
+  - Product UI entrances and presses.
+  - Reduced motion shows final states. The animate verifier reported no `scale(0)`, no `transition: all` and no reduced-motion loops.
+- **Fixes:**
+  - Count-up numbers rendered at the band's small label size.
+  - The hero heat map spilled into the number band.
+  - The map heading was unreadable over dark fictional skies.
+- **Midtown Manhattan.** Added as a prebuilt city area. The first Overpass build timed out, so it was retried with a smaller 1.3 km square. Until its file exists, opening it falls back to a live build.
+- **Totals.** `npm test` 396 pass; lint and build clean. PR #27 is merged, and the production probe passed on the merge commit.
+

@@ -22,6 +22,8 @@ Extreme heat is the deadliest weather in the US. Students and city walkers have 
 - **Heat brief:** a one-page summary of an area's hottest and coolest walks, its trees and how much shade routing helps, for planners.
 - **Works for everyone:** replies in your language (and read aloud in a matching voice), °F or °C, keyboard shortcuts, WCAG AA contrast, and installable as an app that opens offline.
 - **Four interface styles,** including a high-contrast Sunlight mode for outdoor glare.
+- **Five fictional cities to explore,** each in its own weather: rain-dark Noir Harbor, sunlit Skyline Prime, breezy Velocity Bay, golden Aurora Realm under the aurora, and Neon District at night. They are generated, fully walkable, and show how street shape changes shade.
+- **A home dashboard** for signed-in people, with campuses, saved walks and tools in one place.
 - **Share links** that reopen the exact walk, saved walks, and keyboard shortcuts.
 
 ## How it uses Meta AI

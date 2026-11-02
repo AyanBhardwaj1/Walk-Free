@@ -223,3 +223,58 @@
     display: none;
   }
 }
+
+/* Hop between fictional cities from the panel. */
+aside .fiction-switch {
+  flex: none;
+  height: auto;
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 10px 0 12px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+aside .fiction-switch button {
+  flex: none;
+  width: auto;
+  height: 32px;
+  min-height: 0;
+  justify-content: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px 6px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line-dedfd0, #dedfd0);
+  background: var(--c-bg-faf9f0, #faf9f0);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    transform 0.16s cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fiction-switch button:active {
+  transform: scale(0.97);
+}
+.fiction-switch button[aria-current="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  font-weight: 600;
+}
+.fiction-switch i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 70% 30%, var(--accent) 0 18%, transparent 19%),
+    linear-gradient(to bottom, var(--sky-top), var(--sky-bottom));
+}
+@media (hover: hover) and (pointer: fine) {
+  .fiction-switch button:hover {
+    border-color: var(--accent);
+  }
+}

@@ -88,7 +88,7 @@ import {
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations } from "./lib/assistant-tools";
 import PlaceField from "./components/PlaceField";
-import OmniSearch from "./components/OmniSearch";
+import OmniSearch, { matchFiction } from "./components/OmniSearch";
 import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
 import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
@@ -204,6 +204,22 @@ const MOOD_WEATHER = {
   aurora: { temperatureC: 15, humidity: 60, windMps: 3, cloudCover: 25 },
   mist: { temperatureC: 25, humidity: 82, windMps: 1, cloudCover: 55 },
 } as const;
+/** A fictional city's own weather, at its evening or afternoon hour. */
+function moodEnv(
+  previous: Environment,
+  meta: (typeof FICTION_CITIES)[number],
+): Environment {
+  return {
+    ...previous,
+    ...MOOD_WEATHER[meta.ambient.particles],
+    dateTime: atLocalHour(
+      new Date().toISOString(),
+      meta.timezone,
+      meta.ambient.night ? 21 : 15,
+    ),
+    weatherMode: "scenario",
+  };
+}
 /** Query parameters a shared walk link uses (lib/walk-links.ts). */
 const WALK_LINK_PARAMS = [
   "fiction",
@@ -624,6 +640,11 @@ export default function App({
     heatEnv.weatherMode === "forecast" && forecast
       ? forecast
       : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+  // The fictional sky only shows behind the 3D scene.
+  const onSky =
+    fiction && !atlas && !(view === "2d" && mode === "explore")
+      ? fiction
+      : null;
   const mapCredit = atlas
     ? "© OpenFreeMap · OpenMapTiles · OpenStreetMap contributors"
     : world.provenance.live
@@ -924,6 +945,10 @@ export default function App({
       setComparePlaceId(null);
     },
     async buildArea(query) {
+      // A fictional city opens at once, and stays in the conversation.
+      const fictional = matchFiction(query);
+      if (fictional.length === 1 && openFiction(fictional[0].slug, true))
+        return `Opened ${fictional[0].name}, a fictional city: ${fictional[0].mood} Its heat numbers are illustrations.`;
       const city = await lookUpPlace(query);
       if (!city) return `No city or campus matching "${query}" was found.`;
       const built = await loadCity(city, true, 1000);
@@ -1074,9 +1099,13 @@ export default function App({
         }
         const data = parsed.data;
         // Never replace an area the person built while this was loading.
-        setWorld((current) =>
-          current === firstWorld.current ? data : current,
+        if (worldRef.current !== firstWorld.current) return;
+        setWorld(data);
+        // A saved fictional city comes back in its own weather and hour.
+        const meta = FICTION_CITIES.find(
+          (c) => `fiction-${c.slug}` === data.id,
         );
+        if (meta) setEnv((previous) => moodEnv(previous, meta));
       })
       .catch(() => {
         // Reading failed: don't overwrite what might still be there.
@@ -1183,7 +1212,7 @@ export default function App({
     });
   }
   /** Open one of the generated fictional cities, dressed for its mood. */
-  function openFiction(slug: string) {
+  function openFiction(slug: string, fromAssistant = false) {
     const meta = FICTION_CITIES.find((c) => c.slug === slug);
     const w = meta && createFictionCity(slug);
     if (!meta || !w) return false;
@@ -1201,22 +1230,13 @@ export default function App({
     setEnd(to);
     setHypothetical(false);
     setMode("explore");
-    setTab("route");
+    if (!fromAssistant) setTab("route");
     setPicking(null);
     setTrees(true);
     setBuildings(true);
     setShowPaths(true);
     setForecast(null);
-    setEnv((previous) => ({
-      ...previous,
-      ...MOOD_WEATHER[meta.ambient.particles],
-      dateTime: atLocalHour(
-        new Date().toISOString(),
-        w.timezone,
-        meta.ambient.night ? 21 : 15,
-      ),
-      weatherMode: "scenario",
-    }));
+    setEnv((previous) => moodEnv(previous, meta));
     flash(
       `Welcome to ${meta.name}, a fictional city. ${meta.tagline} Shade and heat here are illustrations.`,
     );
@@ -1782,6 +1802,29 @@ export default function App({
               }
               onFiction={openFiction}
             />
+            {fiction && !atlas && (
+              <nav className="fiction-switch" aria-label="Fictional cities">
+                {FICTION_CITIES.map((c) => (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    aria-current={c.slug === fiction.slug ? "true" : undefined}
+                    title={c.tagline}
+                    style={{
+                      ["--sky-top" as string]: c.ambient.sky[0],
+                      ["--sky-bottom" as string]: c.ambient.sky[1],
+                      ["--accent" as string]: c.ambient.accent,
+                    }}
+                    onClick={() =>
+                      c.slug !== fiction.slug && openFiction(c.slug)
+                    }
+                  >
+                    <i aria-hidden />
+                    {c.name}
+                  </button>
+                ))}
+              </nav>
+            )}
             {!atlas && (
               // The tabs inside take focus; per WAI-ARIA the list itself doesn't.
               // eslint-disable-next-line jsx-a11y/interactive-supports-focus
@@ -2805,7 +2848,7 @@ export default function App({
               </button>
             )}
             <div
-              className={`map-heading${fiction ? (isDarkSky(fiction.ambient.sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
+              className={`map-heading${onSky ? (isDarkSky(onSky.ambient.sky[0]) ? " on-sky on-dark" : " on-sky") : ""}`}
               hidden={
                 panelOpen ||
                 (!atlas &&
@@ -2815,11 +2858,13 @@ export default function App({
               }
             >
               <div className="eyebrow">
-                {fiction
-                  ? "A FICTIONAL CITY"
-                  : world.provenance.live
-                    ? "MAPPED NEIGHBORHOOD"
-                    : "THE WALK-FREE ATLAS / 001"}
+                {atlas
+                  ? "CITY ATLAS"
+                  : fiction
+                    ? "A FICTIONAL CITY"
+                    : world.provenance.live
+                      ? "MAPPED NEIGHBORHOOD"
+                      : "THE WALK-FREE ATLAS / 001"}
               </div>
               <h2>{atlas ? atlas.name : world.name.split(" · ")[0]}</h2>
               <span>

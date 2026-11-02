@@ -1,6 +1,6 @@
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import * as THREE from "three";
 import type {
   World,
@@ -14,6 +14,7 @@ import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
+import { partialLine, type P3 } from "../lib/polyline";
 import { sc, sceneTheme, setSceneTheme } from "../lib/scene-theme";
 import type { ThemeName } from "../lib/theme";
 import type { Ambient } from "./AmbientBackdrop";
@@ -239,9 +240,11 @@ function Roads({ world }: { world: World }) {
 function Ground({
   world,
   onClick,
+  color,
 }: {
   world: World;
   onClick: (p: Point) => void;
+  color: string;
 }) {
   const geometry = useMemo(() => {
     const t = world.terrain;
@@ -268,7 +271,38 @@ function Ground({
         onClick([e.point.x, e.point.z]);
       }}
     >
-      <meshStandardMaterial color={sc("#e5e1d5")} roughness={1} />
+      <meshStandardMaterial color={color} roughness={1} />
+    </mesh>
+  );
+}
+/**
+ * Land beyond the mapped area, out to the horizon, so the city doesn't float
+ * on a tile: it fades into the fog instead of ending at a hard edge.
+ */
+function Horizon({
+  world,
+  color,
+  reach = 9,
+}: {
+  world: World;
+  color: string;
+  /** How far the land runs, in multiples of the area's width. */
+  reach?: number;
+}) {
+  const y = useMemo(() => {
+    const h = world.terrain?.heights;
+    return (h && h.length ? Math.min(...h) : 0) - 0.6;
+  }, [world.terrain]);
+  return (
+    <mesh
+      rotation-x={-Math.PI / 2}
+      position-y={y}
+      receiveShadow
+      // Clicks beyond the map have nothing to pick.
+      raycast={() => null}
+    >
+      <circleGeometry args={[world.extent * reach, 64]} />
+      <meshStandardMaterial color={color} roughness={1} />
     </mesh>
   );
 }
@@ -347,6 +381,64 @@ function Endpoint({
     </group>
   );
 }
+/**
+ * Keeps a fictional city's haze at the same depth on screen however far the
+ * camera sits (phones frame the area from further away).
+ */
+function FogFollowsCamera() {
+  useFrame(({ scene, camera, controls }) => {
+    if (!(scene.fog instanceof THREE.Fog)) return;
+    const target =
+      (controls as unknown as { target?: THREE.Vector3 } | null)?.target ??
+      new THREE.Vector3();
+    const d = camera.position.distanceTo(target);
+    scene.fog.near = d * 0.75;
+    scene.fog.far = d * 2.8;
+  });
+  return null;
+}
+const DRAW_MS = 900;
+/** The route line, drawing itself from start to finish when it appears. */
+function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
+  const invalidate = useThree((s) => s.invalidate);
+  const [k, setK] = useState(() =>
+    typeof matchMedia !== "undefined" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 1
+      : 0,
+  );
+  useEffect(() => {
+    if (k >= 1) return;
+    const start = performance.now();
+    let frame = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / DRAW_MS);
+      setK(1 - Math.pow(1 - p, 3));
+      // The canvas draws on demand; ask for each frame of the draw.
+      invalidate();
+      if (p < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // Runs once per mounted route; k only moves forward from here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invalidate]);
+  const shown = partialLine(points, k);
+  // Over heat colours, draw the route as a dark line with a light casing so
+  // it never blends into the orange "hot" paths.
+  return overHeat ? (
+    <>
+      <Line points={shown} color={sc("#fffdf4")} lineWidth={10} />
+      <Line
+        points={shown.map(([x, y, z]) => [x, y + 0.2, z] as P3)}
+        color={sc("#1d3557")}
+        lineWidth={5}
+      />
+    </>
+  ) : (
+    <Line points={shown} color={sc("#d57b48")} lineWidth={5} />
+  );
+}
 export default function WorldCanvas({
   world,
   environment,
@@ -410,6 +502,13 @@ export default function WorldCanvas({
     new THREE.Color("#ffb46b"),
     Math.min(1, Math.max(0, 1 - sun.y / 0.35)),
   );
+  // Fictional cities tint the land toward their own haze.
+  const ground = ambient
+    ? "#" +
+      new THREE.Color(sc("#e5e1d5"))
+        .lerp(new THREE.Color(ambient.fog), 0.55)
+        .getHexString()
+    : sc("#e5e1d5");
   const extent = world.extent;
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
@@ -419,11 +518,20 @@ export default function WorldCanvas({
         ? world.objects.filter(
             (o) =>
               o.kind !== "tree" &&
-              (o.source === "osm" || o.source === "study") &&
+              (o.source === "osm" ||
+                // Generated towers and landmarks keep their own shapes.
+                (o.source === "study" &&
+                  o.kind !== "tower" &&
+                  o.kind !== "landmark")) &&
               o.id !== selectedId,
           )
         : null,
     [world.objects, selectedId],
+  );
+  // Whatever is merged is drawn once, never again on its own.
+  const mergedIds = useMemo(
+    () => new Set(merged?.map((o) => o.id) ?? []),
+    [merged],
   );
   return (
     <Canvas
@@ -448,6 +556,7 @@ export default function WorldCanvas({
       {!ambient && <color attach="background" args={[sky]} />}
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
+      {ambient && <FogFollowsCamera />}
       <fog
         attach="fog"
         args={[
@@ -493,7 +602,9 @@ export default function WorldCanvas({
         shadow-camera-far={extent * 4}
         shadow-bias={-0.0002}
       />
-      <Ground world={world} onClick={onGroundClick} />
+      <Ground world={world} onClick={onGroundClick} color={ground} />
+      {/* A fictional city's land melts into its painted sky sooner. */}
+      <Horizon world={world} color={ground} reach={ambient ? 2.4 : 9} />
       {world.landscapes.map((l) => (
         <Area
           key={l.id}
@@ -545,11 +656,7 @@ export default function WorldCanvas({
         )}
         {showBuildings &&
           world.objects
-            .filter(
-              (o) =>
-                o.kind !== "tree" &&
-                (!merged || o.source !== "osm" || o.id === selectedId),
-            )
+            .filter((o) => o.kind !== "tree" && !mergedIds.has(o.id))
             .map((o) => (
               <Building
                 key={o.id}
@@ -575,41 +682,18 @@ export default function WorldCanvas({
           />
         )}
       </group>
-      {route &&
-        (heat ? (
-          // Over heat colours, draw the route as a dark line with a light
-          // casing so it never blends into the orange "hot" paths.
-          <>
-            <Line
-              points={route.points.map((p) => [
-                p[0],
-                terrainHeight(p, world.terrain) + 3,
-                p[1],
-              ])}
-              color={sc("#fffdf4")}
-              lineWidth={10}
-            />
-            <Line
-              points={route.points.map((p) => [
-                p[0],
-                terrainHeight(p, world.terrain) + 3.2,
-                p[1],
-              ])}
-              color={sc("#1d3557")}
-              lineWidth={5}
-            />
-          </>
-        ) : (
-          <Line
-            points={route.points.map((p) => [
-              p[0],
-              terrainHeight(p, world.terrain) + 3,
-              p[1],
-            ])}
-            color={sc("#d57b48")}
-            lineWidth={5}
-          />
-        ))}
+      {route && (
+        <RouteDraw
+          // A new route draws itself in; the same route doesn't replay.
+          key={route.points.map((p) => p.join(",")).join(";")}
+          points={route.points.map((p) => [
+            p[0],
+            terrainHeight(p, world.terrain) + 3,
+            p[1],
+          ])}
+          overHeat={!!heat}
+        />
+      )}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
       )}

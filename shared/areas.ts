@@ -12,6 +12,10 @@ export interface PrebuiltArea {
   radius: number;
   /** A recognizable first walk shown after the area opens. */
   walk?: { from: string; to: string };
+  /** Campuses by default; a city district is listed on its own. */
+  kind?: "campus" | "city";
+  /** Overpass tiles per side when building (default 2). */
+  tiles?: number;
 }
 
 export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
@@ -63,7 +67,23 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     radius: 1000,
     walk: { from: "Hayden Library", to: "Memorial Union" },
   },
+  {
+    slug: "midtown-manhattan",
+    name: "Midtown Manhattan, NY",
+    lat: 40.7536,
+    lon: -73.9832,
+    // Dense: a smaller square keeps the Overpass tiles within time limits.
+    radius: 650,
+    walk: { from: "Grand Central Terminal", to: "Empire State Building" },
+    kind: "city",
+    tiles: 3,
+  },
 ];
+
+/** The shipped campuses, without city districts. */
+export const PREBUILT_CAMPUSES = PREBUILT_AREAS.filter(
+  (a) => (a.kind ?? "campus") === "campus",
+);
 
 /** How far a chosen center may drift from a hero center and still use it. */
 const MATCH_DISTANCE_M = 350;
