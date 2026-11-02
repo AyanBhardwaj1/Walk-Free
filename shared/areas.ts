@@ -74,7 +74,8 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     lon: -73.9832,
     // Dense: a smaller square keeps the Overpass tiles within time limits.
     radius: 650,
-    walk: { from: "Grand Central Terminal", to: "Empire State Building" },
+    // Both ends sit well inside the square, on one connected network.
+    walk: { from: "Times Square Tower", to: "Chrysler Building" },
     kind: "city",
     tiles: 3,
   },
