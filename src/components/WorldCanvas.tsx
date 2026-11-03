@@ -735,7 +735,19 @@ function StreetWalk({
 }
 const DRAW_MS = 900;
 /** The route line, drawing itself from start to finish when it appears. */
-function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
+/** Route colours: full sun to full shade, matching the heat legend's ends. */
+const ROUTE_SUN = new THREE.Color("#d7772d"),
+  ROUTE_SHADE = new THREE.Color("#2f6577");
+function RouteDraw({
+  points,
+  overHeat,
+  shade,
+}: {
+  points: P3[];
+  overHeat: boolean;
+  /** Shade (0–1) at each point, to colour the route by sun and shade. */
+  shade?: number[];
+}) {
   const invalidate = useThree((s) => s.invalidate);
   const [k, setK] = useState(() =>
     typeof matchMedia !== "undefined" &&
@@ -760,6 +772,20 @@ function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidate]);
   const shown = partialLine(points, k);
+  const colors = useMemo(
+    () =>
+      shade && shade.length === points.length
+        ? shade.map((v) =>
+            new THREE.Color(sc("#" + ROUTE_SUN.getHexString())).lerp(
+              new THREE.Color(sc("#" + ROUTE_SHADE.getHexString())),
+              Math.min(1, Math.max(0, v)),
+            ),
+          )
+        : null,
+    // Drawn in the scene's colours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shade, points.length, sceneTheme()],
+  );
   // Drawn over the scene like a map overlay: under tree crowns and past
   // buildings it would break into dashes. Over heat colours it is a dark
   // line with a light casing, so it never blends into the hot paths.
@@ -775,8 +801,10 @@ function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
       />
       <Line
         points={shown}
-        color={sc("#1d3557")}
-        lineWidth={6}
+        {...(colors
+          ? { color: "#ffffff", vertexColors: colors.slice(0, shown.length) }
+          : { color: sc("#1d3557") })}
+        lineWidth={colors ? 7 : 6}
         {...overlay}
         renderOrder={21}
       />
@@ -828,6 +856,7 @@ export default function WorldCanvas({
   focusOn,
   cameraApi,
   onBearing,
+  routeShade,
 }: {
   world: World;
   environment: Environment;
@@ -857,6 +886,8 @@ export default function WorldCanvas({
   /** Walk this route at street level (null when not walking). */
   walkthrough?: Point[] | null;
   onWalkthroughDone?: () => void;
+  /** Shade (0–1) at each route point, to colour the route by sun. */
+  routeShade?: number[];
   /** Filled with the camera moves the on-screen map controls call. */
   cameraApi?: RefObject<MapCamera | null>;
   /** The compass bearing the camera faces, in whole degrees. */
@@ -1124,6 +1155,7 @@ export default function WorldCanvas({
             p[1],
           ])}
           overHeat={!!heat}
+          shade={routeShade}
         />
       )}
       {!walkthrough &&

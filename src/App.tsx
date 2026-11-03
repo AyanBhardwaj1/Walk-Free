@@ -88,6 +88,7 @@ import {
   localHour,
   placeHeat,
   relativeHeatColor,
+  heatRamp,
   weatherAt,
   scenarioAt,
   areaHeat,
@@ -894,6 +895,14 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
   const currentHour = localHour(env.dateTime, world.timezone);
+  /** Shade at each point of the route (as RouteResult.points), by edge. */
+  const routeShade = useMemo(() => {
+    if (!currentRoute || !edgeHeat) return undefined;
+    return currentRoute.edges.flatMap((e, i) => {
+      const shade = edgeHeat.get(baseEdgeId(e.id))?.shade ?? 0.5;
+      return (i ? e.points.slice(1) : e.points).map(() => shade);
+    });
+  }, [currentRoute, edgeHeat]);
   /** Heat of the next ~150 m of the route, for the walking banner. */
   const nextStretch = useMemo(() => {
     if (!currentRoute || !edgeHeat) return null;
@@ -3528,6 +3537,7 @@ export default function App({
                   focusOn={focusOn?.length ? focusOn : undefined}
                   cameraApi={cameraApi}
                   onBearing={setBearing}
+                  routeShade={routeShade}
                   pickingEndpoint={!!picking}
                   showWalkingPaths={showPaths && mode === "explore"}
                   locationPoint={userPosition || undefined}
@@ -3928,6 +3938,33 @@ export default function App({
                     <Download size={19} />
                   </button>
                 </div>
+                {view === "3d" &&
+                  !walking &&
+                  heatOverlay &&
+                  mode === "explore" &&
+                  !tourOpen &&
+                  edgeHeat && (
+                    <div className="map-legend" aria-hidden>
+                      <span>
+                        <i
+                          style={{
+                            background: `linear-gradient(90deg, ${heatRamp(
+                              edgeHeat.values().next().value ?? {
+                                sunFeelsC: 40,
+                              },
+                            ).join(", ")})`,
+                          }}
+                        />
+                        Paths: shaded → full sun
+                      </span>
+                      {currentRoute && (
+                        <span>
+                          <i className="map-legend-route" />
+                          Your walk: in shade → in sun
+                        </span>
+                      )}
+                    </div>
+                  )}
                 {view === "3d" && !walking && (
                   <div
                     className="map-nav"
