@@ -4,6 +4,7 @@ export const THEME_COLORS = [
   "bg-17241bb3",
   "bg-22301f",
   "bg-24382b",
+  "bg-293a2b",
   "bg-2f4a33",
   "bg-354c30",
   "bg-3f5938",

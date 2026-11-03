@@ -710,6 +710,27 @@ aside.collapsed ~ .viewport .map-heading {
 .timeline input {
   margin: 19px 0 11px;
 }
+/* This walk's feel by hour, under the slider; the mark is the best hour. */
+.timeline-heat {
+  position: relative;
+  height: 5px;
+  margin: -6px 0 6px;
+  border-radius: 3px;
+  background: var(--c-bg-e7eadc, #e7eadc);
+}
+.timeline-heat i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.timeline-heat b {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 13px;
+  margin-left: -1px;
+  background: var(--c-bg-293a2b, #293a2b);
+}
 .timeline-labels {
   display: flex;
   justify-content: space-between;

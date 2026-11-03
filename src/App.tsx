@@ -90,6 +90,8 @@ import {
   placeHeat,
   relativeHeatColor,
   heatRamp,
+  HEAT_LEVELS,
+  heatLevel,
   weatherAt,
   scenarioAt,
   areaHeat,
@@ -4133,6 +4135,30 @@ export default function App({
                     setLocalHour(+e.target.value);
                   }}
                 />
+                {bestTime && bestTime.dayOffset === 0 && (
+                  <div
+                    className="timeline-heat"
+                    title="How this walk feels at each hour; the mark is the coolest time still ahead"
+                    aria-hidden
+                  >
+                    {bestTime.hours.map((h) => (
+                      <i
+                        key={h.hour}
+                        style={{
+                          left: `${(h.hour / 23.75) * 100}%`,
+                          width: `${100 / 23.75}%`,
+                          background:
+                            HEAT_LEVELS[heatLevel(h.feelsLikeC)].color,
+                        }}
+                      />
+                    ))}
+                    <b
+                      style={{
+                        left: `${((bestTime.best.hour + 0.5) / 23.75) * 100}%`,
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="timeline-labels">
                   {[0, 6, 12, 18, 23.75].map((h) => (
                     <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
