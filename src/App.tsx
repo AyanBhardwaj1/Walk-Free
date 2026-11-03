@@ -3698,7 +3698,15 @@ export default function App({
                           ? "Switch to flat walking map"
                           : "Switch to 3D view"
                       }
-                      onClick={() => setView(view === "3d" ? "2d" : "3d")}
+                      onClick={() => {
+                        // On phones the flat map needs the room the sheet takes.
+                        if (
+                          view === "3d" &&
+                          window.matchMedia("(max-width: 720px)").matches
+                        )
+                          setSheet(0);
+                        setView(view === "3d" ? "2d" : "3d");
+                      }}
                     >
                       {view === "3d" ? (
                         <MapIcon size={19} />

@@ -427,11 +427,13 @@ function Endpoint({
   useEffect(() => () => texture.dispose(), [texture]);
   return (
     <group position={[point[0], terrainHeight(point, terrain) + 4, point[1]]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Above the route line, which is drawn over the scene too. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={30}>
         <ringGeometry args={[5, 9, 32]} />
         <meshBasicMaterial
           color={label === "Start" ? sc("#3f5938") : sc("#b46539")}
           depthTest={false}
+          transparent
         />
       </mesh>
       {/* A constant size on screen, however close the camera frames. */}
@@ -439,7 +441,7 @@ function Endpoint({
         position={[0, 8, 0]}
         center={[0.5, 0]}
         scale={[0.05, 0.022, 1]}
-        renderOrder={10}
+        renderOrder={31}
       >
         <spriteMaterial
           sizeAttenuation={false}
@@ -625,19 +627,45 @@ function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidate]);
   const shown = partialLine(points, k);
-  // Over heat colours, draw the route as a dark line with a light casing so
-  // it never blends into the orange "hot" paths.
+  // Drawn over the scene like a map overlay: under tree crowns and past
+  // buildings it would break into dashes. Over heat colours it is a dark
+  // line with a light casing, so it never blends into the hot paths.
+  const overlay = { depthTest: false, depthWrite: false, transparent: true };
   return overHeat ? (
     <>
-      <Line points={shown} color={sc("#fffdf4")} lineWidth={10} />
       <Line
-        points={shown.map(([x, y, z]) => [x, y + 0.2, z] as P3)}
+        points={shown}
+        color={sc("#fffdf4")}
+        lineWidth={12}
+        {...overlay}
+        renderOrder={20}
+      />
+      <Line
+        points={shown}
         color={sc("#1d3557")}
-        lineWidth={5}
+        lineWidth={6}
+        {...overlay}
+        renderOrder={21}
       />
     </>
   ) : (
-    <Line points={shown} color={sc("#d57b48")} lineWidth={5} />
+    <>
+      <Line
+        points={shown}
+        color={sc("#fffdf4")}
+        lineWidth={10}
+        opacity={0.85}
+        {...overlay}
+        renderOrder={20}
+      />
+      <Line
+        points={shown}
+        color={sc("#d57b48")}
+        lineWidth={6}
+        {...overlay}
+        renderOrder={21}
+      />
+    </>
   );
 }
 export default function WorldCanvas({
@@ -956,10 +984,14 @@ export default function WorldCanvas({
             locationPoint[1],
           ]}
           rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={11}
+          renderOrder={32}
         >
           <circleGeometry args={[6, 24]} />
-          <meshBasicMaterial color={sc("#3479bf")} depthTest={false} />
+          <meshBasicMaterial
+            color={sc("#3479bf")}
+            depthTest={false}
+            transparent
+          />
         </mesh>
       )}
       <OrbitControls
