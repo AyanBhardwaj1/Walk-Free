@@ -353,7 +353,8 @@ aside .fiction-switch button {
     font-size: 30px;
   }
   /* A message takes the tour button's place until it is dismissed. */
-  main:has(.toast) .tour-launch {
+  main:has(.toast) .tour-launch,
+  main:has(.walk-banner) .tour-launch {
     display: none;
   }
 }

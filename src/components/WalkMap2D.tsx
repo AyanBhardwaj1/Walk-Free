@@ -9,7 +9,9 @@ import type { ThemeName } from "../lib/theme";
  * A flat, north-up walking map: lighter on battery than the 3D scene and
  * easy to read in sunlight. Follows the walker when a location is known.
  */
-const ZOOMS = [0.6, 1, 1.6, 2.6, 4];
+const ZOOMS = [0.2, 0.35, 0.6, 1, 1.6, 2.6, 4];
+/** Room kept above the route for the directions banner, px. */
+const bannerRoom = (width: number) => (width <= 650 ? 190 : 130);
 const PALETTE = {
   ground: "#f3f1e8",
   building: "#dcd6c6",
@@ -51,7 +53,7 @@ export default function WalkMap2D({
   setSceneTheme(theme);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [zoom, setZoom] = useState(2);
+  const [zoom, setZoom] = useState(4);
   // Without a location, frame the whole route; with one, follow the walker.
   const center = useMemo<Point>(() => {
     if (you) return you;
@@ -64,6 +66,32 @@ export default function WalkMap2D({
       (Math.min(...zs) + Math.max(...zs)) / 2,
     ];
   }, [you, route]);
+  // Fit a new route into the space left by the panels, until a location
+  // takes over; the zoom buttons still work after that.
+  const fitted = useRef("");
+  useEffect(() => {
+    const pts = route?.points ?? [];
+    if (you || pts.length < 2 || !size.width) return;
+    const key = `${route!.id}|${size.width}x${size.height}`;
+    if (fitted.current === key) return;
+    fitted.current = key;
+    const xs = pts.map((p) => p[0]),
+      zs = pts.map((p) => p[1]);
+    const spanX = Math.max(...xs) - Math.min(...xs) || 1,
+      spanZ = Math.max(...zs) - Math.min(...zs) || 1;
+    const roomX = size.width - (insets?.left ?? 0) - 80,
+      roomZ =
+        size.height -
+        Math.max(insets?.top ?? 0, bannerRoom(size.width)) -
+        (insets?.bottom ?? 0) -
+        60;
+    const fit = Math.min(roomX / spanX, roomZ / spanZ);
+    let best = 0;
+    ZOOMS.forEach((z, i) => {
+      if (z <= fit) best = i;
+    });
+    setZoom(Math.min(best, 4));
+  }, [route, you, size, insets]);
   useEffect(() => {
     const el = canvas.current?.parentElement;
     if (!el) return;
@@ -92,7 +120,11 @@ export default function WalkMap2D({
     ) as typeof PALETTE;
     const scale = ZOOMS[zoom] * dpr;
     const shiftX = ((insets?.left ?? 0) / 2) * dpr;
-    const shiftY = (((insets?.top ?? 0) - (insets?.bottom ?? 0)) / 2) * dpr;
+    const shiftY =
+      ((Math.max(insets?.top ?? 0, you ? 0 : bannerRoom(size.width)) -
+        (insets?.bottom ?? 0)) /
+        2) *
+      dpr;
     const toScreen = (p: Point): [number, number] => [
       (p[0] - center[0]) * scale + c.width / 2 + shiftX,
       (p[1] - center[1]) * scale + c.height / 2 + shiftY,
