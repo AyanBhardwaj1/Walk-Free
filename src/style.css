@@ -1380,6 +1380,50 @@ aside.collapsed ~ .viewport .map-heading {
   min-width: 58px;
   text-align: right;
 }
+/* Sun along the way: a strip from start to finish coloured by shade. */
+.route-profile {
+  margin: 12px 0 14px;
+}
+.route-profile figcaption {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+}
+.route-profile figcaption small {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+}
+.route-profile-strip {
+  height: 12px;
+  border-radius: 6px;
+  transform-origin: left;
+  animation: profile-in 0.6s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.route-profile-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--c-fg-969c86, #969c86);
+}
+@keyframes profile-in {
+  from {
+    transform: scaleX(0.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-profile-strip {
+    animation: none;
+  }
+}
 /* Route tab: the less-used settings, folded away under the routes. */
 .route-options {
   margin-top: 18px;

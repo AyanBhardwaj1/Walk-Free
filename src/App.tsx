@@ -69,6 +69,7 @@ import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
+import RouteProfile from "./components/RouteProfile";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
@@ -2836,6 +2837,12 @@ export default function App({
                           modeled shade
                         </span>
                       </div>
+                      {edgeHeat && (
+                        <RouteProfile
+                          route={currentRoute}
+                          shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
+                        />
+                      )}
                       <button
                         className="primary"
                         onClick={navigation}
