@@ -72,7 +72,10 @@ export default function WalkMap2D({
   useEffect(() => {
     const pts = route?.points ?? [];
     if (you || pts.length < 2 || !size.width) return;
-    const key = `${route!.id}|${size.width}x${size.height}|${insets?.top}/${insets?.bottom}/${insets?.left}`;
+    // The walk itself, not the result object: a new hour recomputes the
+    // route (new id) and must not undo the reader's zoom.
+    const walk = route!.edges.map((e) => e.id).join(",");
+    const key = `${walk}|${size.width}x${size.height}|${insets?.top}/${insets?.bottom}/${insets?.left}`;
     if (fitted.current === key) return;
     fitted.current = key;
     const xs = pts.map((p) => p[0]),
