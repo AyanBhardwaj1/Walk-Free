@@ -66,11 +66,15 @@ export function demoPair(host: ToolHost): [string, string] | null {
  * is called, so nothing here is generated text.
  */
 export async function runToolDemo(
-  host: ToolHost,
+  /** The app's tools; a getter reads the latest state at each step. */
+  hostOrGetter: ToolHost | (() => ToolHost),
   onTurn: (turn: DemoTurn) => void,
   signal?: AbortSignal,
   unit: TempUnit = "F",
 ) {
+  // Each step sees the map as the previous one left it (the clock it set).
+  const host = () =>
+    typeof hostOrGetter === "function" ? hostOrGetter() : hostOrGetter;
   // Tools report °F; show the person's unit.
   const t = (f: number) => formatTemp(((f - 32) * 5) / 9, unit);
   const step = async (ask: string, tool: string, args: object) => {
@@ -81,13 +85,13 @@ export async function runToolDemo(
     return {
       ask,
       tool,
-      result: await runTool(host, tool, JSON.stringify(args)),
+      result: await runTool(host(), tool, JSON.stringify(args)),
     };
   };
 
   // Every question is about 3 PM, so show 3 PM on the map first.
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  await runTool(host, "set_time", JSON.stringify({ hour: 15 })).catch(
+  await runTool(host(), "set_time", JSON.stringify({ hour: 15 })).catch(
     () => undefined,
   );
   const ranking = await step(
@@ -106,7 +110,7 @@ export async function runToolDemo(
     ...ranking,
     reply:
       hot && cool
-        ? `At ${r1.at}, ${hot.name} is the hottest walk here, about ${t(hot.feels_like_f)} with ${hot.shaded_percent}% shade. ${cool.name} is the coolest at ${t(cool.feels_like_f)}.`
+        ? `At ${(r1.at ?? "").replace(/^[A-Z][a-z]{2} /, "")}, ${hot.name} is the hottest walk here, about ${t(hot.feels_like_f)} with ${hot.shaded_percent}% shade. ${cool.name} is the coolest at ${t(cool.feels_like_f)}.`
         : (r1.error ?? "This map has no streets to rank."),
   });
 
@@ -124,7 +128,7 @@ export async function runToolDemo(
     });
   }
 
-  const pair = demoPair(host);
+  const pair = demoPair(host());
   if (pair) {
     const [a, b] = pair;
     const plan = await step(

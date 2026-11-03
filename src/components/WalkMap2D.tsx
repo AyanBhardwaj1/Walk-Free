@@ -72,7 +72,7 @@ export default function WalkMap2D({
   useEffect(() => {
     const pts = route?.points ?? [];
     if (you || pts.length < 2 || !size.width) return;
-    const key = `${route!.id}|${size.width}x${size.height}`;
+    const key = `${route!.id}|${size.width}x${size.height}|${insets?.top}/${insets?.bottom}/${insets?.left}`;
     if (fitted.current === key) return;
     fitted.current = key;
     const xs = pts.map((p) => p[0]),
@@ -84,7 +84,7 @@ export default function WalkMap2D({
         size.height -
         Math.max(insets?.top ?? 0, bannerRoom(size.width)) -
         (insets?.bottom ?? 0) -
-        60;
+        100;
     const fit = Math.min(roomX / spanX, roomZ / spanZ);
     let best = 0;
     ZOOMS.forEach((z, i) => {
@@ -176,7 +176,9 @@ export default function WalkMap2D({
     g.lineJoin = "round";
     for (const kind of ["path", "road"] as const) {
       g.strokeStyle = COLORS[kind];
-      g.lineWidth = (kind === "road" ? 7 : 3) * Math.max(1, scale * 0.6);
+      // Thinner when zoomed out, so streets don't merge into blobs.
+      g.lineWidth =
+        (kind === "road" ? 7 : 3) * Math.max(0.4 * dpr, scale * 0.6);
       g.beginPath();
       for (const r of world.roads)
         if ((r.kind === "road") === (kind === "road")) line(r.points);

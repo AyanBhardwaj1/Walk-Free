@@ -144,6 +144,8 @@ describe("route types", () => {
     const r = compareRoutes(pocket, "A", "D", options).stepfree;
     expect(ids(r)).toEqual(["ramp"]);
     expect(r?.stepFreeGap).toEqual({ start: 30, end: 0 });
+    // The 230 m ramp plus the 30 m to reach it: never quicker than it is.
+    expect(r?.distance).toBeCloseTo(260);
     // Points close together still get a walk, not an empty one.
     const near = world();
     near.graph.nodes = [

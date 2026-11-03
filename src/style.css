@@ -3559,6 +3559,11 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
 .demo-tour .text-button {
   color: var(--c-fg-f4d77d, #f4d77d);
 }
+/* During a street walk the card moves down, clear of Stop walking. */
+.demo-tour.is-low {
+  top: auto;
+  bottom: 170px;
+}
 /* A city's title card gives way to the tour while it runs. */
 main:has(.demo-tour) .map-heading {
   visibility: hidden;
@@ -3632,7 +3637,8 @@ main:has(.demo-tour) .map-heading {
   .walk-3d-stop {
     top: 62px;
   }
-  .timeline.is-walking {
+  .timeline.is-walking,
+  .timeline.is-tucked {
     display: none;
   }
   .demo-tour.is-low {
