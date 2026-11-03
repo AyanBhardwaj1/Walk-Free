@@ -2146,7 +2146,8 @@ aside.collapsed ~ .viewport .map-heading {
   }
   .app > main .walk-map-zoom {
     left: 12px !important;
-    bottom: calc(var(--sheet-height, 46dvh) + 120px);
+    /* Clear of the time-of-day card that sits on the sheet. */
+    bottom: calc(var(--sheet-height, 46dvh) + 168px);
   }
   /* With a time-of-day card, the credit moves into it (see below). */
   .app > main .map-credit.has-timeline {

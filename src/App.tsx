@@ -3540,6 +3540,8 @@ export default function App({
               <button
                 type="button"
                 className="walk-3d-stop"
+                // Centred on the visible map, beside the panel.
+                style={{ marginLeft: mapInsets.left / 2 }}
                 onClick={() => setWalk3d(null)}
               >
                 <X size={15} aria-hidden /> Stop walking

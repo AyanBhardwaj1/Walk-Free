@@ -462,6 +462,10 @@ export function compareRoutes(
   ) as Record<RoutePreference, RouteResult | null>;
 }
 
+/** Unnamed paths read as "the footpath", not as a proper name. */
+const GENERIC_PATHS = new Set(["Footpath", "Street", "Path"]);
+const pathName = (name: string) =>
+  GENERIC_PATHS.has(name) ? `the ${name.toLowerCase()}` : name;
 export function walkingDirections(edges: GraphEdge[]) {
   const directions: RouteResult["directions"] = [];
   edges.forEach((e, i) => {
@@ -496,7 +500,7 @@ export function walkingDirections(edges: GraphEdge[]) {
               : "Continue along";
     }
     directions.push({
-      text: `${instruction} ${e.name}`,
+      text: `${instruction} ${pathName(e.name)}`,
       distance: e.distance,
       point: e.points[0],
     });

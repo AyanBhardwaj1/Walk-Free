@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Environment, GraphEdge, World } from "../shared/types";
-import { compareRoutes, nightMultiplier } from "../src/lib/routing";
+import {
+  compareRoutes,
+  nightMultiplier,
+  walkingDirections,
+} from "../src/lib/routing";
 import { litValue, roadClass, steepIncline } from "../shared/osm";
 
 const env: Environment = {
@@ -247,5 +251,30 @@ describe("route types", () => {
       steepIncline("-5%"),
       steepIncline("up"),
     ]).toEqual([true, false, false]);
+  });
+});
+
+describe("walking directions", () => {
+  it("reads unnamed paths as the footpath, named ones by name", () => {
+    const steps = walkingDirections([
+      {
+        ...edge("a", "A", "B", [
+          [0, 0],
+          [0, 50],
+        ]),
+        name: "Footpath",
+      },
+      {
+        ...edge("b", "B", "C", [
+          [0, 50],
+          [50, 50],
+        ]),
+        name: "Speedway",
+      },
+    ]);
+    expect(steps.map((d) => d.text)).toEqual([
+      "Head along the footpath",
+      "Turn left onto Speedway",
+    ]);
   });
 });
