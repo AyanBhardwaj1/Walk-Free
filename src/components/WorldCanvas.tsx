@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import { useMemo, useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
+import type { PlaceLabel } from "../lib/place-labels";
 import type {
   World,
   Environment,
@@ -454,6 +455,67 @@ function Endpoint({
     </group>
   );
 }
+/** Labels this close to a start or finish marker give way to it, m. */
+const LABEL_MARKER_GAP = 60;
+/** A named place on the map: a small tag above it, a constant size. */
+function PlaceTag({
+  label,
+  terrain,
+}: {
+  label: PlaceLabel;
+  terrain?: Terrain;
+}) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    const font = "600 40px Arial";
+    ctx.font = font;
+    const width = Math.ceil(ctx.measureText(label.text).width) + 56;
+    canvas.width = width;
+    canvas.height = 80;
+    ctx.font = font;
+    ctx.fillStyle = sc("#fffdf4");
+    ctx.strokeStyle = sc("#22301f");
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(2, 2, width - 4, 76, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = sc("#22301f");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label.text, width / 2, 42);
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    return map;
+    // Drawn in the scene's colours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [label.text, sceneTheme()]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const aspect = texture.image.width / texture.image.height;
+  return (
+    <sprite
+      position={[
+        label.point[0],
+        terrainHeight(label.point, terrain) + label.height + 6,
+        label.point[1],
+      ]}
+      center={[0.5, 0]}
+      scale={[0.016 * aspect, 0.016, 1]}
+      renderOrder={25}
+      raycast={() => null}
+    >
+      <spriteMaterial
+        sizeAttenuation={false}
+        map={texture}
+        depthTest={false}
+        depthWrite={false}
+        toneMapped={false}
+        opacity={0.92}
+      />
+    </sprite>
+  );
+}
 /**
  * Keeps a fictional city's haze at the same depth on screen however far the
  * camera sits (phones frame the area from further away).
@@ -691,6 +753,7 @@ export default function WorldCanvas({
   crowd,
   walkthrough,
   onWalkthroughDone,
+  labels,
 }: {
   world: World;
   environment: Environment;
@@ -720,6 +783,8 @@ export default function WorldCanvas({
   /** Walk this route at street level (null when not walking). */
   walkthrough?: Point[] | null;
   onWalkthroughDone?: () => void;
+  /** Named places to tag on the map (hidden at street level). */
+  labels?: PlaceLabel[];
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
@@ -970,6 +1035,21 @@ export default function WorldCanvas({
           overHeat={!!heat}
         />
       )}
+      {!walkthrough &&
+        labels
+          // The start and finish markers name those places already.
+          ?.filter(
+            (l) =>
+              ![startPoint, endPoint].some(
+                (p) =>
+                  p &&
+                  Math.hypot(p[0] - l.point[0], p[1] - l.point[1]) <
+                    LABEL_MARKER_GAP,
+              ),
+          )
+          .map((l) => (
+            <PlaceTag key={l.text} label={l} terrain={world.terrain} />
+          ))}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
       )}
