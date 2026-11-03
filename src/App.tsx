@@ -2770,26 +2770,6 @@ export default function App({
                       Waiting for GPS before starting guidance.
                     </p>
                   )}
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={showPaths}
-                      onChange={(e) => setShowPaths(e.target.checked)}
-                    />
-                    Show walking paths
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={voice}
-                      onChange={(e) => {
-                        setVoice(e.target.checked);
-                        stopSpeech();
-                        lastSpoken.current = "";
-                      }}
-                    />
-                    Spoken guidance
-                  </label>
                   {!fiction &&
                     world.provenance.live &&
                     env.temperatureC < 29 && (
@@ -2821,82 +2801,6 @@ export default function App({
                     environment={env}
                     origin={world.origin}
                   />
-                  <BestTime
-                    plan={bestTime}
-                    onPick={(hour, dayOffset) => {
-                      setPlaying(false);
-                      setLocalHour(hour, dayOffset);
-                    }}
-                  />
-                  <DayInLife
-                    key={world.id}
-                    plan={dayPlan}
-                    busy={dayBusy}
-                    autoPlay={dayAutoPlay}
-                    onPlan={() => {
-                      setDayAutoPlay(false);
-                      setDayBusy(true);
-                      // Let the button show its busy state before the work.
-                      setTimeout(() => {
-                        try {
-                          planDayNow();
-                        } finally {
-                          setDayBusy(false);
-                        }
-                      }, 30);
-                    }}
-                    onShow={(leg) => {
-                      // Played once; a later visit to this tab waits for Play.
-                      setDayAutoPlay(false);
-                      setPlaying(false);
-                      setPicking(null);
-                      setPref("shade");
-                      setStart(leg.from.id);
-                      setEnd(leg.to.id);
-                      setLocalHour(leg.hour);
-                    }}
-                  />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={stairs}
-                      onChange={(e) => setStairs(e.target.checked)}
-                    />
-                    Avoid stairs
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={hypothetical}
-                      disabled={tracking}
-                      onChange={(e) => setHypothetical(e.target.checked)}
-                    />
-                    Hypothetical indoor planning
-                  </label>
-                  <label>
-                    DETOUR BUDGET · {Math.round((detour - 1) * 100)}%
-                    <input
-                      type="range"
-                      min="1"
-                      max="3"
-                      step=".1"
-                      value={detour}
-                      onChange={(e) => setDetour(+e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    SUN AVERSION · {sunAversionLabel(sunAversion)}
-                    <input
-                      type="range"
-                      min={SUN_AVERSION_RANGE[0]}
-                      max={SUN_AVERSION_RANGE[1]}
-                      step=".5"
-                      value={sunAversion}
-                      aria-valuetext={`${sunAversionLabel(sunAversion)}: a metre in the sun counts as ${sunAversion} metres in shade`}
-                      title="How much longer a walk you'd take to stay out of the sun. Shapes the Shade route."
-                      onChange={(e) => setSunAversion(+e.target.value)}
-                    />
-                  </label>
                   {!currentRoute &&
                     world.provenance.live &&
                     endNode &&
@@ -2988,6 +2892,105 @@ export default function App({
                       )}
                     </p>
                   )}
+                  <BestTime
+                    plan={bestTime}
+                    onPick={(hour, dayOffset) => {
+                      setPlaying(false);
+                      setLocalHour(hour, dayOffset);
+                    }}
+                  />
+                  <DayInLife
+                    key={world.id}
+                    plan={dayPlan}
+                    busy={dayBusy}
+                    autoPlay={dayAutoPlay}
+                    onPlan={() => {
+                      setDayAutoPlay(false);
+                      setDayBusy(true);
+                      // Let the button show its busy state before the work.
+                      setTimeout(() => {
+                        try {
+                          planDayNow();
+                        } finally {
+                          setDayBusy(false);
+                        }
+                      }, 30);
+                    }}
+                    onShow={(leg) => {
+                      // Played once; a later visit to this tab waits for Play.
+                      setDayAutoPlay(false);
+                      setPlaying(false);
+                      setPicking(null);
+                      setPref("shade");
+                      setStart(leg.from.id);
+                      setEnd(leg.to.id);
+                      setLocalHour(leg.hour);
+                    }}
+                  />
+                  <details className="route-options">
+                    <summary>Route options</summary>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={showPaths}
+                        onChange={(e) => setShowPaths(e.target.checked)}
+                      />
+                      Show walking paths
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={voice}
+                        onChange={(e) => {
+                          setVoice(e.target.checked);
+                          stopSpeech();
+                          lastSpoken.current = "";
+                        }}
+                      />
+                      Spoken guidance
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={stairs}
+                        onChange={(e) => setStairs(e.target.checked)}
+                      />
+                      Avoid stairs
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={hypothetical}
+                        disabled={tracking}
+                        onChange={(e) => setHypothetical(e.target.checked)}
+                      />
+                      Plan through possible indoor shortcuts
+                    </label>
+                    <label>
+                      LONGEST DETOUR · {Math.round((detour - 1) * 100)}% LONGER
+                      <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step=".1"
+                        value={detour}
+                        onChange={(e) => setDetour(+e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      SUN AVERSION · {sunAversionLabel(sunAversion)}
+                      <input
+                        type="range"
+                        min={SUN_AVERSION_RANGE[0]}
+                        max={SUN_AVERSION_RANGE[1]}
+                        step=".5"
+                        value={sunAversion}
+                        aria-valuetext={`${sunAversionLabel(sunAversion)}: a metre in the sun counts as ${sunAversion} metres in shade`}
+                        title="How much longer a walk you'd take to stay out of the sun. Shapes the Shade route."
+                        onChange={(e) => setSunAversion(+e.target.value)}
+                      />
+                    </label>
+                  </details>
                 </section>
               )}
             {atlas && (

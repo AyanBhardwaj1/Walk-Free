@@ -1341,6 +1341,23 @@ aside.collapsed ~ .viewport .map-heading {
   min-width: 58px;
   text-align: right;
 }
+/* Route tab: the less-used settings, folded away under the routes. */
+.route-options {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-line-e3e4d7, #e3e4d7);
+}
+.route-options > summary {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+  cursor: pointer;
+}
+.route-options[open] > summary {
+  margin-bottom: 10px;
+}
 /* The headline gain on a route card: how much less sun than the quickest. */
 .route-choices .route-gain {
   font-size: 12px;
