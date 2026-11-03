@@ -17,6 +17,11 @@ export interface PrebuiltArea {
   /** Overpass tiles per side when building (default 2). */
   tiles?: number;
   /** Real stops for "a day in the life" here. */
+  /**
+   * Places named on the 3D map, by their exact name in the area's data
+   * (a building, or a park or square), with a shorter label if wanted.
+   */
+  labels?: { name: string; label?: string }[];
   day?: {
     home: string;
     coffee: string;
@@ -36,6 +41,22 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     // Dorm to library: on a July afternoon the shade route doubles the shade
     // (23% → 45%) for 3% more walking.
     walk: { from: "Kinsolving Dormitory", to: "Perry-Castañeda Library" },
+    labels: [
+      { name: "UT Tower" },
+      { name: "Perry-Castañeda Library", label: "PCL" },
+      { name: "Gregory Gymnasium", label: "Gregory Gym" },
+      { name: "Union Building", label: "Texas Union" },
+      { name: "DKR Memorial Stadium", label: "DKR Stadium" },
+      {
+        name: "Lyndon Baines Johnson Presidential Library and Museum",
+        label: "LBJ Library",
+      },
+      { name: "Harry Ransom Center" },
+      { name: "Moody Center" },
+      { name: "Bill and Melinda Gates Computer Science Complex", label: "GDC" },
+      { name: "Jester West Hall", label: "Jester" },
+      { name: "South Mall" },
+    ],
     day: {
       home: "Jester Center",
       coffee: "Union Building",
@@ -93,6 +114,17 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     radius: 650,
     // Both ends sit well inside the square, on one connected network.
     walk: { from: "Times Square Tower", to: "Chrysler Building" },
+    labels: [
+      { name: "Empire State Building" },
+      { name: "Chrysler Building" },
+      { name: "Grand Central Terminal", label: "Grand Central" },
+      { name: "One Vanderbilt" },
+      { name: "MetLife Building" },
+      { name: "Times Square Tower", label: "Times Square" },
+      { name: "Bryant Park" },
+      { name: "30 Rockefeller Plaza", label: "30 Rock" },
+      { name: "Radio City Music Hall", label: "Radio City" },
+    ],
     kind: "city",
     tiles: 3,
   },

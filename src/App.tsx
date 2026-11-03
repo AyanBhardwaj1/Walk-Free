@@ -61,6 +61,7 @@ import type {
   WeatherForecast,
 } from "../shared/types";
 import { heatIndexC, isShaded, sunDirection } from "./lib/environment";
+import { placeLabels } from "./lib/place-labels";
 import { applyDesignProposal } from "./lib/proposals";
 import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
@@ -724,6 +725,22 @@ export default function App({
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
     [heatActive, world, heatEnv],
   );
+  // The prebuilt area's landmarks, named on the 3D map; phones show only
+  // the first few, which the lists lead with.
+  const [narrow] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(max-width: 720px)").matches,
+  );
+  const areaLabels = useMemo(() => {
+    if (!world.provenance.live) return [];
+    const labels = prebuiltAreaFor(
+      world.origin.lat,
+      world.origin.lon,
+      world.extent / 2,
+    )?.labels;
+    return placeLabels(world, narrow ? labels?.slice(0, 4) : labels);
+  }, [world, narrow]);
   // People on the streets: on by default where the city is the show.
   const [peopleFor, setPeopleFor] = useState<{ id: string; on: boolean }>({
     id: "",
@@ -3372,6 +3389,7 @@ export default function App({
                   theme={theme}
                   ambient={sky}
                   walkthrough={walking ? walk3d : null}
+                  labels={mode === "explore" ? areaLabels : undefined}
                   onWalkthroughDone={() => setWalk3d(null)}
                   crowd={
                     people
