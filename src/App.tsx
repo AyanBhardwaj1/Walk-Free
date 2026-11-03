@@ -89,6 +89,7 @@ import {
   placeHeat,
   relativeHeatColor,
   weatherAt,
+  scenarioAt,
   areaHeat,
   clockLabel,
 } from "./lib/heat";
@@ -925,9 +926,14 @@ export default function App({
       ).toISOString();
       const dateTime = atLocalHour(day, world.timezone, hour);
       // In forecast mode, temperature and cloud follow the chosen hour.
+      // Otherwise hand-set weather follows the day's usual cycle.
       return previous.weatherMode === "forecast" && forecast
         ? weatherAt(previous, dateTime, forecast)
-        : { ...previous, dateTime, weatherMode: "scenario" };
+        : scenarioAt(
+            { ...previous, weatherMode: "scenario" },
+            dateTime,
+            world.timezone,
+          );
     });
   }
   // "Play the day": the sun sweeps from morning to evening.
@@ -1671,10 +1677,11 @@ export default function App({
         setMode("studio");
         tourPanel(1);
         setLocalHour(15);
-        const afternoon = {
-          ...heatEnv,
-          dateTime: atLocalHour(heatEnv.dateTime, world.timezone, 15),
-        };
+        const afternoon = scenarioAt(
+          heatEnv,
+          atLocalHour(heatEnv.dateTime, world.timezone, 15),
+          world.timezone,
+        );
         // Let the assistant tools see the new hour before planting.
         await new Promise((r) => setTimeout(r, 60));
         const streets = placeHeat(world, afternoon).filter(

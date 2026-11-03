@@ -296,10 +296,64 @@ export function localHour(iso: string, timeZone: string) {
 /** A forecast hour applies up to this far from the moment asked about. */
 const FORECAST_REACH_MS = 60 * 60 * 1000;
 
+/** Typical summer swing of air temperature in a day, peak to trough, °C. */
+const DAILY_SWING_C = 9;
+/**
+ * Where an hour sits in the day's temperature cycle: -0.5 at 5 AM, +0.5 at
+ * 3 PM, warming quickly in the morning and cooling slowly overnight.
+ */
+function dailyCurve(hour: number) {
+  const h = (((hour - 5) % 24) + 24) % 24;
+  return h <= 10
+    ? -0.5 + 0.5 * (1 - Math.cos((Math.PI * h) / 10))
+    : 0.5 - 0.5 * (1 - Math.cos((Math.PI * (h - 10)) / 14));
+}
+// Magnus formula constants for dew point.
+const MAGNUS_B = 17.62,
+  MAGNUS_C = 243.12;
+const dewPoint = (t: number, rh: number) => {
+  const g = Math.log(Math.max(1, rh) / 100) + (MAGNUS_B * t) / (MAGNUS_C + t);
+  return (MAGNUS_C * g) / (MAGNUS_B - g);
+};
+const humidityAt = (t: number, dew: number) =>
+  100 *
+  Math.exp(
+    (MAGNUS_B * dew) / (MAGNUS_C + dew) - (MAGNUS_B * t) / (MAGNUS_C + t),
+  );
+
+/**
+ * Hand-set (scenario) weather at another hour of the day. The air follows a
+ * typical daily cycle around the set hour, which keeps its value, and the
+ * moisture stays put, so evenings are cooler and mornings more humid.
+ * Live forecasts are left alone.
+ */
+export function scenarioAt(
+  env: Environment,
+  iso: string,
+  timeZone: string,
+): Environment {
+  if (env.weatherMode !== "scenario") return { ...env, dateTime: iso };
+  const shift =
+    DAILY_SWING_C *
+    (dailyCurve(localHour(iso, timeZone)) -
+      dailyCurve(localHour(env.dateTime, timeZone)));
+  const temperatureC = env.temperatureC + shift;
+  const humidity = Math.min(
+    100,
+    Math.max(
+      5,
+      humidityAt(temperatureC, dewPoint(env.temperatureC, env.humidity)),
+    ),
+  );
+  return { ...env, dateTime: iso, temperatureC, humidity };
+}
+
 export function weatherAt(
   env: Environment,
   iso: string,
   forecast?: WeatherForecast | null,
+  /** Given, hand-set weather follows the daily cycle (see scenarioAt). */
+  timeZone?: string,
 ): Environment {
   const t = Date.parse(iso);
   // The nearest forecast hour; at half past, the earlier hour wins a tie.
@@ -323,7 +377,12 @@ export function weatherAt(
         solarWm2: hour.solarWm2 ?? undefined,
         uvIndex: hour.uvIndex ?? undefined,
       }
-    : { ...env, dateTime: iso, solarWm2: undefined, uvIndex: undefined };
+    : {
+        ...(timeZone ? scenarioAt(env, iso, timeZone) : env),
+        dateTime: iso,
+        solarWm2: undefined,
+        uvIndex: undefined,
+      };
 }
 
 /** How a place feels hour by hour through the local day. */
@@ -348,6 +407,7 @@ export function dailyProfile(
       env,
       atLocalHour(env.dateTime, w.timezone, hour),
       forecast,
+      w.timezone,
     );
     const key = `${placeKey}@${at.dateTime}`;
     let shade = cache.get(key);
