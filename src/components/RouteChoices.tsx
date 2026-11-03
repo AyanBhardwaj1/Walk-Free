@@ -65,23 +65,40 @@ export default function RouteChoices({
       aria-label="Compare walking routes"
     >
       {routePreferences.map((preference) => {
+        // By day, the lit-street route only adds noise (unless chosen).
+        if (preference === "night" && !dark && selected !== "night")
+          return null;
         const route = choices[preference];
         const heat = route && routeHeat(route, environment, origin);
+        // Metres walked in the sun, against the quickest: the headline gain.
+        const sunMetres = (r: RouteResult) =>
+          r.distance * (1 - r.shadeFraction);
+        const lessSun =
+          route && quick && preference !== "quickest" && sunMetres(quick) > 0
+            ? Math.round((1 - sunMetres(route) / sunMetres(quick)) * 100)
+            : 0;
         const cooler =
           heat && quickHeat
             ? Math.round(
                 tempDelta(quickHeat.feelsLikeC - heat.feelsLikeC, unit),
               )
             : 0;
-        const same =
-          preference !== "quickest" &&
-          route &&
-          quick &&
-          route.edges.length === quick.edges.length &&
+        const samePath = (other: RouteResult | null) =>
+          !!route &&
+          !!other &&
+          route.edges.length === other.edges.length &&
           route.edges.every(
             (e, i) =>
-              e.id === quick.edges[i].id && e.from === quick.edges[i].from,
+              e.id === other.edges[i].id && e.from === other.edges[i].from,
           );
+        const same =
+          preference === "quickest"
+            ? null
+            : samePath(quick)
+              ? "quickest"
+              : preference !== "shade" && samePath(choices.shade)
+                ? "more shade"
+                : null;
         return (
           <button
             key={preference}
@@ -97,6 +114,9 @@ export default function RouteChoices({
                   {Math.max(1, Math.round(route.durationMinutes))} min{" "}
                   <small>· {(route.distance / 1000).toFixed(2)} km</small>
                 </span>
+                {!dark && lessSun >= 5 && !same && (
+                  <span className="route-gain">{lessSun}% less sun</span>
+                )}
                 <span className="route-heat">
                   ~{Math.round(inUnit(heat!.feelsLikeC, unit))}°{unit} feels
                   like
@@ -159,7 +179,7 @@ export default function RouteChoices({
                     way
                   </span>
                 )}
-                {same && <small>Same path as quickest</small>}
+                {same && <small>Same path as {same}</small>}
                 {route.warnings.length > 0 && (
                   <small>Detour budget applied</small>
                 )}

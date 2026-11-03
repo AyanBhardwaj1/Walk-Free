@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Crosshair, Minus, Plus } from "lucide-react";
 import type { Point, RouteResult, World } from "../../shared/types";
 import { baseEdgeId } from "../lib/walk-location";
 import { sc, setSceneTheme } from "../lib/scene-theme";
@@ -9,7 +9,12 @@ import type { ThemeName } from "../lib/theme";
  * A flat, north-up walking map: lighter on battery than the 3D scene and
  * easy to read in sunlight. Follows the walker when a location is known.
  */
-const ZOOMS = [0.2, 0.35, 0.6, 1, 1.6, 2.6, 4];
+/** Pixels per metre: the furthest out and closest in the map goes. */
+const MIN_SCALE = 0.15,
+  MAX_SCALE = 5;
+const clampScale = (v: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
+/** How much one button press or one wheel notch zooms. */
+const STEP = 1.6;
 /** Room kept above the route for the directions banner, px. */
 const bannerRoom = (width: number) => (width <= 650 ? 190 : 130);
 const PALETTE = {
@@ -53,9 +58,13 @@ export default function WalkMap2D({
   setSceneTheme(theme);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [zoom, setZoom] = useState(4);
+  // Pixels per metre, and how far the reader has dragged the map (metres).
+  const [zoom, setZoom] = useState(1.6);
+  const [pan, setPan] = useState<Point>([0, 0]);
+  // Bumped by "Back to the walk" to fit the route again.
+  const [refit, setRefit] = useState(0);
   // Without a location, frame the whole route; with one, follow the walker.
-  const center = useMemo<Point>(() => {
+  const anchor = useMemo<Point>(() => {
     if (you) return you;
     const pts = route?.points ?? [];
     if (!pts.length) return [0, 0];
@@ -66,6 +75,10 @@ export default function WalkMap2D({
       (Math.min(...zs) + Math.max(...zs)) / 2,
     ];
   }, [you, route]);
+  const center = useMemo<Point>(
+    () => [anchor[0] + pan[0], anchor[1] + pan[1]],
+    [anchor, pan],
+  );
   // Fit a new route into the space left by the panels, until a location
   // takes over; the zoom buttons still work after that.
   const fitted = useRef("");
@@ -75,7 +88,7 @@ export default function WalkMap2D({
     // The walk itself, not the result object: a new hour recomputes the
     // route (new id) and must not undo the reader's zoom.
     const walk = route!.edges.map((e) => e.id).join(",");
-    const key = `${walk}|${size.width}x${size.height}|${insets?.top}/${insets?.bottom}/${insets?.left}`;
+    const key = `${walk}|${size.width}x${size.height}|${insets?.top}/${insets?.bottom}/${insets?.left}|${refit}`;
     if (fitted.current === key) return;
     fitted.current = key;
     const xs = pts.map((p) => p[0]),
@@ -89,12 +102,9 @@ export default function WalkMap2D({
         (insets?.bottom ?? 0) -
         100;
     const fit = Math.min(roomX / spanX, roomZ / spanZ);
-    let best = 0;
-    ZOOMS.forEach((z, i) => {
-      if (z <= fit) best = i;
-    });
-    setZoom(Math.min(best, 4));
-  }, [route, you, size, insets]);
+    setZoom(clampScale(Math.min(fit, 1.6)));
+    setPan([0, 0]);
+  }, [route, you, size, insets, refit]);
   useEffect(() => {
     const el = canvas.current?.parentElement;
     if (!el) return;
@@ -121,7 +131,7 @@ export default function WalkMap2D({
         v.startsWith("#") ? sc(v) : v,
       ]),
     ) as typeof PALETTE;
-    const scale = ZOOMS[zoom] * dpr;
+    const scale = zoom * dpr;
     const shiftX = ((insets?.left ?? 0) / 2) * dpr;
     const shiftY =
       ((Math.max(insets?.top ?? 0, you ? 0 : bannerRoom(size.width)) -
@@ -239,29 +249,128 @@ export default function WalkMap2D({
     insets,
     theme,
   ]);
+  // Where the map's centre sits on screen (CSS pixels), as drawn above.
+  const view = useRef({ zoom, center, cx: 0, cy: 0 });
+  view.current = {
+    zoom,
+    center,
+    cx: size.width / 2 + (insets?.left ?? 0) / 2,
+    cy:
+      size.height / 2 +
+      (Math.max(insets?.top ?? 0, you ? 0 : bannerRoom(size.width)) -
+        (insets?.bottom ?? 0)) /
+        2,
+  };
+  /** Zoom by a factor, keeping the ground under (x, y) where it is. */
+  const zoomAt = (factor: number, x?: number, y?: number) => {
+    const v = view.current;
+    const next = clampScale(v.zoom * factor);
+    if (next === v.zoom) return;
+    if (x !== undefined && y !== undefined) {
+      // The ground point under the pointer, before and after.
+      const gx = (x - v.cx) / v.zoom + v.center[0],
+        gz = (y - v.cy) / v.zoom + v.center[1];
+      const nx = gx - (x - v.cx) / next,
+        nz = gz - (y - v.cy) / next;
+      setPan((p) => [p[0] + nx - v.center[0], p[1] + nz - v.center[1]]);
+    }
+    setZoom(next);
+  };
+  // Drag to move, two fingers to pinch; the wheel zooms toward the pointer.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef(0);
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = c.getBoundingClientRect();
+      zoomAt(
+        Math.exp(-e.deltaY * 0.0015),
+        e.clientX - r.left,
+        e.clientY - r.top,
+      );
+    };
+    c.addEventListener("wheel", onWheel, { passive: false });
+    return () => c.removeEventListener("wheel", onWheel);
+    // zoomAt reads the latest view through a ref.
+  }, []);
+  const local = (e: React.PointerEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const spread = () => {
+    const [a, b] = [...pointers.current.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
   return (
     <div className="walk-map">
       <canvas
         ref={canvas}
         role="img"
-        aria-label="Flat walking map with your route, tree shade and drinking water"
-        style={{ width: "100%", height: "100%" }}
+        aria-label="Flat walking map with your route, tree shade and drinking water. Drag to move, scroll or pinch to zoom."
+        style={{ width: "100%", height: "100%", touchAction: "none" }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          pointers.current.set(e.pointerId, local(e));
+          pinch.current = spread();
+        }}
+        onPointerMove={(e) => {
+          const before = pointers.current.get(e.pointerId);
+          if (!before) return;
+          const now = local(e);
+          pointers.current.set(e.pointerId, now);
+          if (pointers.current.size >= 2) {
+            const d = spread();
+            if (pinch.current && d) {
+              const [a, b] = [...pointers.current.values()];
+              zoomAt(d / pinch.current, (a.x + b.x) / 2, (a.y + b.y) / 2);
+            }
+            pinch.current = d;
+            return;
+          }
+          const z = view.current.zoom;
+          setPan((p) => [
+            p[0] - (now.x - before.x) / z,
+            p[1] - (now.y - before.y) / z,
+          ]);
+        }}
+        onPointerUp={(e) => {
+          pointers.current.delete(e.pointerId);
+          pinch.current = spread();
+        }}
+        onPointerCancel={(e) => {
+          pointers.current.delete(e.pointerId);
+          pinch.current = spread();
+        }}
       />
       <div className="walk-map-zoom">
         <button
           aria-label="Zoom in"
-          disabled={zoom === ZOOMS.length - 1}
-          onClick={() => setZoom(zoom + 1)}
+          disabled={zoom >= MAX_SCALE}
+          onClick={() => zoomAt(STEP)}
         >
           <Plus size={18} />
         </button>
         <button
           aria-label="Zoom out"
-          disabled={zoom === 0}
-          onClick={() => setZoom(zoom - 1)}
+          disabled={zoom <= MIN_SCALE}
+          onClick={() => zoomAt(1 / STEP)}
         >
           <Minus size={18} />
         </button>
+        {(pan[0] !== 0 || pan[1] !== 0) && (
+          <button
+            aria-label={you ? "Follow my location again" : "Back to the walk"}
+            title={you ? "Follow my location again" : "Back to the walk"}
+            onClick={() => {
+              setPan([0, 0]);
+              if (!you) setRefit((n) => n + 1);
+            }}
+          >
+            <Crosshair size={17} />
+          </button>
+        )}
       </div>
     </div>
   );

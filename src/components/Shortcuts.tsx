@@ -6,6 +6,11 @@ export const SHORTCUTS: [key: string, action: string][] = [
   ["S", "Switch interface style"],
   ["V", "Switch between the 3D and flat map"],
   ["U", "Switch temperatures between °F and °C"],
+  ["+ / −", "Zoom the 3D map in or out"],
+  ["Arrows", "Move the 3D map"],
+  ["0", "Back to the walk"],
+  ["T", "Tilt: straight down or angled"],
+  ["N", "Face north"],
   ["?", "Show these shortcuts"],
 ];
 

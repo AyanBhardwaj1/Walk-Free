@@ -1,5 +1,6 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Line } from "@react-three/drei";
+import { MapControls, Line } from "@react-three/drei";
+import CameraRig, { type MapCamera } from "./scene/CameraRig";
 import { useMemo, useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import type { PlaceLabel } from "../lib/place-labels";
@@ -28,6 +29,9 @@ export interface MapInsets {
 }
 const NO_INSETS: MapInsets = { left: 0, bottom: 0, top: 0 };
 const VIEW_DIRECTION = new THREE.Vector3(0.65, 0.72, 0.7).normalize();
+/** A click at the end of a drag (panning the map) isn't a pick. */
+const DRAG_PX = 6;
+const dragged = (e: { delta: number }) => e.delta > DRAG_PX;
 /**
  * Frames the route (or the whole area) inside the part of the screen that
  * panels leave visible, by shifting the projection centre into that region.
@@ -89,23 +93,63 @@ function FrameArea({
     const tan = Math.tan(((cam.fov / 2) * Math.PI) / 180);
     const distance = (radius * 0.9) / (tan * (visible / size.height));
     const target = new THREE.Vector3(center[0], 0, center[1]);
-    cam.position.copy(target).addScaledVector(VIEW_DIRECTION, distance);
-    cam.lookAt(target);
+    const position = target.clone().addScaledVector(VIEW_DIRECTION, distance);
+    // The first framing (or the arrival flight) places the camera; later
+    // ones glide there from wherever the camera is.
+    const glide =
+      !!framed?.current &&
+      !(
+        typeof matchMedia !== "undefined" &&
+        matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
     if (framed)
       framed.current = {
         target: target.clone(),
         offset: VIEW_DIRECTION.clone().multiplyScalar(distance),
       };
     cam.updateProjectionMatrix();
-    const orbit = controls as unknown as {
-      target: THREE.Vector3;
-      update: () => void;
-    } | null;
-    if (orbit) {
-      orbit.target.copy(target);
-      orbit.update();
+    const orbit = controls as unknown as
+      | (THREE.EventDispatcher<{ start: object }> & {
+          target: THREE.Vector3;
+          enabled: boolean;
+          update: () => void;
+        })
+      | null;
+    const place = (
+      k: number,
+      fromTarget?: THREE.Vector3,
+      fromPos?: THREE.Vector3,
+    ) => {
+      const t = fromTarget ? fromTarget.clone().lerp(target, k) : target;
+      cam.position.copy(fromPos ? fromPos.clone().lerp(position, k) : position);
+      cam.lookAt(t);
+      if (orbit) {
+        orbit.target.copy(t);
+        orbit.update();
+      }
+      invalidate();
+    };
+    if (!glide || !orbit || orbit.enabled === false) {
+      place(1);
+      return;
     }
-    invalidate();
+    const fromTarget = orbit.target.clone(),
+      fromPos = cam.position.clone();
+    let frame = 0;
+    const start = performance.now();
+    const stop = () => cancelAnimationFrame(frame);
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / GLIDE_MS);
+      place(1 - Math.pow(1 - p, 3), fromTarget, fromPos);
+      if (p < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    // A drag or zoom takes over from the glide.
+    orbit.addEventListener("start", stop);
+    return () => {
+      stop();
+      orbit.removeEventListener("start", stop);
+    };
     // focusKey stands in for focus, which is a new array on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -123,6 +167,8 @@ function FrameArea({
   return null;
 }
 const FLIGHT_MS = 1900;
+/** How long the camera takes to glide to a new framing. */
+const GLIDE_MS = 700;
 /**
  * Arriving in an area: the camera sweeps in from higher and further round,
  * and settles where FrameArea framed it. Any drag or zoom takes over at once;
@@ -204,6 +250,7 @@ function WalkingPaths({
     <lineSegments
       geometry={geometry}
       onClick={(e) => {
+        if (dragged(e)) return;
         e.stopPropagation();
         onClick([e.point.x, e.point.z]);
       }}
@@ -262,6 +309,7 @@ function HeatPaths({
         segments
         lineWidth={world.graph.edges.length > 3000 ? 2.5 : 4}
         onClick={(e) => {
+          if (dragged(e)) return;
           const edgeId = edgeAt[e.faceIndex ?? -1];
           if (!edgeId) return;
           e.stopPropagation();
@@ -339,6 +387,7 @@ function Ground({
       geometry={geometry}
       receiveShadow
       onClick={(e) => {
+        if (dragged(e)) return;
         e.stopPropagation();
         onClick([e.point.x, e.point.z]);
       }}
@@ -686,7 +735,19 @@ function StreetWalk({
 }
 const DRAW_MS = 900;
 /** The route line, drawing itself from start to finish when it appears. */
-function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
+/** Route colours: full sun to full shade, matching the heat legend's ends. */
+const ROUTE_SUN = new THREE.Color("#d7772d"),
+  ROUTE_SHADE = new THREE.Color("#2f6577");
+function RouteDraw({
+  points,
+  overHeat,
+  shade,
+}: {
+  points: P3[];
+  overHeat: boolean;
+  /** Shade (0–1) at each point, to colour the route by sun and shade. */
+  shade?: number[];
+}) {
   const invalidate = useThree((s) => s.invalidate);
   const [k, setK] = useState(() =>
     typeof matchMedia !== "undefined" &&
@@ -711,6 +772,20 @@ function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidate]);
   const shown = partialLine(points, k);
+  const colors = useMemo(
+    () =>
+      shade && shade.length === points.length
+        ? shade.map((v) =>
+            new THREE.Color(sc("#" + ROUTE_SUN.getHexString())).lerp(
+              new THREE.Color(sc("#" + ROUTE_SHADE.getHexString())),
+              Math.min(1, Math.max(0, v)),
+            ),
+          )
+        : null,
+    // Drawn in the scene's colours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shade, points.length, sceneTheme()],
+  );
   // Drawn over the scene like a map overlay: under tree crowns and past
   // buildings it would break into dashes. Over heat colours it is a dark
   // line with a light casing, so it never blends into the hot paths.
@@ -726,8 +801,10 @@ function RouteDraw({ points, overHeat }: { points: P3[]; overHeat: boolean }) {
       />
       <Line
         points={shown}
-        color={sc("#1d3557")}
-        lineWidth={6}
+        {...(colors
+          ? { color: "#ffffff", vertexColors: colors.slice(0, shown.length) }
+          : { color: sc("#1d3557") })}
+        lineWidth={colors ? 7 : 6}
         {...overlay}
         renderOrder={21}
       />
@@ -777,6 +854,9 @@ export default function WorldCanvas({
   onWalkthroughDone,
   labels,
   focusOn,
+  cameraApi,
+  onBearing,
+  routeShade,
 }: {
   world: World;
   environment: Environment;
@@ -806,6 +886,12 @@ export default function WorldCanvas({
   /** Walk this route at street level (null when not walking). */
   walkthrough?: Point[] | null;
   onWalkthroughDone?: () => void;
+  /** Shade (0–1) at each route point, to colour the route by sun. */
+  routeShade?: number[];
+  /** Filled with the camera moves the on-screen map controls call. */
+  cameraApi?: RefObject<MapCamera | null>;
+  /** The compass bearing the camera faces, in whole degrees. */
+  onBearing?: (degrees: number) => void;
   /** Points to frame instead of the walk's ends (a planted street). */
   focusOn?: Point[];
   /** Named places to tag on the map (hidden at street level). */
@@ -1004,6 +1090,7 @@ export default function WorldCanvas({
       )}
       <group
         onClick={(e) => {
+          if (dragged(e)) return;
           if (pickingEndpoint) {
             e.stopPropagation();
             onGroundClick([e.point.x, e.point.z]);
@@ -1039,6 +1126,7 @@ export default function WorldCanvas({
                 selected={o.id === selectedId}
                 detailed={world.objects.length < 500}
                 onPointerDown={(e, obj) => {
+                  if (dragged(e)) return;
                   e.stopPropagation();
                   if (!pickingEndpoint) onSelect(obj.id);
                 }}
@@ -1050,6 +1138,7 @@ export default function WorldCanvas({
             terrain={world.terrain}
             selectedId={selectedId}
             onPointerDown={(e, o) => {
+              if (dragged(e)) return;
               e.stopPropagation();
               if (!pickingEndpoint) onSelect(o.id);
             }}
@@ -1066,6 +1155,7 @@ export default function WorldCanvas({
             p[1],
           ])}
           overHeat={!!heat}
+          shade={routeShade}
         />
       )}
       {!walkthrough &&
@@ -1114,11 +1204,23 @@ export default function WorldCanvas({
           />
         </mesh>
       )}
-      <OrbitControls
+      {/* Map-style: drag pans, right-drag or two fingers turn and tilt, the
+          wheel or a pinch zooms toward the pointer, with a soft glide. */}
+      <MapControls
         makeDefault
-        minDistance={70}
-        maxDistance={extent * 4}
-        maxPolarAngle={Math.PI * 0.48}
+        enableDamping
+        dampingFactor={0.12}
+        zoomToCursor
+        zoomSpeed={1.1}
+        minDistance={25}
+        maxDistance={extent * 3}
+        maxPolarAngle={Math.PI * 0.47}
+      />
+      <CameraRig
+        api={cameraApi}
+        framed={framed}
+        extent={extent}
+        onBearing={onBearing}
       />
     </Canvas>
   );

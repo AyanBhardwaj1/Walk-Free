@@ -10,10 +10,7 @@ interface Props {
   objects: SceneObject[];
   terrain?: Terrain;
   selectedId: string | null;
-  onPointerDown?: (
-    event: ThreeEvent<PointerEvent>,
-    object: SceneObject,
-  ) => void;
+  onPointerDown?: (event: ThreeEvent<MouseEvent>, object: SceneObject) => void;
 }
 
 const greens = [
@@ -88,7 +85,7 @@ function CanopyCrowns({ objects, terrain, selectedId, onPointerDown }: Props) {
       args={[undefined, undefined, objects.length]}
       castShadow
       receiveShadow
-      onPointerDown={
+      onClick={
         onPointerDown
           ? (event) => {
               if (event.instanceId !== undefined)
@@ -171,7 +168,7 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
         args={[undefined, undefined, objects.length * 3]}
         castShadow
         receiveShadow
-        onPointerDown={
+        onClick={
           onPointerDown
             ? (event) => {
                 if (event.instanceId !== undefined)
@@ -192,7 +189,7 @@ function DetailedTrees({ objects, terrain, selectedId, onPointerDown }: Props) {
         args={[undefined, undefined, objects.length]}
         castShadow
         receiveShadow
-        onPointerDown={
+        onClick={
           onPointerDown
             ? (event) => {
                 if (event.instanceId !== undefined)

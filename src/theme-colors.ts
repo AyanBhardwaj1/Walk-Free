@@ -183,6 +183,7 @@ export const THEME_COLORS = [
   "line-e6e7dc",
   "line-ecd7b8",
   "line-ecece2",
+  "line-fffdf4",
   "shadow-0b120dcc",
   "shadow-1d2a1f33",
   "shadow-1d2a1f66",

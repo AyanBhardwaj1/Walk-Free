@@ -325,3 +325,22 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **Deploys.** PRs #44–#47 merged, and the production probe passed on each (cea0b8d, 61021bc, d09b632, facdfae).
 - **Totals.** `npm test` 605 pass; lint and build clean.
 
+## Fictional cities, generator, Midtown, landing — 2026-11-03 (late night, CST)
+
+- **QA pass outside UT.** A fresh agent covered the fictional cities, the generator (Sketch and Detailed, as a guest), Midtown, the landing page and its links, and the signed-out routes. The fixes:
+  - **Weather carried over.** A real place opened after an invented city kept its weather (Midtown showed 66°F rain after Noir Harbor). Checked in the browser: it now shows 86°F.
+  - **Phone haze.** On a phone the 3D view was washed out. For real places the haze now follows the camera distance, so it stays at the horizon. Checked on Midtown at 390 px.
+  - **Clipped tags.** Landmark tags under the panel or the tool rail are now hidden instead of cut off.
+  - **Street walk on phones.** It lowers the sheet.
+  - **Best time wording.** When leaving later is only slightly cooler, the text says so instead of contradicting the highlighted bar.
+  - **Unknown links.** An unknown `?area=` or `?fiction=` link says so after the fallback loads (checked in the browser).
+  - **Landing copy.** It no longer quotes Dune Reach's old 68%.
+  - **Directions.** Unnamed paths read "the footpath" (tested).
+  - **Layout.** Stop walking is centred on the map, and the phone zoom buttons sit clear of the time card.
+- **Left as is.**
+  - Dune Reach's generic "Courtyard house" endpoint names.
+  - The `ViewTransition` abort error that appears during redirects; nobody sees it.
+  - Slow first render under software WebGL; time it on the demo machine.
+- **Deploys.** PRs #48, #49 and #50 merged. The production probe passed on d875289, 6fb3630 and d87b546.
+- **Totals.** `npm test` 606 pass; lint and build clean.
+

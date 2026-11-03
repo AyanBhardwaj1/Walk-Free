@@ -54,6 +54,8 @@ export function nightMultiplier(e: GraphEdge) {
         : 2.2;
 }
 const stepFree = (e: GraphEdge) => !e.stairs && e.accessible;
+/** A cool stop closer than this to the start or end is not "on the way", m. */
+const COOL_STOP_MIN_GAP = 100;
 /** How far from the asked-for point a step-free walk may start or end, m. */
 const STEP_FREE_REACH = 80;
 const MAX_COOL_STOP_CANDIDATES = 4;
@@ -323,8 +325,12 @@ function planner(
       Math.hypot(p[0] - a[0], p[1] - a[1]) +
       Math.hypot(p[0] - b[0], p[1] - b[1]);
     let best: { edges: GraphEdge[]; stop: string } | null = null;
+    // A stop at the very start or end isn't a stop on the way.
+    const away = (p: Point) =>
+      Math.hypot(p[0] - a[0], p[1] - a[1]) > COOL_STOP_MIN_GAP &&
+      Math.hypot(p[0] - b[0], p[1] - b[1]) > COOL_STOP_MIN_GAP;
     for (const stop of [...o.coolStops]
-      .filter((c) => nodePoint.has(c.nodeId))
+      .filter((c) => nodePoint.has(c.nodeId) && away(nodePoint.get(c.nodeId)!))
       .sort(
         (x, y) =>
           detour(nodePoint.get(x.nodeId)!) - detour(nodePoint.get(y.nodeId)!),

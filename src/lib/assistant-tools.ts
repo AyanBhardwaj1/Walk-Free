@@ -22,6 +22,7 @@ import {
   areaHeat,
   edgeHeatMap,
   toF,
+  weatherAt,
   type PlaceHeat,
 } from "./heat.js";
 
@@ -142,12 +143,14 @@ const summary = (p: PlaceHeat) => ({
 });
 
 function envAt(host: ToolHost, h?: number): Environment {
-  return h === undefined
-    ? host.env
-    : {
-        ...host.env,
-        dateTime: atLocalHour(host.env.dateTime, host.world.timezone, h),
-      };
+  if (h === undefined) return host.env;
+  // The forecast for that hour, or hand-set weather following the day.
+  return weatherAt(
+    host.env,
+    atLocalHour(host.env.dateTime, host.world.timezone, h),
+    host.forecast,
+    host.world.timezone,
+  );
 }
 
 /** Tools the browser can run, with their argument schemas. */

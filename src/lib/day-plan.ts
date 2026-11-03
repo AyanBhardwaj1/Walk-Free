@@ -6,7 +6,7 @@ import type {
 } from "../../shared/types.js";
 import { destinationCatalog, type Destination } from "./destinations.js";
 import { planRoutes } from "./routing.js";
-import { atLocalHour, routeHeat } from "./heat.js";
+import { atLocalHour, routeHeat, scenarioAt } from "./heat.js";
 import { seededRng } from "./fiction-cities/kit.js";
 import { matchDestinations } from "./assistant-tools.js";
 
@@ -177,7 +177,8 @@ export function planDay(
       to = stops[s.to];
     if (from.id === to.id) continue;
     const dateTime = atLocalHour(env.dateTime, world.timezone, s.hour);
-    const at: Environment = { ...env, dateTime };
+    // Hand-set weather follows the day: a 6 PM walk is cooler than 3 PM.
+    const at: Environment = scenarioAt(env, dateTime, world.timezone);
     const plans = planRoutes(
       world,
       from.id,

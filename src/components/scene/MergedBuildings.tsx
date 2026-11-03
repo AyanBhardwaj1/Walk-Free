@@ -140,9 +140,11 @@ export default function MergedBuildings({
       geometry={geometry}
       castShadow
       receiveShadow
-      onPointerDown={
+      onClick={
         onPick
           ? (e) => {
+              // The end of a drag (panning the map) isn't a pick.
+              if (e.delta > 6) return;
               const face = e.faceIndex ?? -1;
               // Binary search the triangle range that contains this face.
               let lo = 0,

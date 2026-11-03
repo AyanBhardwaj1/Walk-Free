@@ -567,17 +567,97 @@ aside.collapsed ~ .viewport .map-heading {
 .map-actions .muted {
   opacity: 0.5;
 }
-.compass {
+/* What the map's colours mean, while the heat map is on. */
+.map-legend {
   position: absolute;
-  right: 31px;
-  bottom: 180px;
-  color: var(--c-fg-6e7d5e, #6e7d5e);
-  text-align: center;
+  left: 16px;
+  bottom: 84px;
+  z-index: 3;
+  display: grid;
+  gap: 6px;
+  padding: 9px 12px;
+  background: var(--c-bg-faf9f0ed, #faf9f0ed);
+  border: 1px solid var(--c-line-dedfd0, #dedfd0);
+  box-shadow: 0 3px 15px var(--c-shadow-27371d0a, #27371d0a);
+  font-size: 11px;
+  color: var(--c-fg-293a2b, #293a2b);
+  pointer-events: none;
 }
-.compass small {
-  display: block;
+.map-legend span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.map-legend i {
+  width: 46px;
+  height: 6px;
+  border-radius: 3px;
+}
+.map-legend .map-legend-route {
+  height: 7px;
+  outline: 2px solid var(--c-line-fffdf4, #fffdf4);
+  background: linear-gradient(90deg, rgb(47 101 119), rgb(215 119 45));
+}
+.app > main:has(> aside:not(.collapsed)) .map-legend {
+  left: 432px;
+}
+@media (max-width: 1100px) {
+  .map-legend {
+    display: none;
+  }
+}
+/* 3D map controls: zoom, back to the walk, tilt, and a live compass. */
+.map-nav {
+  position: absolute;
+  right: 28px;
+  bottom: 52px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 3px 15px var(--c-shadow-27371d0a, #27371d0a);
+}
+.map-nav button {
+  width: 40px;
+  height: 38px;
+  display: grid;
+  place-content: center;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--c-line-e3e4d7, #e3e4d7);
+  background: var(--c-bg-fcfaf0, #fcfaf0);
+  color: var(--c-fg-293a2b, #293a2b);
+  transition: background-color 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.map-nav button:last-child {
+  border-bottom: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .map-nav button:hover {
+    background: var(--c-bg-e7eadc, #e7eadc);
+  }
+}
+.map-nav button:active {
+  background: var(--c-bg-e7eadc, #e7eadc);
+}
+.map-nav .map-nav-compass {
+  height: 48px;
+  gap: 1px;
+  justify-items: center;
+}
+.map-nav .map-nav-compass svg {
+  transition: transform 0.12s linear;
+}
+.map-nav .map-nav-compass small {
   font-size: 8px;
-  margin-top: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+/* Short windows: keep the essentials clear of the tool rail above. */
+@media (max-height: 820px) {
+  .map-nav button:nth-child(4) {
+    display: none;
+  }
 }
 .timeline {
   position: absolute;
@@ -859,7 +939,7 @@ aside.collapsed ~ .viewport .map-heading {
   .timeline > div:first-child > span {
     font-size: 9px;
   }
-  .compass {
+  .map-nav {
     bottom: 147px;
     right: 17px;
   }
@@ -1300,6 +1380,29 @@ aside.collapsed ~ .viewport .map-heading {
   min-width: 58px;
   text-align: right;
 }
+/* Route tab: the less-used settings, folded away under the routes. */
+.route-options {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-line-e3e4d7, #e3e4d7);
+}
+.route-options > summary {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+  cursor: pointer;
+}
+.route-options[open] > summary {
+  margin-bottom: 10px;
+}
+/* The headline gain on a route card: how much less sun than the quickest. */
+.route-choices .route-gain {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-fg-2f6577, #2f6577);
+}
 .route-heat {
   display: block;
   color: var(--c-fg-7a4b2a, #7a4b2a);
@@ -1429,7 +1532,14 @@ aside.collapsed ~ .viewport .map-heading {
   z-index: 3;
 }
 @media (max-width: 650px) {
-  .compass {
+  /* Phones pinch to zoom and tilt; keep "back to the walk" and north. */
+  .app > main .map-nav {
+    right: 12px;
+    bottom: calc(var(--sheet-height, 46dvh) + 168px);
+  }
+  .map-nav button:nth-child(1),
+  .map-nav button:nth-child(2),
+  .map-nav button:nth-child(4) {
     display: none;
   }
   .viewport.atlas-mode .toast {
@@ -1835,6 +1945,14 @@ aside.collapsed ~ .viewport .map-heading {
 }
 .app > main:has(> aside:not(.collapsed)) .timeline {
   width: min(560px, calc(100% - 520px));
+}
+/* Beside the panel and clear of the weather chip on the right. */
+@media (min-width: 721px) {
+  .app > main:has(> aside:not(.collapsed)) .walk-banner {
+    left: 432px;
+    transform: none;
+    width: min(520px, calc(100% - 432px - 290px));
+  }
 }
 .app > main:has(> aside:not(.collapsed)) .walk-map-zoom {
   left: 432px;

@@ -36,6 +36,8 @@ import {
   MousePointer2,
   Landmark,
   Compass,
+  Crosshair,
+  Rotate3d,
   Check,
   X,
   Share2,
@@ -86,7 +88,9 @@ import {
   localHour,
   placeHeat,
   relativeHeatColor,
+  heatRamp,
   weatherAt,
+  scenarioAt,
   areaHeat,
   clockLabel,
 } from "./lib/heat";
@@ -172,6 +176,7 @@ import {
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
+import type { MapCamera } from "./components/scene/CameraRig";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
 import BestTime from "./components/BestTime";
@@ -233,6 +238,20 @@ function plainCounts(note: string) {
         },
       )
   );
+}
+/** "north-east" and so on, for a compass bearing in degrees. */
+function compassWord(degrees: number) {
+  const names = [
+    "north",
+    "north-east",
+    "east",
+    "south-east",
+    "south",
+    "south-west",
+    "west",
+    "north-west",
+  ];
+  return names[Math.round((((degrees % 360) + 360) % 360) / 45) % 8];
 }
 /** Where a clicked point is, in plain words, from the area's centre. */
 function probeLabel([x, z]: Point) {
@@ -374,6 +393,9 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // The on-screen map controls drive the 3D camera through this.
+  const cameraApi = useRef<MapCamera | null>(null);
+  const [bearing, setBearing] = useState(0);
   // Points the camera frames instead of the walk (a planted street).
   const [focusOn, setFocusOn] = useState<Point[] | null>(null);
   // The tour's day plays itself; one planned by hand waits for Play.
@@ -873,6 +895,14 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
   const currentHour = localHour(env.dateTime, world.timezone);
+  /** Shade at each point of the route (as RouteResult.points), by edge. */
+  const routeShade = useMemo(() => {
+    if (!currentRoute || !edgeHeat) return undefined;
+    return currentRoute.edges.flatMap((e, i) => {
+      const shade = edgeHeat.get(baseEdgeId(e.id))?.shade ?? 0.5;
+      return (i ? e.points.slice(1) : e.points).map(() => shade);
+    });
+  }, [currentRoute, edgeHeat]);
   /** Heat of the next ~150 m of the route, for the walking banner. */
   const nextStretch = useMemo(() => {
     if (!currentRoute || !edgeHeat) return null;
@@ -905,9 +935,14 @@ export default function App({
       ).toISOString();
       const dateTime = atLocalHour(day, world.timezone, hour);
       // In forecast mode, temperature and cloud follow the chosen hour.
+      // Otherwise hand-set weather follows the day's usual cycle.
       return previous.weatherMode === "forecast" && forecast
         ? weatherAt(previous, dateTime, forecast)
-        : { ...previous, dateTime, weatherMode: "scenario" };
+        : scenarioAt(
+            { ...previous, weatherMode: "scenario" },
+            dateTime,
+            world.timezone,
+          );
     });
   }
   // "Play the day": the sun sweeps from morning to evening.
@@ -1023,11 +1058,34 @@ export default function App({
         setUnit(next);
         saveUnit(next);
         flash(`Temperatures in °${next}`);
+      } else if (!atlas && view === "3d" && cameraApi.current) {
+        // The 3D map: zoom, back to the walk, tilt, north and pan.
+        const cam = cameraApi.current;
+        const pan: Record<string, [number, number]> = {
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+        };
+        if (e.key === "+" || e.key === "=") cam.zoom(0.62);
+        else if (e.key === "-" || e.key === "_") cam.zoom(1.6);
+        else if (e.key === "0") cam.reset();
+        else if (e.key.toLowerCase() === "t") cam.tilt();
+        else if (e.key.toLowerCase() === "n") cam.north();
+        else if (
+          pan[e.key] &&
+          // Only when nothing else wants the arrows (tabs, sliders, lists).
+          (document.activeElement === document.body ||
+            document.activeElement?.tagName === "CANVAS")
+        ) {
+          e.preventDefault();
+          cam.pan(...pan[e.key]);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [theme, atlas, mode, shortcutsOn, unit]);
+  }, [theme, atlas, mode, shortcutsOn, unit, view]);
   const playDayRef = useRef(() => {});
   playDayRef.current = playDay;
   function playDay() {
@@ -1628,10 +1686,11 @@ export default function App({
         setMode("studio");
         tourPanel(1);
         setLocalHour(15);
-        const afternoon = {
-          ...heatEnv,
-          dateTime: atLocalHour(heatEnv.dateTime, world.timezone, 15),
-        };
+        const afternoon = scenarioAt(
+          heatEnv,
+          atLocalHour(heatEnv.dateTime, world.timezone, 15),
+          world.timezone,
+        );
         // Let the assistant tools see the new hour before planting.
         await new Promise((r) => setTimeout(r, 60));
         const streets = placeHeat(world, afternoon).filter(
@@ -2720,26 +2779,6 @@ export default function App({
                       Waiting for GPS before starting guidance.
                     </p>
                   )}
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={showPaths}
-                      onChange={(e) => setShowPaths(e.target.checked)}
-                    />
-                    Show walking paths
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={voice}
-                      onChange={(e) => {
-                        setVoice(e.target.checked);
-                        stopSpeech();
-                        lastSpoken.current = "";
-                      }}
-                    />
-                    Spoken guidance
-                  </label>
                   {!fiction &&
                     world.provenance.live &&
                     env.temperatureC < 29 && (
@@ -2771,82 +2810,6 @@ export default function App({
                     environment={env}
                     origin={world.origin}
                   />
-                  <BestTime
-                    plan={bestTime}
-                    onPick={(hour, dayOffset) => {
-                      setPlaying(false);
-                      setLocalHour(hour, dayOffset);
-                    }}
-                  />
-                  <DayInLife
-                    key={world.id}
-                    plan={dayPlan}
-                    busy={dayBusy}
-                    autoPlay={dayAutoPlay}
-                    onPlan={() => {
-                      setDayAutoPlay(false);
-                      setDayBusy(true);
-                      // Let the button show its busy state before the work.
-                      setTimeout(() => {
-                        try {
-                          planDayNow();
-                        } finally {
-                          setDayBusy(false);
-                        }
-                      }, 30);
-                    }}
-                    onShow={(leg) => {
-                      // Played once; a later visit to this tab waits for Play.
-                      setDayAutoPlay(false);
-                      setPlaying(false);
-                      setPicking(null);
-                      setPref("shade");
-                      setStart(leg.from.id);
-                      setEnd(leg.to.id);
-                      setLocalHour(leg.hour);
-                    }}
-                  />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={stairs}
-                      onChange={(e) => setStairs(e.target.checked)}
-                    />
-                    Avoid stairs
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={hypothetical}
-                      disabled={tracking}
-                      onChange={(e) => setHypothetical(e.target.checked)}
-                    />
-                    Hypothetical indoor planning
-                  </label>
-                  <label>
-                    DETOUR BUDGET · {Math.round((detour - 1) * 100)}%
-                    <input
-                      type="range"
-                      min="1"
-                      max="3"
-                      step=".1"
-                      value={detour}
-                      onChange={(e) => setDetour(+e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    SUN AVERSION · {sunAversionLabel(sunAversion)}
-                    <input
-                      type="range"
-                      min={SUN_AVERSION_RANGE[0]}
-                      max={SUN_AVERSION_RANGE[1]}
-                      step=".5"
-                      value={sunAversion}
-                      aria-valuetext={`${sunAversionLabel(sunAversion)}: a metre in the sun counts as ${sunAversion} metres in shade`}
-                      title="How much longer a walk you'd take to stay out of the sun. Shapes the Shade route."
-                      onChange={(e) => setSunAversion(+e.target.value)}
-                    />
-                  </label>
                   {!currentRoute &&
                     world.provenance.live &&
                     endNode &&
@@ -2938,6 +2901,105 @@ export default function App({
                       )}
                     </p>
                   )}
+                  <BestTime
+                    plan={bestTime}
+                    onPick={(hour, dayOffset) => {
+                      setPlaying(false);
+                      setLocalHour(hour, dayOffset);
+                    }}
+                  />
+                  <DayInLife
+                    key={world.id}
+                    plan={dayPlan}
+                    busy={dayBusy}
+                    autoPlay={dayAutoPlay}
+                    onPlan={() => {
+                      setDayAutoPlay(false);
+                      setDayBusy(true);
+                      // Let the button show its busy state before the work.
+                      setTimeout(() => {
+                        try {
+                          planDayNow();
+                        } finally {
+                          setDayBusy(false);
+                        }
+                      }, 30);
+                    }}
+                    onShow={(leg) => {
+                      // Played once; a later visit to this tab waits for Play.
+                      setDayAutoPlay(false);
+                      setPlaying(false);
+                      setPicking(null);
+                      setPref("shade");
+                      setStart(leg.from.id);
+                      setEnd(leg.to.id);
+                      setLocalHour(leg.hour);
+                    }}
+                  />
+                  <details className="route-options">
+                    <summary>Route options</summary>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={showPaths}
+                        onChange={(e) => setShowPaths(e.target.checked)}
+                      />
+                      Show walking paths
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={voice}
+                        onChange={(e) => {
+                          setVoice(e.target.checked);
+                          stopSpeech();
+                          lastSpoken.current = "";
+                        }}
+                      />
+                      Spoken guidance
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={stairs}
+                        onChange={(e) => setStairs(e.target.checked)}
+                      />
+                      Avoid stairs
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={hypothetical}
+                        disabled={tracking}
+                        onChange={(e) => setHypothetical(e.target.checked)}
+                      />
+                      Plan through possible indoor shortcuts
+                    </label>
+                    <label>
+                      LONGEST DETOUR · {Math.round((detour - 1) * 100)}% LONGER
+                      <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step=".1"
+                        value={detour}
+                        onChange={(e) => setDetour(+e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      SUN AVERSION · {sunAversionLabel(sunAversion)}
+                      <input
+                        type="range"
+                        min={SUN_AVERSION_RANGE[0]}
+                        max={SUN_AVERSION_RANGE[1]}
+                        step=".5"
+                        value={sunAversion}
+                        aria-valuetext={`${sunAversionLabel(sunAversion)}: a metre in the sun counts as ${sunAversion} metres in shade`}
+                        title="How much longer a walk you'd take to stay out of the sun. Shapes the Shade route."
+                        onChange={(e) => setSunAversion(+e.target.value)}
+                      />
+                    </label>
+                  </details>
                 </section>
               )}
             {atlas && (
@@ -3473,6 +3535,9 @@ export default function App({
                   startPoint={mode === "explore" ? startNode?.point : undefined}
                   endPoint={mode === "explore" ? endNode?.point : undefined}
                   focusOn={focusOn?.length ? focusOn : undefined}
+                  cameraApi={cameraApi}
+                  onBearing={setBearing}
+                  routeShade={routeShade}
                   pickingEndpoint={!!picking}
                   showWalkingPaths={showPaths && mode === "explore"}
                   locationPoint={userPosition || undefined}
@@ -3793,8 +3858,9 @@ export default function App({
                     <Users size={19} />
                   </button>
                   <button
-                    title="Toggle trees"
-                    aria-label="Toggle trees"
+                    title={trees ? "Hide trees" : "Show trees"}
+                    aria-label="Show trees"
+                    aria-pressed={trees}
                     className={!trees ? "muted" : ""}
                     onClick={() => setTrees(!trees)}
                   >
@@ -3839,8 +3905,9 @@ export default function App({
                     <Thermometer size={19} />
                   </button>
                   <button
-                    title="Toggle buildings"
-                    aria-label="Toggle buildings"
+                    title={buildings ? "Hide buildings" : "Show buildings"}
+                    aria-label="Show buildings"
+                    aria-pressed={buildings}
                     onClick={() => setBuildings(!buildings)}
                   >
                     <Building2 size={19} />
@@ -3871,10 +3938,87 @@ export default function App({
                     <Download size={19} />
                   </button>
                 </div>
-                <div className="compass">
-                  <Compass size={33} strokeWidth={1} />
-                  <small>N</small>
-                </div>
+                {view === "3d" &&
+                  !walking &&
+                  heatOverlay &&
+                  mode === "explore" &&
+                  !tourOpen &&
+                  edgeHeat && (
+                    <div className="map-legend" aria-hidden>
+                      <span>
+                        <i
+                          style={{
+                            background: `linear-gradient(90deg, ${heatRamp(
+                              edgeHeat.values().next().value ?? {
+                                sunFeelsC: 40,
+                              },
+                            ).join(", ")})`,
+                          }}
+                        />
+                        Paths: shaded → full sun
+                      </span>
+                      {currentRoute && (
+                        <span>
+                          <i className="map-legend-route" />
+                          Your walk: in shade → in sun
+                        </span>
+                      )}
+                    </div>
+                  )}
+                {view === "3d" && !walking && (
+                  <div
+                    className="map-nav"
+                    role="group"
+                    aria-label="Map view controls"
+                  >
+                    <button
+                      type="button"
+                      title="Zoom in (+)"
+                      aria-label="Zoom in"
+                      onClick={() => cameraApi.current?.zoom(0.62)}
+                    >
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Zoom out (−)"
+                      aria-label="Zoom out"
+                      onClick={() => cameraApi.current?.zoom(1.6)}
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Back to the walk (0)"
+                      aria-label="Back to the walk"
+                      onClick={() => cameraApi.current?.reset()}
+                    >
+                      <Crosshair size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Tilt: look straight down or at an angle (T)"
+                      aria-label="Tilt the view"
+                      onClick={() => cameraApi.current?.tilt()}
+                    >
+                      <Rotate3d size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      className="map-nav-compass"
+                      title="Face north (N)"
+                      aria-label={`Facing ${compassWord(bearing)}. Face north`}
+                      onClick={() => cameraApi.current?.north()}
+                    >
+                      <Compass
+                        size={22}
+                        strokeWidth={1.4}
+                        style={{ transform: `rotate(${-bearing - 45}deg)` }}
+                      />
+                      <small>N</small>
+                    </button>
+                  </div>
+                )}
               </>
             )}
             {!atlas && (
@@ -3908,6 +4052,7 @@ export default function App({
                 </div>
                 <input
                   aria-label="Time of day"
+                  aria-valuetext={clock(currentHour)}
                   type="range"
                   min="0"
                   max="23.75"
@@ -3929,7 +4074,6 @@ export default function App({
             )}
             <div className={`map-credit${atlas ? "" : " has-timeline"}`}>
               {mapCredit}
-              <span>Scene units: meters</span>
             </div>
             {busy && (
               <div className="loading">
