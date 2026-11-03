@@ -754,6 +754,7 @@ export default function WorldCanvas({
   walkthrough,
   onWalkthroughDone,
   labels,
+  focusOn,
 }: {
   world: World;
   environment: Environment;
@@ -783,6 +784,8 @@ export default function WorldCanvas({
   /** Walk this route at street level (null when not walking). */
   walkthrough?: Point[] | null;
   onWalkthroughDone?: () => void;
+  /** Points to frame instead of the walk's ends (a planted street). */
+  focusOn?: Point[];
   /** Named places to tag on the map (hidden at street level). */
   labels?: PlaceLabel[];
 }) {
@@ -876,7 +879,9 @@ export default function WorldCanvas({
       <FrameArea
         extent={extent}
         insets={insets}
-        focus={startPoint && endPoint ? [startPoint, endPoint] : []}
+        focus={
+          focusOn ?? (startPoint && endPoint ? [startPoint, endPoint] : [])
+        }
         framed={framed}
       />
       <ArrivalFlight framed={framed} />
