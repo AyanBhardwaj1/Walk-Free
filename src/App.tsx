@@ -1527,7 +1527,11 @@ export default function App({
       action: "Plant the hottest street",
       run: async () => {
         // Plant for the afternoon peak, whatever hour the day step left.
+        // The studio view also ends any day still playing on the Route tab.
         setPlaying(false);
+        setDayAutoPlay(false);
+        setMode("studio");
+        tourPanel(1);
         setLocalHour(15);
         const afternoon = {
           ...heatEnv,
@@ -2687,6 +2691,8 @@ export default function App({
                       }, 30);
                     }}
                     onShow={(leg) => {
+                      // Played once; a later visit to this tab waits for Play.
+                      setDayAutoPlay(false);
                       setPlaying(false);
                       setPicking(null);
                       setPref("shade");

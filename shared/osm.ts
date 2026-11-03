@@ -656,13 +656,19 @@ export function deferOutlinesToParts(
   partIds: ReadonlySet<string>,
 ): number {
   if (!partIds.size) return 0;
-  const parts = objects.filter((o) => partIds.has(o.id));
+  // Only parts with a mapped height: a guessed 10 m part (an untagged
+  // canopy, say) must not flatten a tall outline.
+  const parts = objects.filter(
+    (o) => partIds.has(o.id) && o.heightMethod !== "estimated",
+  );
   let lowered = 0;
   for (const outline of objects) {
     if (
       partIds.has(outline.id) ||
       !outline.footprint ||
-      outline.kind === "tree"
+      outline.kind === "tree" ||
+      // A cited height is the landmark's real one; keep it.
+      outline.heightMethod === "published"
     )
       continue;
     const polygon = outline.footprint.map(

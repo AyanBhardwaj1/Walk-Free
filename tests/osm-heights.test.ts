@@ -60,6 +60,29 @@ describe("published landmark heights", () => {
     expect(other.height).toBe(23);
     expect(other.heightMethod).toBe("mapped");
   });
+  it("keeps a cited height even with taller-looking parts inside", () => {
+    const tower = parseOsmWorld(
+      {
+        elements: [
+          building(516187631, 0, { name: "UT Tower", height: "23" }),
+          {
+            type: "way" as const,
+            id: 98,
+            nodes: [1, 2, 3, 4, 1],
+            tags: { "building:part": "yes", height: "72" },
+            geometry: square(0, 0).map((p) => ({
+              lat: p.lat + 0.00005,
+              lon: p.lon + 0.00005,
+            })),
+          },
+        ],
+      },
+      worldOrigin(lat, lon),
+      "Test",
+      600,
+    ).objects.find((o) => o.name === "UT Tower")!;
+    expect(tower.height).toBeCloseTo(93.6);
+  });
   it("only answers for listed ids", () => {
     expect(publishedHeight("way/1")).toBeUndefined();
     expect(publishedHeight("toString")).toBeUndefined();
@@ -114,6 +137,13 @@ describe("outlines with 3D parts", () => {
           "building:part": "yes",
           height: "90",
         }),
+        // A tall outline whose only part has a guessed height: left alone.
+        way(7, box(0.0045, 0, 0.001), {
+          building: "yes",
+          name: "Guessed Part",
+          height: "150",
+        }),
+        way(8, box(0.0049, 0.0004, 0.0002), { "building:part": "roof" }),
         // No parts at all.
         way(6, box(0.006, 0, 0.0005), {
           building: "yes",
@@ -135,6 +165,7 @@ describe("outlines with 3D parts", () => {
   it("never raises an outline, and leaves outlines without parts alone", () => {
     expect(byName("Low Base").height).toBeCloseTo(6.4);
     expect(byName("Plain").height).toBe(300);
+    expect(byName("Guessed Part").height).toBe(150);
     expect(world.objects.some((o) => o.height === 380)).toBe(true);
   });
 });

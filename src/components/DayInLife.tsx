@@ -33,7 +33,9 @@ export default function DayInLife({
 }) {
   const unit = useUnit();
   const [active, setActive] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
+  // Mounting with a plan already made (the tour switches tab and plans in
+  // one go) still plays when asked.
+  const [playing, setPlaying] = useState(() => !!plan && autoPlay);
   const show = useRef(onShow);
   show.current = onShow;
   // A new plan starts from the top, not where the last one stopped.
