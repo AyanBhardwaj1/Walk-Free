@@ -74,3 +74,33 @@ describe("spoken shade hint", () => {
     expect(spokenShadeHint(null)).toBe("");
   });
 });
+
+describe("short flickers of shade", () => {
+  it("doesn't announce a few metres of shade as being in shade", () => {
+    const edges = [
+      { id: "a", distance: 4 },
+      { id: "b", distance: 200 },
+      { id: "c", distance: 100 },
+    ];
+    const shade = new Map([
+      ["a", 0.9],
+      ["b", 0.1],
+      ["c", 0.8],
+    ]);
+    const r = sunAhead(edges, (id) => ({ shade: shade.get(id)! }))!;
+    expect(r.inShade).toBe(false);
+    expect(r.shadeInM).toBe(204);
+  });
+  it("still sees real shade ahead", () => {
+    const r = sunAhead(
+      [
+        { id: "a", distance: 60 },
+        { id: "b", distance: 10 },
+        { id: "c", distance: 90 },
+      ],
+      (id) => ({ shade: id === "a" ? 0 : id === "b" ? 0.1 : 0.9 }),
+    )!;
+    expect(r.inShade).toBe(false);
+    expect(r.shadeInM).toBe(70);
+  });
+});

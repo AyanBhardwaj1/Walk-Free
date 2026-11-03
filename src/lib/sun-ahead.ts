@@ -3,6 +3,8 @@ import { baseEdgeId } from "./walk-location.js";
 /** A stretch counts as shaded at half shade or more. */
 const SHADED = 0.5;
 const WALK_M_PER_MIN = 78;
+/** Shade or sun shorter than this along the walk isn't announced, m. */
+const MIN_RUN_M = 20;
 
 /**
  * What the rest of a walk holds for sun: whether the walker is in shade
@@ -17,25 +19,51 @@ export function sunAhead(
     distance: e.distance,
     shade: reading(baseEdgeId(e.id))?.shade,
   }));
-  const first = stretches.find((k) => k.shade !== undefined);
-  if (!first) return null;
-  const inShade = first.shade! >= SHADED;
-  // Stretches without a reading still count toward distance, so "in 80 m"
-  // is measured along the real walk; they don't decide shade or sun.
-  let run = 0,
+  if (!stretches.some((k) => k.shade !== undefined)) return null;
+  // Runs of shade and sun along the walk. Stretches without a reading
+  // still count toward distance (so "in 80 m" is measured along the real
+  // walk) but don't decide shade or sun.
+  const runs: { shaded: boolean; length: number }[] = [];
+  let lead = 0,
     sun = 0,
-    changeAt: number | null = null;
+    total = 0;
   for (const k of stretches) {
-    if (k.shade !== undefined) {
-      sun += k.distance * (1 - k.shade);
-      if (changeAt === null && k.shade >= SHADED !== inShade) changeAt = run;
+    total += k.distance;
+    if (k.shade === undefined) {
+      if (runs.length) runs[runs.length - 1].length += k.distance;
+      else lead += k.distance;
+      continue;
     }
-    run += k.distance;
+    sun += k.distance * (1 - k.shade);
+    const shaded = k.shade >= SHADED;
+    const last = runs[runs.length - 1];
+    if (last && last.shaded === shaded) last.length += k.distance;
+    else runs.push({ shaded, length: k.distance + (runs.length ? 0 : lead) });
   }
+  // A few metres of shade (or sun) is noise, not a change worth announcing:
+  // fold runs shorter than MIN_RUN_M into their neighbours.
+  for (let i = 0; runs.length > 1 && i < runs.length;) {
+    if (runs[i].length >= MIN_RUN_M) {
+      i++;
+      continue;
+    }
+    const into = i > 0 ? i - 1 : i + 1;
+    runs[into].length += runs[i].length;
+    runs.splice(i, 1);
+    // Neighbours of the same kind are now one run.
+    for (let j = 1; j < runs.length; j++)
+      if (runs[j].shaded === runs[j - 1].shaded) {
+        runs[j - 1].length += runs[j].length;
+        runs.splice(j--, 1);
+      }
+    i = 0;
+  }
+  const inShade = runs[0].shaded;
+  const changeAt = runs.length > 1 ? runs[0].length : null;
   return {
     inShade,
     /** In shade: metres of shade left before the next sunny stretch. */
-    shadeForM: inShade ? Math.round(changeAt ?? run) : null,
+    shadeForM: inShade ? Math.round(changeAt ?? total) : null,
     /** In sun: metres to the next shaded stretch, or null if none. */
     shadeInM: inShade ? null : changeAt === null ? null : Math.round(changeAt),
     sunMinutesLeft: Math.round((sun / WALK_M_PER_MIN) * 10) / 10,

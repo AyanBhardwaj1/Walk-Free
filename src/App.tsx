@@ -3845,8 +3845,9 @@ export default function App({
                     <Users size={19} />
                   </button>
                   <button
-                    title="Toggle trees"
-                    aria-label="Toggle trees"
+                    title={trees ? "Hide trees" : "Show trees"}
+                    aria-label="Show trees"
+                    aria-pressed={trees}
                     className={!trees ? "muted" : ""}
                     onClick={() => setTrees(!trees)}
                   >
@@ -3891,8 +3892,9 @@ export default function App({
                     <Thermometer size={19} />
                   </button>
                   <button
-                    title="Toggle buildings"
-                    aria-label="Toggle buildings"
+                    title={buildings ? "Hide buildings" : "Show buildings"}
+                    aria-label="Show buildings"
+                    aria-pressed={buildings}
                     onClick={() => setBuildings(!buildings)}
                   >
                     <Building2 size={19} />
@@ -4010,6 +4012,7 @@ export default function App({
                 </div>
                 <input
                   aria-label="Time of day"
+                  aria-valuetext={clock(currentHour)}
                   type="range"
                   min="0"
                   max="23.75"
@@ -4031,7 +4034,6 @@ export default function App({
             )}
             <div className={`map-credit${atlas ? "" : " has-timeline"}`}>
               {mapCredit}
-              <span>Scene units: meters</span>
             </div>
             {busy && (
               <div className="loading">

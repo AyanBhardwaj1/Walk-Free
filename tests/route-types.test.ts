@@ -232,6 +232,13 @@ describe("route types", () => {
     expect(
       compareRoutes(world(), "A", "D", options).indoors?.coolStop,
     ).toBeUndefined();
+    // The destination itself is not a stop on the way.
+    expect(
+      compareRoutes(world(), "A", "D", {
+        ...options,
+        coolStops: [{ nodeId: "D", name: "Library" }],
+      }).indoors?.coolStop,
+    ).toBeUndefined();
   });
 
   it("reads lighting, street type and slope from OSM tags", () => {

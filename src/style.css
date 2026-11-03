@@ -1341,6 +1341,12 @@ aside.collapsed ~ .viewport .map-heading {
   min-width: 58px;
   text-align: right;
 }
+/* The headline gain on a route card: how much less sun than the quickest. */
+.route-choices .route-gain {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-fg-2f6577, #2f6577);
+}
 .route-heat {
   display: block;
   color: var(--c-fg-7a4b2a, #7a4b2a);
@@ -1883,6 +1889,14 @@ aside.collapsed ~ .viewport .map-heading {
 }
 .app > main:has(> aside:not(.collapsed)) .timeline {
   width: min(560px, calc(100% - 520px));
+}
+/* Beside the panel and clear of the weather chip on the right. */
+@media (min-width: 721px) {
+  .app > main:has(> aside:not(.collapsed)) .walk-banner {
+    left: 432px;
+    transform: none;
+    width: min(520px, calc(100% - 432px - 290px));
+  }
 }
 .app > main:has(> aside:not(.collapsed)) .walk-map-zoom {
   left: 432px;
