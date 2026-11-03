@@ -823,6 +823,12 @@ export default function WorldCanvas({
       typeof matchMedia !== "undefined" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
+  // Narrow screens draw the map smaller, so labels need more room.
+  const [narrow] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(max-width: 720px)").matches,
+  );
   const [lowPower] = useState(
     () =>
       typeof matchMedia !== "undefined" &&
@@ -1044,9 +1050,11 @@ export default function WorldCanvas({
                 (p) =>
                   p &&
                   Math.hypot(p[0] - l.point[0], p[1] - l.point[1]) <
-                    LABEL_MARKER_GAP,
+                    (narrow ? LABEL_MARKER_GAP * 4 : LABEL_MARKER_GAP),
               ),
           )
+          // Phones: the first few that are left, which the lists lead with.
+          .slice(0, narrow ? 4 : undefined)
           .map((l) => (
             <PlaceTag key={l.text} label={l} terrain={world.terrain} />
           ))}
