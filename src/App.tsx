@@ -216,6 +216,17 @@ const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
+/** "3 building(s)" as "3 buildings", "1 way(s)" as "1 way" in stored notes. */
+function plainCounts(note: string) {
+  return note.replace(
+    /\b(\d+) ([^()\s]+(?: [^()\s]+)?)\(s\)(?: (are|were)\b)?/g,
+    (_, n: string, word: string, verb?: string) => {
+      const one = n === "1";
+      const v = verb && (one ? (verb === "are" ? "is" : "was") : verb);
+      return `${n} ${word}${one ? "" : "s"}${v ? ` ${v}` : ""}`;
+    },
+  );
+}
 /** Where a clicked point is, in plain words, from the area's centre. */
 function probeLabel([x, z]: Point) {
   const part = (v: number, plus: string, minus: string) =>
@@ -3300,7 +3311,7 @@ export default function App({
                 <p className="fine">{world.provenance.attribution}</p>
                 {world.provenance.notes.map((n) => (
                   <p className="fine" key={n}>
-                    {n}
+                    {plainCounts(n)}
                   </p>
                 ))}
                 <div className="data-counts">
