@@ -750,22 +750,15 @@ export default function App({
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
     [heatActive, world, heatEnv],
   );
-  // The prebuilt area's landmarks, named on the 3D map; phones show only
-  // the first few, which the lists lead with.
-  const [narrow] = useState(
-    () =>
-      typeof matchMedia !== "undefined" &&
-      matchMedia("(max-width: 720px)").matches,
-  );
+  // The prebuilt area's landmarks, named on the 3D map (phones show fewer).
   const areaLabels = useMemo(() => {
     if (!world.provenance.live) return [];
-    const labels = prebuiltAreaFor(
-      world.origin.lat,
-      world.origin.lon,
-      world.extent / 2,
-    )?.labels;
-    return placeLabels(world, narrow ? labels?.slice(0, 4) : labels);
-  }, [world, narrow]);
+    return placeLabels(
+      world,
+      prebuiltAreaFor(world.origin.lat, world.origin.lon, world.extent / 2)
+        ?.labels,
+    );
+  }, [world]);
   // People on the streets: on by default where the city is the show.
   const [peopleFor, setPeopleFor] = useState<{ id: string; on: boolean }>({
     id: "",

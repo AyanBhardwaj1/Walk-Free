@@ -42,16 +42,18 @@ export const PREBUILT_AREAS: readonly PrebuiltArea[] = [
     // (23% → 45%) for 3% more walking.
     walk: { from: "Kinsolving Dormitory", to: "Perry-Castañeda Library" },
     labels: [
+      // Phones show the first four left after those under the start and
+      // finish markers: keep the list spread across campus.
       { name: "UT Tower" },
       { name: "Perry-Castañeda Library", label: "PCL" },
-      { name: "Gregory Gymnasium", label: "Gregory Gym" },
-      { name: "Union Building", label: "Texas Union" },
       { name: "DKR Memorial Stadium", label: "DKR Stadium" },
+      { name: "Gregory Gymnasium", label: "Gregory Gym" },
       {
         name: "Lyndon Baines Johnson Presidential Library and Museum",
         label: "LBJ Library",
       },
       { name: "Harry Ransom Center" },
+      { name: "Union Building", label: "Texas Union" },
       { name: "Moody Center" },
       { name: "Bill and Melinda Gates Computer Science Complex", label: "GDC" },
       { name: "Jester West Hall", label: "Jester" },
