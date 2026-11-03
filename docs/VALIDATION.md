@@ -293,3 +293,16 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - The assistant's route options now report the step-free gap.
   - `npm test` 601 pass.
 
+## Route overlay, flat-map framing, landmark labels — 2026-11-03 (early morning)
+
+- **Route line.** Drawn over the scene with a light casing, and the start, finish and location markers stay above it. Checked at UT at 1 PM with heat: one solid line, with both tags readable.
+- **Flat map.** Without a location, the whole route is fitted between the panel, the directions banner and the time card. Two wider zoom steps were added. On phones the sheet lowers, and the tour button gives way to the banner. Checked at 1440 px and 390 px.
+- **Landmark labels.**
+  - Prebuilt areas list places to name: 11 at UT and 9 in Midtown.
+  - Each tag sits over the tallest part inside the outline.
+  - Tags are hidden at street level, in the studio and next to start or finish markers. Phones show four.
+  - Tests check that every name resolves in the shipped data, and that the Empire State label sits above 300 m.
+- **Data notes.** Stored "(s)" plurals are shown as plain words, with verb agreement.
+- **Deploys.** PRs #41, #42 and #43 merged. The production probe passed on each (2b3345d, 7db4106, fb431d8).
+- **Totals.** `npm test` 604 pass; lint and build clean.
+
