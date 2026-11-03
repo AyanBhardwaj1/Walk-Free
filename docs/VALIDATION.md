@@ -306,3 +306,22 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **Deploys.** PRs #41, #42 and #43 merged. The production probe passed on each (2b3345d, 7db4106, fb431d8).
 - **Totals.** `npm test` 604 pass; lint and build clean.
 
+## Second UT QA pass, review, planting camera — 2026-11-03 (night, CST)
+
+- **QA round 2.** A fresh agent passed 10 of 12 checks of the earlier fixes. Its 6 new issues were fixed:
+  - Phone tour framing below the card.
+  - Results of the heat and planting steps scrolled into view.
+  - Time card tucked while the sheet is up.
+  - Desktop card clear of Stop walking.
+  - The Ask demo keeping 3 PM (tested).
+  - The flat map refitting when panels move.
+- **Code review of PRs #42–#46.** It reported four issues, all fixed:
+  - The flat-map zoom reset when the clock moved.
+  - Decimal digits got thousands separators.
+  - The tour-card inset went stale.
+  - The step-free budget ignored the gap (tested).
+- **Planting camera.** After planting, the camera frames the planted street (at least 250 m across).
+- **Phone labels.** Labels within 240 m of a marker give way, and phones show the first four of a list spread across campus. No overlaps at 390 px.
+- **Deploys.** PRs #44–#47 merged, and the production probe passed on each (cea0b8d, 61021bc, d09b632, facdfae).
+- **Totals.** `npm test` 605 pass; lint and build clean.
+

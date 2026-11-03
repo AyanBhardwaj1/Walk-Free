@@ -47,6 +47,11 @@ export default function BestTime({
             {Math.round(inUnit(plan.best.feelsLikeC, unit))}°{unit}, {saving}°
             cooler than now.
           </>
+        ) : plan.best.hour !== plan.now.hour ? (
+          <>
+            Now is about as cool as this walk gets: leaving at{" "}
+            {clock(plan.best.hour)} is only slightly cooler.
+          </>
         ) : (
           <>Now is as cool as this walk gets today.</>
         )}

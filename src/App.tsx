@@ -824,6 +824,10 @@ export default function App({
   );
   const walking =
     walk3d !== null && !atlas && !(view === "2d" && mode === "explore");
+  // On phones a street-level walk gets the screen: lower the sheet.
+  useEffect(() => {
+    if (walk3d && window.matchMedia("(max-width: 720px)").matches) setSheet(0);
+  }, [walk3d]);
   // Switching to the flat walking map ends a street-level walk for good.
   useEffect(() => {
     if (view === "2d" && mode === "explore") setWalk3d(null);
@@ -1797,6 +1801,9 @@ export default function App({
     link?: WalkLink,
   ): Promise<boolean> {
     const request = ++buildRequest.current;
+    // An invented city's weather (rain, snow, its own heat) is its own: a
+    // real place starts from ordinary weather until live weather arrives.
+    const fromInvented = /^(fiction-|ai-)/.test(worldRef.current.id);
     if (!build) {
       setBusy("");
       location.reset();
@@ -1901,6 +1908,12 @@ export default function App({
           DEMO_MIN_SUN_RAD;
       setEnv((previous) => ({
         ...previous,
+        ...(fromInvented && {
+          temperatureC: initial.temperatureC,
+          humidity: initial.humidity,
+          windMps: initial.windMps,
+          cloudCover: initial.cloudCover,
+        }),
         dateTime:
           link?.hour !== undefined
             ? atLocalHour(now, w.timezone, link.hour)
