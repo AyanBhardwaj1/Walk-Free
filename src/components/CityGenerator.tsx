@@ -52,6 +52,7 @@ export default function CityGenerator({
   onGenerate,
   aiNote,
   initialPrompt = "",
+  free = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -60,6 +61,8 @@ export default function CityGenerator({
   /** Who will plan it: the AI, or the offline designer and why. */
   aiNote: string;
   initialPrompt?: string;
+  /** Built offline at no cost (guests): show no credit prices. */
+  free?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -177,7 +180,9 @@ export default function CityGenerator({
               <strong>{r.label}</strong>
               <small>{r.detail}</small>
               <small className="city-gen-credits">
-                {r.credits} {r.credits === 1 ? "credit" : "credits"}
+                {free
+                  ? "Free"
+                  : `${r.credits} ${r.credits === 1 ? "credit" : "credits"}`}
               </small>
             </label>
           ))}

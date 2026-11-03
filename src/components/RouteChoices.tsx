@@ -28,6 +28,16 @@ const lighting = (route: RouteResult) => {
   }
   return { mapped: mapped / route.distance, lit: lit / route.distance };
 };
+/** Where a step-free walk had to start or end a little away from the pins. */
+function stepFreeGapText(gap: { start: number; end: number }) {
+  const parts = [
+    gap.start >= 5 && `starts ${gap.start} m from your start`,
+    gap.end >= 5 && `ends ${gap.end} m from your destination`,
+  ].filter(Boolean);
+  return parts.length
+    ? `No step-free way from the exact points: ${parts.join(", ")}`
+    : "Avoids mapped stairs and steep slopes";
+}
 /** Below this, say the route favours busier streets instead of a lit share. */
 const WELL_MAPPED = 0.5;
 export default function RouteChoices({
@@ -137,7 +147,9 @@ export default function RouteChoices({
                   })()}
                 {preference === "stepfree" && (
                   <span className="route-extra">
-                    Avoids mapped stairs and steep slopes
+                    {route.stepFreeGap
+                      ? stepFreeGapText(route.stepFreeGap)
+                      : "Avoids mapped stairs and steep slopes"}
                   </span>
                 )}
                 {!!route.waterStops && (

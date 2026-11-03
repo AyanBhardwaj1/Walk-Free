@@ -1,7 +1,7 @@
 import { Footprints, Thermometer, Trees, X } from "lucide-react";
 import {
   HEAT_LEVELS,
-  HEAT_RAMP,
+  heatRamp,
   relativeHeatColor,
   type HeatReading,
   type PlaceHeat,
@@ -46,7 +46,7 @@ export function HeatLegend({ range }: { range: HeatReading | null }) {
       <span
         className="heat-scale-bar"
         style={{
-          background: `linear-gradient(90deg, ${HEAT_RAMP.join(", ")})`,
+          background: `linear-gradient(90deg, ${heatRamp(range).join(", ")})`,
         }}
       />
       <div>

@@ -4,11 +4,14 @@ import {
   atLocalHour,
   dailyProfile,
   edgeHeatMap,
+  HEAT_LEVELS,
   heatConditions,
+  heatRamp,
   heatLevel,
   localHour,
   placeHeat,
   readHeat,
+  relativeHeatColor,
   routeHeat,
   toF,
 } from "../src/lib/heat";
@@ -181,5 +184,31 @@ describe("heat estimates", () => {
       origin,
     );
     expect(heat.sunMinutes).toBe(9);
+  });
+});
+
+describe("heat colours follow how hot the sun feels", () => {
+  const reading = (shadeF: number, sunF: number, shade: number) => {
+    const c = (f: number) => ((f - 32) * 5) / 9;
+    return {
+      shade,
+      shadeFeelsC: c(shadeF),
+      sunFeelsC: c(sunF),
+      feelsLikeC: c(shadeF + (sunF - shadeF) * (1 - shade)),
+      level: 0 as const,
+    };
+  };
+  it("keeps red for a very hot sun", () => {
+    expect(heatRamp(reading(98, 112, 0)).at(-1)).toBe(HEAT_LEVELS[4].color);
+    expect(relativeHeatColor(reading(98, 112, 0))).toBe(HEAT_LEVELS[4].color);
+    expect(relativeHeatColor(reading(98, 112, 1))).toBe(HEAT_LEVELS[0].color);
+  });
+  it("never paints a mild day red", () => {
+    const mild = reading(61, 66, 0);
+    expect(heatRamp(mild)).toEqual([
+      HEAT_LEVELS[0].color,
+      HEAT_LEVELS[1].color,
+    ]);
+    expect(relativeHeatColor(mild)).toBe(HEAT_LEVELS[1].color);
   });
 });

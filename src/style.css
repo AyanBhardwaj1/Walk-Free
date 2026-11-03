@@ -2186,6 +2186,10 @@ aside.collapsed ~ .viewport .map-heading {
   .app > main .weather-chip div small {
     display: none;
   }
+  /* Just the icon and temperature, clear of the tool row. */
+  .app > main .weather-chip > div {
+    display: none;
+  }
   .app > main .map-actions {
     top: 12px;
     right: 12px;
@@ -3470,7 +3474,8 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
 }
 .demo-tour {
   position: absolute;
-  bottom: 170px;
+  /* Top of the map: clear of the route's markers and of messages below. */
+  top: 16px;
   z-index: 6;
   width: min(360px, calc(100% - 32px));
   display: grid;
@@ -3485,6 +3490,7 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: auto;
   margin: 0;
   padding: 0;
   border: 0;
@@ -3553,6 +3559,10 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
 .demo-tour .text-button {
   color: var(--c-fg-f4d77d, #f4d77d);
 }
+/* A city's title card gives way to the tour while it runs. */
+main:has(.demo-tour) .map-heading {
+  visibility: hidden;
+}
 @media (max-width: 720px) {
   .demo-tour,
   .tour-launch {
@@ -3571,7 +3581,7 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
   .demo-tour p {
     font-size: 12px;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }

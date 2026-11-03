@@ -20,8 +20,11 @@ export default function DayInLife({
   busy,
   onPlan,
   onShow,
+  autoPlay = false,
 }: {
   plan: DayPlan | null;
+  /** Play a newly made plan straight away (the guided tour). */
+  autoPlay?: boolean;
   busy: boolean;
   /** Plan (or re-plan) the day for the current area and weather. */
   onPlan: () => void;
@@ -38,8 +41,13 @@ export default function DayInLife({
   if (planned !== plan) {
     setPlanned(plan);
     setActive(null);
-    setPlaying(false);
+    setPlaying(!!plan && autoPlay);
   }
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (playing)
+      root.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [playing]);
   useEffect(() => {
     if (!playing || !plan) return;
     let i = active === null || active >= plan.legs.length ? 0 : active;
@@ -76,7 +84,7 @@ export default function DayInLife({
     );
   const saved = Math.max(0, plan.quickSunMinutes - plan.sunMinutes);
   return (
-    <div className="day-life">
+    <div className="day-life" ref={root}>
       <div className="section-title">
         <CalendarClock size={17} aria-hidden /> A day in the life
       </div>

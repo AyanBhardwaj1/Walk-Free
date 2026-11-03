@@ -435,12 +435,22 @@ function mix(a: string, b: string, t: number) {
  * (cool end) to full sun (hot end), so hot spots stand out even when the
  * whole area sits in one comfort band.
  */
+/**
+ * The colours from full shade to full sun right now: always from cool, but
+ * only as far as the sun really feels (red only when it is very hot), so a
+ * mild day doesn't paint sunny paths red.
+ */
+export function heatRamp(reading: Pick<HeatReading, "sunFeelsC">) {
+  const top = Math.max(1, heatLevel(reading.sunFeelsC));
+  return RAMP.slice(0, top + 1);
+}
 export function relativeHeatColor(reading: HeatReading) {
   if (reading.sunFeelsC - reading.shadeFeelsC < MIN_CONTRAST_C)
     return HEAT_LEVELS[reading.level].color;
-  const t = (1 - reading.shade) * (RAMP.length - 1);
-  const i = Math.min(RAMP.length - 2, Math.floor(t));
-  return mix(RAMP[i], RAMP[i + 1], t - i);
+  const ramp = heatRamp(reading);
+  const t = (1 - reading.shade) * (ramp.length - 1);
+  const i = Math.min(ramp.length - 2, Math.floor(t));
+  return mix(ramp[i], ramp[i + 1], t - i);
 }
 export const HEAT_RAMP = RAMP;
 
