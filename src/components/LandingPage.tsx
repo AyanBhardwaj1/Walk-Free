@@ -831,8 +831,8 @@ export default function LandingPage({
             <p className="fine-note">
               Rain-dark harbor towers, a golden citadel under the aurora, a
               garden city under a forest canopy. In the desert city of Dune
-              Reach at 3 PM, the boulevard has no shade at all while the old
-              quarter's lanes keep the shade route 68% shaded.
+              Reach at 3 PM, the open boulevard bakes while the shade route
+              through the old quarter's lanes stays almost entirely shaded.
             </p>
           </div>
           <FictionGallery base={signedIn ? "/app" : "/demo"} reveal />
