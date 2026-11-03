@@ -258,7 +258,7 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **Outlines with 3D parts.**
   - The Empire State Building's outline was extruded whole to 443 m over its mapped setbacks.
   - Outlines that contain `building:part` ways are now capped at their lowest part, and are never raised.
-  - Midtown was rebuilt in the "Build hero areas" workflow: 80 outlines were lowered and the Empire State outline is now its 75 m base. The walk endpoints are unchanged, and the browser render showed no errors.
+  - Midtown was rebuilt in the "Build hero areas" workflow: 77 outlines were lowered (after review, only parts with a mapped height count, and cited heights are never lowered) and the Empire State outline is now its 75 m base. The walk endpoints are unchanged, and the browser render showed no errors.
   - Tests cover lowering, never raising and outlines without parts.
 - **After dark.** Route cards drop shade and sun minutes once the sun is down, and show the lit share where lighting is well mapped. UT has lighting mapped on about 28% of the night route.
 - **Not changed.** Moody Center and Bass Concert Hall keep estimated 10 m heights. No citable published figure was found for either, so none was invented.
@@ -286,4 +286,10 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - The search message no longer asks for a start that is already set.
   - The selected point is described in metres from the centre, plurals are fixed, and guests see "Free" instead of credits.
 - **Totals.** `npm test` 600 pass; lint and build clean.
+- **Code review of this batch.** An independent reviewer reported four bugs, all fixed:
+  - Step-free search returned nothing for points under about 160 m apart. Seeds and walked arrivals are now separate states (tested).
+  - The tour's day didn't play when the Route tab mounted together with the plan. It now plays (checked in the browser from 8:30 AM to 6:15 PM), and planting then happens at 3 PM (78 trees on Duval Street).
+  - Outlines were capped by parts with guessed heights or over cited heights. Both are now excluded (tested).
+  - The assistant's route options now report the step-free gap.
+  - `npm test` 601 pass.
 
