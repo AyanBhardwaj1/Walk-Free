@@ -1423,7 +1423,20 @@ export default function App({
       if (link.tab) setTab(link.tab);
       return;
     }
-    void loadCity(city, true, area?.radius ?? link.radius ?? 800, link);
+    // A link to a place that doesn't exist says so, after the area that
+    // opened instead has loaded (its own message would replace this one).
+    const askedArea = params0.get("area");
+    const missing =
+      fiction && !FICTION_CITIES.some((c) => c.slug === fiction)
+        ? `There's no invented city called "${fiction.slice(0, 40)}", so this opens ${area?.name ?? "the demo"}.`
+        : askedArea && !PREBUILT_AREAS.some((a) => a.slug === askedArea)
+          ? `"${askedArea.slice(0, 40)}" isn't one of the ready areas, so this opens ${area?.name ?? "the demo"}.`
+          : "";
+    void loadCity(city, true, area?.radius ?? link.radius ?? 800, link).then(
+      (ok) => {
+        if (ok && missing) flash(missing, 12000);
+      },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
   // Keep live weather fresh while the tab is visible.
@@ -2088,12 +2101,12 @@ export default function App({
     }
   }
   /** A short confirmation that clears itself; errors use setMessage. */
-  function flash(text: string) {
+  function flash(text: string, ms = 6000) {
     setMessage(text);
     clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(
       () => setMessage((current) => (current === text ? "" : current)),
-      6000,
+      ms,
     );
   }
   async function ask(request = prompt): Promise<string> {
