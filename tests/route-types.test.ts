@@ -173,6 +173,11 @@ describe("route types", () => {
     const close = compareRoutes(near, "A", "D", options).stepfree;
     expect(ids(close)).toEqual(["ramp"]);
     expect(close?.stepFreeGap).toEqual({ start: 10, end: 10 });
+    // The detour budget counts the gaps too: 60 m + 20 m is over 1.2 × 60 m.
+    expect(
+      compareRoutes(near, "A", "D", { ...options, maxDetour: 1.2 }).stepfree
+        ?.warnings,
+    ).toEqual(["Longer than your detour budget to stay step-free."]);
     // Never so far that it is a different place.
     pocket.graph.nodes.find((n) => n.id === "E")!.point = [0, 200];
     pocket.graph.edges.at(-1)!.points[0] = [0, 200];

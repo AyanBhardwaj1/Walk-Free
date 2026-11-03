@@ -218,16 +218,21 @@ const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
 /** "3 building(s)" as "3 buildings", "1 way(s)" as "1 way" in stored notes. */
 function plainCounts(note: string) {
-  return note
-    .replace(/\b(\d{4,})(?= [a-z])/g, (n) => Number(n).toLocaleString("en-US"))
-    .replace(
-      /\b(\d+) ([^()\s]+(?: [^()\s]+)?)\(s\)(?: (are|were)\b)?/g,
-      (_, n: string, word: string, verb?: string) => {
-        const one = n === "1";
-        const v = verb && (one ? (verb === "are" ? "is" : "was") : verb);
-        return `${n} ${word}${one ? "" : "s"}${v ? ` ${v}` : ""}`;
-      },
-    );
+  return (
+    note
+      // Whole numbers only: never the digits after a decimal point.
+      .replace(/(?<![\d.,])\b(\d{4,})(?= [a-z])/g, (n) =>
+        Number(n).toLocaleString("en-US"),
+      )
+      .replace(
+        /\b(\d+) ([^()\s]+(?: [^()\s]+)?)\(s\)(?: (are|were)\b)?/g,
+        (_, n: string, word: string, verb?: string) => {
+          const one = n === "1";
+          const v = verb && (one ? (verb === "are" ? "is" : "was") : verb);
+          return `${n} ${word}${one ? "" : "s"}${v ? ` ${v}` : ""}`;
+        },
+      )
+  );
 }
 /** Where a clicked point is, in plain words, from the area's centre. */
 function probeLabel([x, z]: Point) {
@@ -602,8 +607,11 @@ export default function App({
     const settle = setTimeout(measure, 320);
     const observer = new ResizeObserver(measure);
     observer.observe(main);
-    // The sheet itself, so the end of its slide is measured too.
+    // The sheet itself, so the end of its slide is measured too, and the
+    // tour card, which grows and shrinks from step to step.
     observer.observe(aside);
+    const tourCard = main.querySelector(".demo-tour");
+    if (tourCard) observer.observe(tourCard);
     aside.addEventListener("transitionend", measure);
     measure();
     return () => {
@@ -611,7 +619,7 @@ export default function App({
       observer.disconnect();
       aside.removeEventListener("transitionend", measure);
     };
-  }, [panelOpen, sheet, tourOpen]);
+  }, [panelOpen, sheet, tourOpen, walk3d]);
   const sheetDrag = useRef<number | null>(null);
   // The scene before the first tree in this comparison, and the last row.
   const [heatBaseline, setHeatBaseline] = useState<World | null>(null);

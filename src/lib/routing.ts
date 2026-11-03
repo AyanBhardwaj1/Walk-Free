@@ -360,7 +360,8 @@ function planner(
         edges = near.edges;
         stepFreeGap = near.gap;
       }
-      if (length(edges) > length(quick) * o.maxDetour)
+      const gap = stepFreeGap ? stepFreeGap.start + stepFreeGap.end : 0;
+      if (length(edges) + gap > length(quick) * o.maxDetour)
         warnings.push("Longer than your detour budget to stay step-free.");
     } else {
       edges ??= quick;
