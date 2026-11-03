@@ -272,8 +272,13 @@ export default function WalkMap2D({
         gz = (y - v.cy) / v.zoom + v.center[1];
       const nx = gx - (x - v.cx) / next,
         nz = gz - (y - v.cy) / next;
-      setPan((p) => [p[0] + nx - v.center[0], p[1] + nz - v.center[1]]);
+      const dx = nx - v.center[0],
+        dz = nz - v.center[1];
+      setPan((p) => [p[0] + dx, p[1] + dz]);
+      // Two fingers move in the same frame: the second must see this one.
+      v.center = [nx, nz];
     }
+    v.zoom = next;
     setZoom(next);
   };
   // Drag to move, two fingers to pinch; the wheel zooms toward the pointer.

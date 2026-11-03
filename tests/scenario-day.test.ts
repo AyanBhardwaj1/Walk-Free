@@ -24,17 +24,17 @@ describe("scenario weather through the day", () => {
   it("is coolest before dawn and warmest mid-afternoon", () => {
     const dawn = at(afternoon, 5);
     expect(afternoon.temperatureC - dawn.temperatureC).toBeCloseTo(9, 0);
-    // Same moisture in cooler air: higher relative humidity.
-    expect(dawn.humidity).toBeGreaterThan(afternoon.humidity + 15);
+    // Humidity stays as set (no drift as the clock moves).
+    expect(dawn.humidity).toBe(afternoon.humidity);
     expect(at(afternoon, 9).temperatureC).toBeLessThan(38);
     expect(at(afternoon, 21).temperatureC).toBeLessThan(38);
     expect(at(afternoon, 21).temperatureC).toBeGreaterThan(dawn.temperatureC);
   });
   it("comes back to the same weather when the clock returns", () => {
-    const evening = at(afternoon, 21);
-    const back = at(evening, 15);
-    expect(back.temperatureC).toBeCloseTo(38, 5);
-    expect(back.humidity).toBeCloseTo(35, 5);
+    let env = afternoon;
+    for (const h of [21, 5, 9, 18, 2, 15]) env = at(env, h);
+    expect(env.temperatureC).toBeCloseTo(38, 9);
+    expect(env.humidity).toBe(35);
   });
   it("leaves live forecasts alone", () => {
     const live = { ...afternoon, weatherMode: "forecast" as const };

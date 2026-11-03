@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { MapControls, Line } from "@react-three/drei";
+import { OrbitControls, Line } from "@react-three/drei";
 import CameraRig, { type MapCamera } from "./scene/CameraRig";
 import { useMemo, useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
@@ -1110,9 +1110,8 @@ export default function WorldCanvas({
                     .getHexString()
                 : undefined
             }
-            onPick={(o) => {
-              if (!pickingEndpoint) onSelect(o.id);
-            }}
+            // While picking a start or end, clicks go through to the ground.
+            onPick={pickingEndpoint ? undefined : (o) => onSelect(o.id)}
           />
         )}
         {showBuildings &&
@@ -1125,11 +1124,15 @@ export default function WorldCanvas({
                 terrain={world.terrain}
                 selected={o.id === selectedId}
                 detailed={world.objects.length < 500}
-                onPointerDown={(e, obj) => {
-                  if (dragged(e)) return;
-                  e.stopPropagation();
-                  if (!pickingEndpoint) onSelect(obj.id);
-                }}
+                onPointerDown={
+                  pickingEndpoint
+                    ? undefined
+                    : (e, obj) => {
+                        if (dragged(e)) return;
+                        e.stopPropagation();
+                        onSelect(obj.id);
+                      }
+                }
               />
             ))}
         {showTrees && (
@@ -1137,11 +1140,15 @@ export default function WorldCanvas({
             objects={world.objects.filter((o) => o.kind === "tree")}
             terrain={world.terrain}
             selectedId={selectedId}
-            onPointerDown={(e, o) => {
-              if (dragged(e)) return;
-              e.stopPropagation();
-              if (!pickingEndpoint) onSelect(o.id);
-            }}
+            onPointerDown={
+              pickingEndpoint
+                ? undefined
+                : (e, o) => {
+                    if (dragged(e)) return;
+                    e.stopPropagation();
+                    onSelect(o.id);
+                  }
+            }
           />
         )}
       </group>
@@ -1206,8 +1213,17 @@ export default function WorldCanvas({
       )}
       {/* Map-style: drag pans, right-drag or two fingers turn and tilt, the
           wheel or a pinch zooms toward the pointer, with a soft glide. */}
-      <MapControls
+      {/* OrbitControls set up like a map: drei's MapControls would keep
+          updating while disabled and fight the street-level walk. */}
+      <OrbitControls
         makeDefault
+        mouseButtons={{
+          LEFT: THREE.MOUSE.PAN,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.ROTATE,
+        }}
+        touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
+        screenSpacePanning={false}
         enableDamping
         dampingFactor={0.12}
         zoomToCursor

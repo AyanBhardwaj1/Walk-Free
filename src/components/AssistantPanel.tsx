@@ -18,12 +18,22 @@ const toolLabels: Record<string, string> = {
 export const toolActivity = (name: string) =>
   toolLabels[name] ?? "Worked on it";
 
-const suggestions = [
-  "Where is it hottest at 3 PM?",
-  "Find me the shadiest way to the library",
-  "When is Speedway coolest today?",
-  "Plant a row of oaks along the hottest street",
-];
+/**
+ * Questions to start with, named for this map when we know its hottest
+ * street and a landmark, so they work in any campus or invented city.
+ */
+export function suggestionsFor(hints?: { street?: string; place?: string }) {
+  return [
+    "Where is it hottest at 3 PM?",
+    hints?.place
+      ? `Find me the shadiest way to ${hints.place}`
+      : "Find me the shadiest way across this map",
+    hints?.street
+      ? `When is ${hints.street} coolest today?`
+      : "When is the coolest time to walk today?",
+    "Plant a row of oaks along the hottest street",
+  ];
+}
 
 type Recognition = {
   lang: string;
@@ -53,7 +63,10 @@ export default function AssistantPanel({
   ownKey,
   onOwnKey,
   onTestKey,
+  hints,
 }: {
+  /** This map's hottest street and a landmark, for the suggestions. */
+  hints?: { street?: string; place?: string };
   messages: ChatMessage[];
   status: string | null;
   error: string;
@@ -151,7 +164,7 @@ export default function AssistantPanel({
       >
         {shown.length === 0 && (
           <div className="chat-suggestions">
-            {suggestions.map((s) => (
+            {suggestionsFor(hints).map((s) => (
               <button key={s} onClick={() => send(s)} disabled={!!status}>
                 {s}
               </button>

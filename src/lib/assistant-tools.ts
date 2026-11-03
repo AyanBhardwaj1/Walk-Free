@@ -23,6 +23,7 @@ import {
   edgeHeatMap,
   toF,
   weatherAt,
+  scenarioAt,
   type PlaceHeat,
 } from "./heat.js";
 
@@ -312,7 +313,8 @@ export async function runTool(
       const preference = args.preference ?? "shade";
       // Plan for the real day and time, not the hour the clock shows.
       const nowIso = host.now?.() ?? new Date().toISOString();
-      const planEnv = { ...host.env, dateTime: nowIso };
+      // Now, with hand-set weather moved along the day's cycle to this hour.
+      const planEnv = scenarioAt(host.env, nowIso, host.world.timezone);
       const options = compareRoutes(host.world, start, end, {
         avoidStairs: false,
         allowHypothetical: false,
