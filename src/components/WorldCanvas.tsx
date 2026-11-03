@@ -461,10 +461,24 @@ const LABEL_MARKER_GAP = 60;
 function PlaceTag({
   label,
   terrain,
+  leftInset = 0,
 }: {
   label: PlaceLabel;
   terrain?: Terrain;
+  /** Screen pixels covered by the panel on the left. */
+  leftInset?: number;
 }) {
+  const sprite = useRef<THREE.Sprite>(null);
+  const at = useMemo(() => new THREE.Vector3(), []);
+  // Hide a tag whose place sits under the panel or the right-hand tool rail,
+  // rather than show it cut in half.
+  useFrame(({ camera, size }) => {
+    const s = sprite.current;
+    if (!s) return;
+    at.copy(s.position).project(camera);
+    const x = ((at.x + 1) / 2) * size.width;
+    s.visible = at.z < 1 && x > leftInset + 40 && x < size.width - 90;
+  });
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d")!;
@@ -495,6 +509,7 @@ function PlaceTag({
   const aspect = texture.image.width / texture.image.height;
   return (
     <sprite
+      ref={sprite}
       position={[
         label.point[0],
         terrainHeight(label.point, terrain) + label.height + 6,
@@ -520,15 +535,22 @@ function PlaceTag({
  * Keeps a fictional city's haze at the same depth on screen however far the
  * camera sits (phones frame the area from further away).
  */
-function FogFollowsCamera() {
+function FogFollowsCamera({ extent }: { extent?: number }) {
   useFrame(({ scene, camera, controls }) => {
     if (!(scene.fog instanceof THREE.Fog)) return;
     const target =
       (controls as unknown as { target?: THREE.Vector3 } | null)?.target ??
       new THREE.Vector3();
     const d = camera.position.distanceTo(target);
-    scene.fog.near = d * 0.75;
-    scene.fog.far = d * 2.8;
+    if (extent === undefined) {
+      scene.fog.near = d * 0.75;
+      scene.fog.far = d * 2.8;
+      return;
+    }
+    // Real places: haze only at the horizon. A camera framed from far away
+    // (a phone with the sheet up) must not sit inside the haze.
+    scene.fog.near = Math.max(extent * 1.6, d * 1.2);
+    scene.fog.far = Math.max(extent * 5, d * 4);
   });
   return null;
 }
@@ -888,7 +910,7 @@ export default function WorldCanvas({
       {!ambient && <color attach="background" args={[sky]} />}
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
-      {ambient && <FogFollowsCamera />}
+      {ambient ? <FogFollowsCamera /> : <FogFollowsCamera extent={extent} />}
       {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
       {walkthrough && (
         <StreetWalk
@@ -1061,7 +1083,12 @@ export default function WorldCanvas({
           // Phones: the first few that are left, which the lists lead with.
           .slice(0, narrow ? 4 : undefined)
           .map((l) => (
-            <PlaceTag key={l.text} label={l} terrain={world.terrain} />
+            <PlaceTag
+              key={l.text}
+              label={l}
+              terrain={world.terrain}
+              leftInset={insets.left}
+            />
           ))}
       {startPoint && (
         <Endpoint point={startPoint} label="Start" terrain={world.terrain} />
