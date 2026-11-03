@@ -369,6 +369,8 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // Points the camera frames instead of the walk (a planted street).
+  const [focusOn, setFocusOn] = useState<Point[] | null>(null);
   // The tour's day plays itself; one planned by hand waits for Play.
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
   // The route being walked at street level: a copy taken when the walk
@@ -901,6 +903,11 @@ export default function App({
   const hourRef = useRef(0);
   const setLocalHourRef = useRef(setLocalHour);
   setLocalHourRef.current = setLocalHour;
+  // A new walk or area goes back to framing the walk.
+  useEffect(() => setFocusOn(null), [start, end, world.id]);
+  useEffect(() => {
+    if (mode === "explore") setFocusOn(null);
+  }, [mode]);
   // A new area ends the day being played.
   useEffect(() => setPlaying(false), [world.id]);
   hourRef.current = localHour(env.dateTime, world.timezone);
@@ -1149,6 +1156,19 @@ export default function App({
       setHeatBaseline((current) => current ?? before);
       edit(result.world);
       setHeatMap(true);
+      // Show the street that was planted, not the whole area.
+      const planted = new Set(result.edgeIds);
+      const street = result.world.graph.edges
+        .filter((e) => planted.has(e.id))
+        .flatMap((e) => e.points);
+      if (street.length) {
+        // At least 250 m across, so a short street keeps its surroundings.
+        const xs = street.map((p) => p[0]),
+          zs = street.map((p) => p[1]);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2,
+          cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+        setFocusOn([...street, [cx - 125, cz - 125], [cx + 125, cz + 125]]);
+      }
       setPlanting((current) => ({
         street: result.street,
         edgeIds: result.edgeIds,
@@ -3418,6 +3438,7 @@ export default function App({
                   route={mode === "explore" ? currentRoute : null}
                   startPoint={mode === "explore" ? startNode?.point : undefined}
                   endPoint={mode === "explore" ? endNode?.point : undefined}
+                  focusOn={focusOn?.length ? focusOn : undefined}
                   pickingEndpoint={!!picking}
                   showWalkingPaths={showPaths && mode === "explore"}
                   locationPoint={userPosition || undefined}
