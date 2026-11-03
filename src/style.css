@@ -567,17 +567,58 @@ aside.collapsed ~ .viewport .map-heading {
 .map-actions .muted {
   opacity: 0.5;
 }
-.compass {
+/* 3D map controls: zoom, back to the walk, tilt, and a live compass. */
+.map-nav {
   position: absolute;
-  right: 31px;
-  bottom: 180px;
-  color: var(--c-fg-6e7d5e, #6e7d5e);
-  text-align: center;
+  right: 28px;
+  bottom: 52px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 3px 15px var(--c-shadow-27371d0a, #27371d0a);
 }
-.compass small {
-  display: block;
+.map-nav button {
+  width: 40px;
+  height: 38px;
+  display: grid;
+  place-content: center;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--c-line-e3e4d7, #e3e4d7);
+  background: var(--c-bg-fcfaf0, #fcfaf0);
+  color: var(--c-fg-293a2b, #293a2b);
+  transition: background-color 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.map-nav button:last-child {
+  border-bottom: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .map-nav button:hover {
+    background: var(--c-bg-e7eadc, #e7eadc);
+  }
+}
+.map-nav button:active {
+  background: var(--c-bg-e7eadc, #e7eadc);
+}
+.map-nav .map-nav-compass {
+  height: 48px;
+  gap: 1px;
+  justify-items: center;
+}
+.map-nav .map-nav-compass svg {
+  transition: transform 0.12s linear;
+}
+.map-nav .map-nav-compass small {
   font-size: 8px;
-  margin-top: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+/* Short windows: keep the essentials clear of the tool rail above. */
+@media (max-height: 820px) {
+  .map-nav button:nth-child(4) {
+    display: none;
+  }
 }
 .timeline {
   position: absolute;
@@ -859,7 +900,7 @@ aside.collapsed ~ .viewport .map-heading {
   .timeline > div:first-child > span {
     font-size: 9px;
   }
-  .compass {
+  .map-nav {
     bottom: 147px;
     right: 17px;
   }
@@ -1429,7 +1470,14 @@ aside.collapsed ~ .viewport .map-heading {
   z-index: 3;
 }
 @media (max-width: 650px) {
-  .compass {
+  /* Phones pinch to zoom and tilt; keep "back to the walk" and north. */
+  .app > main .map-nav {
+    right: 12px;
+    bottom: calc(var(--sheet-height, 46dvh) + 168px);
+  }
+  .map-nav button:nth-child(1),
+  .map-nav button:nth-child(2),
+  .map-nav button:nth-child(4) {
     display: none;
   }
   .viewport.atlas-mode .toast {

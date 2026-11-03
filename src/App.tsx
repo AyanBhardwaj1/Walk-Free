@@ -36,6 +36,8 @@ import {
   MousePointer2,
   Landmark,
   Compass,
+  Crosshair,
+  Rotate3d,
   Check,
   X,
   Share2,
@@ -172,6 +174,7 @@ import {
 import { friendlyError } from "./lib/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
+import type { MapCamera } from "./components/scene/CameraRig";
 import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
 import BestTime from "./components/BestTime";
@@ -233,6 +236,20 @@ function plainCounts(note: string) {
         },
       )
   );
+}
+/** "north-east" and so on, for a compass bearing in degrees. */
+function compassWord(degrees: number) {
+  const names = [
+    "north",
+    "north-east",
+    "east",
+    "south-east",
+    "south",
+    "south-west",
+    "west",
+    "north-west",
+  ];
+  return names[Math.round((((degrees % 360) + 360) % 360) / 45) % 8];
 }
 /** Where a clicked point is, in plain words, from the area's centre. */
 function probeLabel([x, z]: Point) {
@@ -374,6 +391,9 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // The on-screen map controls drive the 3D camera through this.
+  const cameraApi = useRef<MapCamera | null>(null);
+  const [bearing, setBearing] = useState(0);
   // Points the camera frames instead of the walk (a planted street).
   const [focusOn, setFocusOn] = useState<Point[] | null>(null);
   // The tour's day plays itself; one planned by hand waits for Play.
@@ -1023,11 +1043,34 @@ export default function App({
         setUnit(next);
         saveUnit(next);
         flash(`Temperatures in °${next}`);
+      } else if (!atlas && view === "3d" && cameraApi.current) {
+        // The 3D map: zoom, back to the walk, tilt, north and pan.
+        const cam = cameraApi.current;
+        const pan: Record<string, [number, number]> = {
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+        };
+        if (e.key === "+" || e.key === "=") cam.zoom(0.62);
+        else if (e.key === "-" || e.key === "_") cam.zoom(1.6);
+        else if (e.key === "0") cam.reset();
+        else if (e.key.toLowerCase() === "t") cam.tilt();
+        else if (e.key.toLowerCase() === "n") cam.north();
+        else if (
+          pan[e.key] &&
+          // Only when nothing else wants the arrows (tabs, sliders, lists).
+          (document.activeElement === document.body ||
+            document.activeElement?.tagName === "CANVAS")
+        ) {
+          e.preventDefault();
+          cam.pan(...pan[e.key]);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [theme, atlas, mode, shortcutsOn, unit]);
+  }, [theme, atlas, mode, shortcutsOn, unit, view]);
   const playDayRef = useRef(() => {});
   playDayRef.current = playDay;
   function playDay() {
@@ -3473,6 +3516,8 @@ export default function App({
                   startPoint={mode === "explore" ? startNode?.point : undefined}
                   endPoint={mode === "explore" ? endNode?.point : undefined}
                   focusOn={focusOn?.length ? focusOn : undefined}
+                  cameraApi={cameraApi}
+                  onBearing={setBearing}
                   pickingEndpoint={!!picking}
                   showWalkingPaths={showPaths && mode === "explore"}
                   locationPoint={userPosition || undefined}
@@ -3871,10 +3916,60 @@ export default function App({
                     <Download size={19} />
                   </button>
                 </div>
-                <div className="compass">
-                  <Compass size={33} strokeWidth={1} />
-                  <small>N</small>
-                </div>
+                {view === "3d" && !walking && (
+                  <div
+                    className="map-nav"
+                    role="group"
+                    aria-label="Map view controls"
+                  >
+                    <button
+                      type="button"
+                      title="Zoom in (+)"
+                      aria-label="Zoom in"
+                      onClick={() => cameraApi.current?.zoom(0.62)}
+                    >
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Zoom out (−)"
+                      aria-label="Zoom out"
+                      onClick={() => cameraApi.current?.zoom(1.6)}
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Back to the walk (0)"
+                      aria-label="Back to the walk"
+                      onClick={() => cameraApi.current?.reset()}
+                    >
+                      <Crosshair size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Tilt: look straight down or at an angle (T)"
+                      aria-label="Tilt the view"
+                      onClick={() => cameraApi.current?.tilt()}
+                    >
+                      <Rotate3d size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      className="map-nav-compass"
+                      title="Face north (N)"
+                      aria-label={`Facing ${compassWord(bearing)}. Face north`}
+                      onClick={() => cameraApi.current?.north()}
+                    >
+                      <Compass
+                        size={22}
+                        strokeWidth={1.4}
+                        style={{ transform: `rotate(${-bearing - 45}deg)` }}
+                      />
+                      <small>N</small>
+                    </button>
+                  </div>
+                )}
               </>
             )}
             {!atlas && (

@@ -12,10 +12,7 @@ interface Props {
   terrain?: Terrain;
   selected: boolean;
   detailed: boolean;
-  onPointerDown?: (
-    event: ThreeEvent<PointerEvent>,
-    object: SceneObject,
-  ) => void;
+  onPointerDown?: (event: ThreeEvent<MouseEvent>, object: SceneObject) => void;
 }
 
 const wallColors = [
@@ -145,7 +142,7 @@ function Building({
         object.position[1],
       ]}
       rotation={[0, (-object.rotation * Math.PI) / 180, 0]}
-      onPointerDown={
+      onClick={
         onPointerDown ? (event) => onPointerDown(event, object) : undefined
       }
     >
