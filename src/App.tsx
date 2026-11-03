@@ -69,6 +69,7 @@ import { addPlanningPassage } from "./lib/planning";
 import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
+import RouteProfile from "./components/RouteProfile";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
@@ -819,6 +820,23 @@ export default function App({
     () => (edgeHeat ? placeHeat(world, heatEnv, edgeHeat) : []),
     [edgeHeat, world, heatEnv],
   );
+  // Suggested questions name this map's hottest street and a landmark.
+  const assistantHints = useMemo(
+    () => ({
+      street: places.find(
+        (p) =>
+          p.kind === "street" &&
+          /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
+            p.name,
+          ),
+      )?.name,
+      place:
+        areaLabels[1]?.text ??
+        world.objects.find((o) => o.kind === "landmark" && o.name)?.name,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [places, world.id],
+  );
   const findPlace = (id: string | null) => {
     if (!id || !edgeHeat) return null;
     if (id.startsWith("edge:")) {
@@ -831,12 +849,15 @@ export default function App({
   const heatPlace = findPlace(heatPlaceId);
   const comparePlace = findPlace(comparePlaceId);
   const profileDay = atLocalHour(heatEnv.dateTime, world.timezone, 12);
+  // The day's weather at noon: hand-set weather follows the day's cycle, so
+  // this stays put as the clock moves and the profile isn't recomputed.
+  const profileEnv = scenarioAt(heatEnv, profileDay, world.timezone);
   // With a forecast each hour has its own weather, so the values shown for
   // the current hour don't matter to the profile; in a scenario they do.
   const profileWeather =
     heatEnv.weatherMode === "forecast" && forecast
       ? forecast
-      : `${heatEnv.temperatureC},${heatEnv.humidity},${heatEnv.windMps},${heatEnv.cloudCover}`;
+      : `${profileEnv.temperatureC.toFixed(2)},${profileEnv.humidity},${profileEnv.windMps},${profileEnv.cloudCover}`;
   // A fictional city's sky follows the sun: golden at dusk, dark at night.
   // Rounded so dragging the time slider doesn't redraw for every minute.
   const sunY = Math.round(sunDirection(env, world.origin).y * 60) / 60;
@@ -846,6 +867,41 @@ export default function App({
   );
   const walking =
     walk3d !== null && !atlas && !(view === "2d" && mode === "explore");
+  // The 3D map shows unless the flat walking map has replaced it.
+  const flatMap = view === "2d" && mode === "explore";
+  const show3dNav = !flatMap && !walking && !busy;
+  // A one-time hint on how to move the 3D map, gone on first use.
+  const [navTip, setNavTip] = useState(() => {
+    try {
+      return localStorage.getItem("walk-free-nav-tip") !== "seen";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    if (!navTip) return;
+    const done = () => {
+      setNavTip(false);
+      try {
+        localStorage.setItem("walk-free-nav-tip", "seen");
+      } catch {
+        /* Private mode: the hint just shows again next time. */
+      }
+    };
+    // Counted from when the map is ready, not from page load.
+    if (busy) return;
+    const timer = setTimeout(done, 9000);
+    const onUse = (e: Event) => {
+      if ((e.target as Element | null)?.tagName === "CANVAS") done();
+    };
+    window.addEventListener("pointerdown", onUse);
+    window.addEventListener("wheel", onUse);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", onUse);
+      window.removeEventListener("wheel", onUse);
+    };
+  }, [navTip, busy]);
   // On phones a street-level walk gets the screen: lower the sheet.
   useEffect(() => {
     if (walk3d && window.matchMedia("(max-width: 720px)").matches) setSheet(0);
@@ -873,7 +929,7 @@ export default function App({
       heatPlace
         ? dailyProfile(
             world,
-            { ...heatEnv, dateTime: profileDay },
+            profileEnv,
             heatPlace,
             heatEnv.weatherMode === "forecast" ? forecast : null,
           )
@@ -1058,7 +1114,7 @@ export default function App({
         setUnit(next);
         saveUnit(next);
         flash(`Temperatures in °${next}`);
-      } else if (!atlas && view === "3d" && cameraApi.current) {
+      } else if (!atlas && !flatMap && cameraApi.current) {
         // The 3D map: zoom, back to the walk, tilt, north and pan.
         const cam = cameraApi.current;
         const pan: Record<string, [number, number]> = {
@@ -1085,7 +1141,7 @@ export default function App({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [theme, atlas, mode, shortcutsOn, unit, view]);
+  }, [theme, atlas, mode, shortcutsOn, unit, view, flatMap]);
   const playDayRef = useRef(() => {});
   playDayRef.current = playDay;
   function playDay() {
@@ -1192,8 +1248,9 @@ export default function App({
       setStairs(avoidStairs);
       setEnv((previous) => ({ ...previous, dateTime }));
     },
+    // Hand-set weather follows the day's cycle, as with the time slider.
     setDateTime: (dateTime) =>
-      setEnv((previous) => ({ ...previous, dateTime })),
+      setEnv((previous) => scenarioAt(previous, dateTime, world.timezone)),
     highlightPlace(id) {
       setHeatMap(true);
       setHeatPlaceId(id);
@@ -2836,6 +2893,12 @@ export default function App({
                           modeled shade
                         </span>
                       </div>
+                      {edgeHeat && (
+                        <RouteProfile
+                          route={currentRoute}
+                          shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
+                        />
+                      )}
                       <button
                         className="primary"
                         onClick={navigation}
@@ -3038,6 +3101,7 @@ export default function App({
             )}
             {!atlas && mode === "explore" && tab === "ask" && !guest && (
               <AssistantPanel
+                hints={assistantHints}
                 messages={chat}
                 status={chatStatus}
                 error={chatError}
@@ -3938,8 +4002,7 @@ export default function App({
                     <Download size={19} />
                   </button>
                 </div>
-                {view === "3d" &&
-                  !walking &&
+                {show3dNav &&
                   heatOverlay &&
                   mode === "explore" &&
                   !tourOpen &&
@@ -3965,7 +4028,14 @@ export default function App({
                       )}
                     </div>
                   )}
-                {view === "3d" && !walking && (
+                {show3dNav && navTip && !tourOpen && (
+                  <p className="map-nav-tip" role="note">
+                    {window.matchMedia("(pointer: coarse)").matches
+                      ? "Drag to move · pinch to zoom · two fingers to turn"
+                      : "Drag to move · right-drag to turn · scroll to zoom"}
+                  </p>
+                )}
+                {show3dNav && (
                   <div
                     className="map-nav"
                     role="group"

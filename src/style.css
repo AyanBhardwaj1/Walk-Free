@@ -606,6 +606,28 @@ aside.collapsed ~ .viewport .map-heading {
     display: none;
   }
 }
+.map-nav-tip {
+  position: absolute;
+  right: 80px;
+  bottom: 160px;
+  z-index: 3;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--c-bg-22301f, #22301f);
+  color: var(--c-fg-f4f1e6, #f4f1e6);
+  font-size: 12px;
+  box-shadow: 0 12px 28px -12px var(--c-shadow-1d2a1f99, #1d2a1f99);
+  pointer-events: none;
+  animation: ui-enter 0.24s cubic-bezier(0.23, 1, 0.32, 1) 0.6s both;
+}
+@media (max-width: 650px) {
+  .map-nav-tip {
+    right: 60px;
+    left: 12px;
+    bottom: calc(var(--sheet-height, 46dvh) + 180px);
+    text-align: center;
+  }
+}
 /* 3D map controls: zoom, back to the walk, tilt, and a live compass. */
 .map-nav {
   position: absolute;
@@ -1379,6 +1401,50 @@ aside.collapsed ~ .viewport .map-heading {
   color: var(--c-fg-969c86, #969c86);
   min-width: 58px;
   text-align: right;
+}
+/* Sun along the way: a strip from start to finish coloured by shade. */
+.route-profile {
+  margin: 12px 0 14px;
+}
+.route-profile figcaption {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+}
+.route-profile figcaption small {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+}
+.route-profile-strip {
+  height: 12px;
+  border-radius: 6px;
+  transform-origin: left;
+  animation: profile-in 0.6s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.route-profile-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--c-fg-969c86, #969c86);
+}
+@keyframes profile-in {
+  from {
+    transform: scaleX(0.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-profile-strip {
+    animation: none;
+  }
 }
 /* Route tab: the less-used settings, folded away under the routes. */
 .route-options {

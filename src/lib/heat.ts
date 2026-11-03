@@ -308,24 +308,10 @@ function dailyCurve(hour: number) {
     ? -0.5 + 0.5 * (1 - Math.cos((Math.PI * h) / 10))
     : 0.5 - 0.5 * (1 - Math.cos((Math.PI * (h - 10)) / 14));
 }
-// Magnus formula constants for dew point.
-const MAGNUS_B = 17.62,
-  MAGNUS_C = 243.12;
-const dewPoint = (t: number, rh: number) => {
-  const g = Math.log(Math.max(1, rh) / 100) + (MAGNUS_B * t) / (MAGNUS_C + t);
-  return (MAGNUS_C * g) / (MAGNUS_B - g);
-};
-const humidityAt = (t: number, dew: number) =>
-  100 *
-  Math.exp(
-    (MAGNUS_B * dew) / (MAGNUS_C + dew) - (MAGNUS_B * t) / (MAGNUS_C + t),
-  );
-
 /**
  * Hand-set (scenario) weather at another hour of the day. The air follows a
- * typical daily cycle around the set hour, which keeps its value, and the
- * moisture stays put, so evenings are cooler and mornings more humid.
- * Live forecasts are left alone.
+ * typical daily cycle around the set hour, which keeps its value; humidity
+ * stays as set. Live forecasts are left alone.
  */
 export function scenarioAt(
   env: Environment,
@@ -337,15 +323,9 @@ export function scenarioAt(
     DAILY_SWING_C *
     (dailyCurve(localHour(iso, timeZone)) -
       dailyCurve(localHour(env.dateTime, timeZone)));
-  const temperatureC = env.temperatureC + shift;
-  const humidity = Math.min(
-    100,
-    Math.max(
-      5,
-      humidityAt(temperatureC, dewPoint(env.temperatureC, env.humidity)),
-    ),
-  );
-  return { ...env, dateTime: iso, temperatureC, humidity };
+  // Only the air moves: humidity stays as set, so moving the clock and
+  // back returns exactly the same weather (no drift, no odd decimals).
+  return { ...env, dateTime: iso, temperatureC: env.temperatureC + shift };
 }
 
 export function weatherAt(
