@@ -95,6 +95,7 @@ export const THEME_COLORS = [
   "fg-69785b",
   "fg-6b3f1d",
   "fg-6b7462",
+  "fg-6e7d5e",
   "fg-6e7e60",
   "fg-6f7964",
   "fg-6f8a5f",
