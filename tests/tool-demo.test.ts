@@ -72,6 +72,8 @@ describe("assistant demo without a model", () => {
     // The map really changed: the street is highlighted and the route shown.
     expect(h.calls.some((c) => c.startsWith("highlight "))).toBe(true);
     expect(h.calls).toContain("route shade");
+    // The clock moves to 3 PM before the first question about 3 PM.
+    expect(h.calls[0]).toMatch(/^time /);
   });
 
   it("writes temperatures in °C when asked", async () => {

@@ -85,6 +85,11 @@ export async function runToolDemo(
     };
   };
 
+  // Every question is about 3 PM, so show 3 PM on the map first.
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  await runTool(host, "set_time", JSON.stringify({ hour: 15 })).catch(
+    () => undefined,
+  );
   const ranking = await step(
     "Which streets are hottest at 3 PM?",
     "heat_ranking",

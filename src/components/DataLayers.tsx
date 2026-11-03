@@ -18,6 +18,8 @@ export default function DataLayers({
   outlook?: Outlook | null;
 }) {
   const count = (n: number) => new Intl.NumberFormat("en-US").format(n);
+  const plural = (n: number, one: string, many = `${one}s`) =>
+    `${count(n)} ${n === 1 ? one : many}`;
   const trees = world.objects.filter((o) => o.kind === "tree");
   const canopy = trees.filter((o) => o.source === "canopy").length;
   const buildings = world.objects.length - trees.length;
@@ -56,7 +58,7 @@ export default function DataLayers({
       name: "Drinking water and shelters",
       source: "OpenStreetMap",
       detail: world.amenities
-        ? `${count(water.length)} water points · ${count(shelters)} shelters`
+        ? `${plural(water.length, "water point")} · ${plural(shelters, "shelter")}`
         : "Rebuild this area to load them",
       ok: !!world.amenities?.length,
     },

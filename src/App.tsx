@@ -215,6 +215,19 @@ const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
+/** Where a clicked point is, in plain words, from the area's centre. */
+function probeLabel([x, z]: Point) {
+  const part = (v: number, plus: string, minus: string) =>
+    Math.abs(v) < 5
+      ? ""
+      : `${Math.round(Math.abs(v))} m ${v > 0 ? plus : minus}`;
+  const parts = [part(x, "east", "west"), part(z, "south", "north")].filter(
+    Boolean,
+  );
+  return parts.length ? `${parts.join(", ")} of centre` : "the centre";
+}
+/** Below this sun height (about 8°) the guest demo opens at 3 PM. */
+const DEMO_MIN_SUN_RAD = (8 * Math.PI) / 180;
 /** Weather that suits each fictional city's mood, as a starting scenario. */
 const MOOD_WEATHER = {
   rain: { temperatureC: 19, humidity: 88, windMps: 5, cloudCover: 85 },
@@ -342,6 +355,8 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // The tour's day plays itself; one planned by hand waits for Play.
+  const [dayAutoPlay, setDayAutoPlay] = useState(false);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -1460,7 +1475,7 @@ export default function App({
     },
     {
       title: "The shade route",
-      text: "Red paths are in full sun, blue ones in shade. Compare Quickest with More shade: same walk, far less sun, a minute or so longer.",
+      text: "Red paths are in full sun, blue ones in shade. Compare Quickest with More shade: the same trip, with less sun for little or no extra time.",
       action: "Show the shade route",
       run: () => {
         setMode("explore");
@@ -1491,25 +1506,19 @@ export default function App({
         setMode("explore");
         setTab("heat");
         setHeatMap(true);
-        tourPanel(0);
+        tourPanel(1);
       },
     },
     {
       title: "A day in the life",
-      text: "Coffee, class, lunch outside, the library, home: six walks, each planned in shade at its own hour.",
+      text: "Coffee, class, lunch outside, an errand, home: each walk planned in shade at its own hour, played one after another.",
       action: "Plan and play my day",
       run: () => {
         setMode("explore");
         setTab("route");
-        tourPanel(0);
-        const day = planDayNow();
-        const lunch = day?.legs.find((l) => l.hour >= 12) ?? day?.legs[0];
-        if (lunch) {
-          setPref("shade");
-          setStart(lunch.from.id);
-          setEnd(lunch.to.id);
-          setLocalHour(lunch.hour);
-        }
+        tourPanel(1);
+        setDayAutoPlay(true);
+        planDayNow();
       },
     },
     {
@@ -1517,7 +1526,20 @@ export default function App({
       text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
       action: "Plant the hottest street",
       run: async () => {
-        const streets = placeHeat(world, heatEnv).filter(
+        // Plant for the afternoon peak, whatever hour the day step left.
+        // The studio view also ends any day still playing on the Route tab.
+        setPlaying(false);
+        setDayAutoPlay(false);
+        setMode("studio");
+        tourPanel(1);
+        setLocalHour(15);
+        const afternoon = {
+          ...heatEnv,
+          dateTime: atLocalHour(heatEnv.dateTime, world.timezone, 15),
+        };
+        // Let the assistant tools see the new hour before planting.
+        await new Promise((r) => setTimeout(r, 60));
+        const streets = placeHeat(world, afternoon).filter(
           (p) => p.kind === "street",
         );
         // Prefer a name that reads as a street ("Speedway", "24th Street").
@@ -1790,23 +1812,32 @@ export default function App({
       setTrees(true);
       setBuildings(true);
       setShowPaths(true);
-      setEnv((previous) => {
-        const now = new Date().toISOString();
-        return {
-          ...previous,
-          dateTime:
-            link?.hour !== undefined
-              ? atLocalHour(now, w.timezone, link.hour)
+      const now = new Date().toISOString();
+      // A guest demo after dark would show a night map where every route
+      // looks the same; show this afternoon instead and say so.
+      const afternoon =
+        guest &&
+        link?.hour === undefined &&
+        sunDirection({ ...env, dateTime: now }, w.origin).altitude <
+          DEMO_MIN_SUN_RAD;
+      setEnv((previous) => ({
+        ...previous,
+        dateTime:
+          link?.hour !== undefined
+            ? atLocalHour(now, w.timezone, link.hour)
+            : afternoon
+              ? atLocalHour(now, w.timezone, 15)
               : now,
-          weatherMode: "scenario",
-        };
-      });
+        weatherMode: "scenario",
+      }));
       setForecast(null);
       void weather(w.origin, { quiet: true, request, reportFailure: true });
       flash(
-        from && to
-          ? "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk."
-          : "This area has no public walking connections. Build a nearby area to plan a walk.",
+        !(from && to)
+          ? "This area has no public walking connections. Build a nearby area to plan a walk."
+          : afternoon
+            ? `It's dark at ${w.name.split(" · ")[0].replace(/, [A-Z]{2}$/, "")} right now, so this shows 3 PM, when shade matters. Move the clock to see now.`
+            : "Your area is ready. Search a building or street, pick endpoints, or use your location to plan a walk.",
       );
       return true;
     } catch (e) {
@@ -2305,7 +2336,11 @@ export default function App({
                 setTab("route");
                 setEnd(id);
                 setPicking(null);
-                flash("Destination set. Choose where you're starting from.");
+                flash(
+                  start && start !== id
+                    ? "Destination set. The walk keeps its start; change it under From."
+                    : "Destination set. Choose where you're starting from.",
+                );
               }}
               onCity={(c) =>
                 void loadCity(c, !!prebuiltAreaFor(c.lat, c.lon, 1000), 1000)
@@ -2341,6 +2376,7 @@ export default function App({
                 setGenOpen(false);
               }}
               onGenerate={generateCity}
+              free={guest}
               aiNote={
                 guest
                   ? "You're exploring as a guest, so the offline designer builds this from your words, free. Sign in and the AI (Meta's Muse Spark, or your own key) plans districts, landmarks and street names in full."
@@ -2641,7 +2677,9 @@ export default function App({
                     key={world.id}
                     plan={dayPlan}
                     busy={dayBusy}
+                    autoPlay={dayAutoPlay}
                     onPlan={() => {
+                      setDayAutoPlay(false);
                       setDayBusy(true);
                       // Let the button show its busy state before the work.
                       setTimeout(() => {
@@ -2653,6 +2691,8 @@ export default function App({
                       }, 30);
                     }}
                     onShow={(leg) => {
+                      // Played once; a later visit to this tab waits for Play.
+                      setDayAutoPlay(false);
                       setPlaying(false);
                       setPicking(null);
                       setPref("shade");
@@ -2912,8 +2952,7 @@ export default function App({
                 />
                 <div className="probe-summary">
                   <div className="eyebrow">
-                    SELECTED POINT · {Math.round(probe[0])} E /{" "}
-                    {Math.round(probe[1])} S
+                    Selected point · {probeLabel(probe)}
                   </div>
                   <h3>
                     {sunDirection(env, world.origin).y <= 0
@@ -3005,6 +3044,15 @@ export default function App({
                 <button
                   className="secondary"
                   onClick={() => {
+                    // It replaces the whole map, which is easy to hit by
+                    // mistake in the middle of a demo.
+                    if (
+                      world.objects.length > 0 &&
+                      !window.confirm(
+                        `Clear ${world.name.split(" · ")[0]} and start an empty landscape? Undo brings it back.`,
+                      )
+                    )
+                      return;
                     edit({
                       ...createStudyWorld(),
                       id: crypto.randomUUID(),

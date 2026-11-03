@@ -127,6 +127,55 @@ describe("route types", () => {
     );
     expect(compareRoutes(blocked, "A", "D", options).stepfree).toBeNull();
   });
+  it("starts step-free from the nearest step-free point when the exact one has none", () => {
+    const pocket = world();
+    pocket.graph.edges = pocket.graph.edges.filter(
+      (e) => !e.id.startsWith("lit"),
+    );
+    // A ramp starts 30 m from A; A itself only connects by steps.
+    pocket.graph.nodes.push({ id: "E", point: [0, 30] });
+    pocket.graph.edges.push(
+      edge("ramp", "E", "D", [
+        [0, 30],
+        [200, 30],
+        [200, 0],
+      ]),
+    );
+    const r = compareRoutes(pocket, "A", "D", options).stepfree;
+    expect(ids(r)).toEqual(["ramp"]);
+    expect(r?.stepFreeGap).toEqual({ start: 30, end: 0 });
+    // Points close together still get a walk, not an empty one.
+    const near = world();
+    near.graph.nodes = [
+      { id: "A", point: [0, 0] },
+      { id: "D", point: [60, 0] },
+      { id: "E", point: [0, 10] },
+      { id: "F", point: [60, 10] },
+    ];
+    near.graph.edges = [
+      edge(
+        "steps",
+        "A",
+        "D",
+        [
+          [0, 0],
+          [60, 0],
+        ],
+        { stairs: true, accessible: false },
+      ),
+      edge("ramp", "E", "F", [
+        [0, 10],
+        [60, 10],
+      ]),
+    ];
+    const close = compareRoutes(near, "A", "D", options).stepfree;
+    expect(ids(close)).toEqual(["ramp"]);
+    expect(close?.stepFreeGap).toEqual({ start: 10, end: 10 });
+    // Never so far that it is a different place.
+    pocket.graph.nodes.find((n) => n.id === "E")!.point = [0, 200];
+    pocket.graph.edges.at(-1)!.points[0] = [0, 200];
+    expect(compareRoutes(pocket, "A", "D", options).stepfree).toBeNull();
+  });
 
   it("prefers lit streets at night", () => {
     expect(ids(compareRoutes(world(), "A", "D", options).night)).toEqual([

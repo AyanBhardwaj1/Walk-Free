@@ -239,3 +239,57 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **New UT default walk:** Kinsolving Dormitory → Perry-Castañeda Library, chosen from a scored search of landmark pairs. Shade rises 23% → 45% for 3% more walking.
 - **Quick walk.** Unit tests cover each fallback layer. In the browser, the atlas route was found and drawn, with no false error when the map style was still loading.
 - **Totals.** `npm test` 587 pass; lint and build clean. PR #34 is merged, and the production probe passed on 829cf4f.
+
+## Street walk, crowd, phone tour, UT Tower — 2026-11-02 (night)
+
+- **Review fixes (PR #39).**
+  - Street walk: keeps a snapshot of the route, resets on area change and in 2D, and keeps haze at street distances.
+  - Camera: the arrival flight and the street walk hand the camera over cleanly.
+  - Crowd: throttled to about 20 fps, paused when the tab is hidden, human-sized at eye level, and off by default on phones.
+  - Tour actions wait for the map to load.
+  - Browser: street walk on Noir Harbor and UT Austin, and all 8 UT tour steps, with no page errors.
+- **Phone tour (PR #40).**
+  - The sheet drops to a peek for map steps, so the map stays visible.
+  - During a street walk the tour card sits low and the time card hides.
+  - Browser: the 8-step tour at 390 px, with no overflow and no errors.
+- **UT Tower height.**
+  - OpenStreetMap gives 23 m (one building part). It now uses the published 307 ft (93.6 m), cited in `shared/landmark-heights.ts`.
+  - The prebuilt UT area changes only that object's height and height method. Tests cover the override, other buildings keeping their mapped height, and prototype keys.
+- **Outlines with 3D parts.**
+  - The Empire State Building's outline was extruded whole to 443 m over its mapped setbacks.
+  - Outlines that contain `building:part` ways are now capped at their lowest part, and are never raised.
+  - Midtown was rebuilt in the "Build hero areas" workflow: 77 outlines were lowered (after review, only parts with a mapped height count, and cited heights are never lowered) and the Empire State outline is now its 75 m base. The walk endpoints are unchanged, and the browser render showed no errors.
+  - Tests cover lowering, never raising and outlines without parts.
+- **After dark.** Route cards drop shade and sun minutes once the sun is down, and show the lit share where lighting is well mapped. UT has lighting mapped on about 28% of the night route.
+- **Not changed.** Moody Center and Bass Concert Hall keep estimated 10 m heights. No citable published figure was found for either, so none was invented.
+- **Totals.** `npm test` 597 pass; lint and build clean. The production probe passed on PR #39 (f3a7502) and PR #40 (aa99a0b).
+
+## Independent UT demo QA and fixes — 2026-11-03 (early morning)
+
+- **QA pass.** A separate agent drove the UT demo at 1440 px and 390 px (touch): every tab, the tour, the street walk, search, the climate presets, the Ask demo and the studio.
+  - No page errors.
+  - It reported 10 issues and 10 nits, ranked by how they would look in a live demo. All the issues are addressed below.
+- **Phone first view.** The weather chip no longer sits under the tool row, the tour button waits while a message is shown, and the arrival title sits above the time card. Checked in the browser.
+- **Daylight demo.** A guest demo opened after dark starts at 3 PM and says so; the browser check (run in the Austin evening) opened at 3:00 PM.
+- **Step-free.**
+  - The default start only connects by steps. Step-free now starts or ends at the nearest step-free point within 80 m, and says how far away it is.
+  - On UT it starts 67 m away, ends 63 m away and takes 12 min.
+  - Tests cover the nearby start and refusing a point 200 m away.
+- **Tour.**
+  - The heat step raises the phone sheet, and the day step plans and plays the whole day; it was checked playing through to the 6:15 PM walk home.
+  - Planting uses 3 PM, and the desktop card sits at the top, clear of markers and messages.
+  - All 8 steps ran on desktop with no errors.
+- **Ask demo.** It moves the clock to 3 PM before its 3 PM questions (tested) and keeps the newest reply in view.
+- **Heat colours.** Colours reach red only when the sun feels very hot; a 66°F sun stays blue to green (tested).
+- **Smaller fixes.**
+  - A confirmation now appears before an empty landscape replaces the map.
+  - The search message no longer asks for a start that is already set.
+  - The selected point is described in metres from the centre, plurals are fixed, and guests see "Free" instead of credits.
+- **Totals.** `npm test` 600 pass; lint and build clean.
+- **Code review of this batch.** An independent reviewer reported four bugs, all fixed:
+  - Step-free search returned nothing for points under about 160 m apart. Seeds and walked arrivals are now separate states (tested).
+  - The tour's day didn't play when the Route tab mounted together with the plan. It now plays (checked in the browser from 8:30 AM to 6:15 PM), and planting then happens at 3 PM (78 trees on Duval Street).
+  - Outlines were capped by parts with guessed heights or over cited heights. Both are now excluded (tested).
+  - The assistant's route options now report the step-free gap.
+  - `npm test` 601 pass.
+

@@ -362,6 +362,8 @@ export function parseOsmWorld(
       });
     }
   }
+  // Building parts (Simple 3D Buildings), so outlines can defer to them.
+  const partIds = new Set<string>();
   for (const element of polygonWays) {
     const tags = element.tags ?? {};
     if (
@@ -379,6 +381,8 @@ export function parseOsmWorld(
         depth = Math.max(...zs) - Math.min(...zs);
       if (width < 1 || depth < 1 || width > radius * 3 || depth > radius * 3)
         continue;
+      if (tags["building:part"] && tags["building:part"] !== "no")
+        partIds.add(`osm-way-${element.id}`);
       const published = publishedHeight(`way/${element.id}`);
       const height =
         published !== undefined
@@ -587,6 +591,11 @@ export function parseOsmWorld(
     "Terrain is flat unless edited. Building elevations and canopy density are not measured; shade results are estimates.",
     "Timezone is selected from the nearest indexed city; verify it for locations near timezone boundaries.",
   ];
+  const loweredOutlines = deferOutlinesToParts(objects, partIds);
+  if (loweredOutlines)
+    notes.push(
+      `${loweredOutlines} building outline(s) were lowered to sit under their mapped 3D parts.`,
+    );
   if (omittedComplexBuildings)
     notes.push(
       `${omittedComplexBuildings} courtyard building(s) are drawn without their courtyards, so shade inside those courtyards is overestimated.`,
@@ -636,6 +645,57 @@ const RETRYABLE = new Set([
   "NETWORK_BLOCKED",
   "INVALID_UPSTREAM_DATA",
 ]);
+/**
+ * An outline with mapped 3D parts is only an envelope (OSM's Simple 3D
+ * Buildings): its height is often the tallest part's, so extruding it whole
+ * hides the setbacks. Cap each such outline at its lowest part, so the parts
+ * give the shape. Outlines are only ever lowered. Returns how many changed.
+ */
+export function deferOutlinesToParts(
+  objects: SceneObject[],
+  partIds: ReadonlySet<string>,
+): number {
+  if (!partIds.size) return 0;
+  // Only parts with a mapped height: a guessed 10 m part (an untagged
+  // canopy, say) must not flatten a tall outline.
+  const parts = objects.filter(
+    (o) => partIds.has(o.id) && o.heightMethod !== "estimated",
+  );
+  let lowered = 0;
+  for (const outline of objects) {
+    if (
+      partIds.has(outline.id) ||
+      !outline.footprint ||
+      outline.kind === "tree" ||
+      // A cited height is the landmark's real one; keep it.
+      outline.heightMethod === "published"
+    )
+      continue;
+    const polygon = outline.footprint.map(
+      ([x, z]) => [x + outline.position[0], z + outline.position[1]] as Point,
+    );
+    const halfW = outline.width / 2,
+      halfD = outline.depth / 2;
+    let lowest = Infinity;
+    for (const part of parts) {
+      if (
+        Math.abs(part.position[0] - outline.position[0]) > halfW ||
+        Math.abs(part.position[1] - outline.position[1]) > halfD ||
+        !pointInPolygon(part.position, polygon)
+      )
+        continue;
+      lowest = Math.min(lowest, part.height);
+    }
+    if (lowest < outline.height) {
+      outline.height = lowest;
+      if (outline.kind === "skyscraper" && lowest <= 90)
+        outline.kind = "building";
+      lowered++;
+    }
+  }
+  return lowered;
+}
+
 export function overpassRetryable(error: unknown) {
   return !(error instanceof ServiceError) || RETRYABLE.has(error.code);
 }

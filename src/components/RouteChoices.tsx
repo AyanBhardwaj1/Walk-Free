@@ -6,6 +6,7 @@ import type {
 } from "../../shared/types";
 import { routePreferences } from "../lib/routing";
 import { routeHeat } from "../lib/heat";
+import { sunDirection } from "../lib/environment";
 import { inUnit, tempDelta, useUnit } from "../lib/units";
 
 export const routeLabels: Record<RoutePreference, string> = {
@@ -27,6 +28,16 @@ const lighting = (route: RouteResult) => {
   }
   return { mapped: mapped / route.distance, lit: lit / route.distance };
 };
+/** Where a step-free walk had to start or end a little away from the pins. */
+function stepFreeGapText(gap: { start: number; end: number }) {
+  const parts = [
+    gap.start >= 5 && `starts ${gap.start} m from your start`,
+    gap.end >= 5 && `ends ${gap.end} m from your destination`,
+  ].filter(Boolean);
+  return parts.length
+    ? `No step-free way from the exact points: ${parts.join(", ")}`
+    : "Avoids mapped stairs and steep slopes";
+}
 /** Below this, say the route favours busier streets instead of a lit share. */
 const WELL_MAPPED = 0.5;
 export default function RouteChoices({
@@ -45,6 +56,8 @@ export default function RouteChoices({
   const unit = useUnit();
   const quick = choices.quickest;
   const quickHeat = quick && routeHeat(quick, environment, origin);
+  // After dark, shade and sun minutes mean nothing; lighting matters.
+  const dark = sunDirection(environment, origin).altitude <= 0;
   return (
     <div
       className="preferences route-choices"
@@ -91,17 +104,28 @@ export default function RouteChoices({
                     <> · {cooler}° cooler</>
                   )}
                 </span>
-                <span>
-                  {Math.round(route.shadeFraction * 100)}% shade ·{" "}
-                  {Math.round(heat!.sunMinutes)} min in sun
-                </span>
-                <span className="sun-bar" aria-hidden>
-                  <i
-                    style={{
-                      transform: `scaleX(${Math.min(1, Math.max(0, route.shadeFraction))})`,
-                    }}
-                  />
-                </span>
+                {dark ? (
+                  <span>
+                    After dark
+                    {preference !== "night" &&
+                      lighting(route).mapped >= WELL_MAPPED &&
+                      ` · ${Math.round(lighting(route).lit * 100)}% lit`}
+                  </span>
+                ) : (
+                  <>
+                    <span>
+                      {Math.round(route.shadeFraction * 100)}% shade ·{" "}
+                      {Math.round(heat!.sunMinutes)} min in sun
+                    </span>
+                    <span className="sun-bar" aria-hidden>
+                      <i
+                        style={{
+                          transform: `scaleX(${Math.min(1, Math.max(0, route.shadeFraction))})`,
+                        }}
+                      />
+                    </span>
+                  </>
+                )}
                 {preference === "indoors" &&
                   (route.coolStop ? (
                     <span className="route-extra">
@@ -123,7 +147,9 @@ export default function RouteChoices({
                   })()}
                 {preference === "stepfree" && (
                   <span className="route-extra">
-                    Avoids mapped stairs and steep slopes
+                    {route.stepFreeGap
+                      ? stepFreeGapText(route.stepFreeGap)
+                      : "Avoids mapped stairs and steep slopes"}
                   </span>
                 )}
                 {!!route.waterStops && (

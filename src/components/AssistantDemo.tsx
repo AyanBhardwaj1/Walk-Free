@@ -34,6 +34,12 @@ export default function AssistantDemo({
     setRunning(false);
   }, [area]);
   useEffect(() => () => abort.current?.abort(), []);
+  // Keep the newest reply in view as the demo goes.
+  const log = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = log.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns]);
   const play = async () => {
     abort.current?.abort();
     const controller = new AbortController();
@@ -71,6 +77,7 @@ export default function AssistantDemo({
       </button>
       {turns.length > 0 && (
         <div
+          ref={log}
           className="chat-log"
           aria-live="polite"
           aria-label="Demo conversation"

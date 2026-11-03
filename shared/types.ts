@@ -189,6 +189,11 @@ export interface RouteResult {
   coolStop?: string;
   /** Mapped drinking water within a short step of the route. */
   waterStops?: number;
+  /**
+   * Step-free only: the walk starts or ends this many metres from the
+   * chosen points, which themselves connect only by steps.
+   */
+  stepFreeGap?: { start: number; end: number };
 }
 export type EditorTool =
   "select" | ObjectKind | "road" | "footway" | "raise" | "lower" | "flatten";

@@ -54,6 +54,8 @@ export function nightMultiplier(e: GraphEdge) {
         : 2.2;
 }
 const stepFree = (e: GraphEdge) => !e.stairs && e.accessible;
+/** How far from the asked-for point a step-free walk may start or end, m. */
+const STEP_FREE_REACH = 80;
 const MAX_COOL_STOP_CANDIDATES = 4;
 
 /** A binary heap avoids scanning all reached nodes at every routing step. */
@@ -234,6 +236,67 @@ function planner(
     }
     return edges.reverse();
   }
+  /**
+   * When the exact start or end only connects by steps, a step-free walk
+   * from the nearest step-free point nearby is still useful. Searches from
+   * every node within reach of the start at once, charging the gap as
+   * walking, and stops at the cheapest node within reach of the end.
+   */
+  function solveStepFreeNear() {
+    const a = nodePoint.get(from),
+      b = nodePoint.get(to);
+    if (!a || !b) return null;
+    const gap = (p: Point, q: Point) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    // Two states per node: "@" for a seed (only the gap walked so far) and
+    // the plain id once reached along an edge, so a cheap seed never blocks
+    // the walk from arriving there, and only a real walk can finish.
+    const seed = (id: string) => `@${id}`;
+    const d = new Map<string, number>(),
+      prev = new Map<string, { edge: GraphEdge; from: string }>(),
+      endGap = new Map<string, number>();
+    const queue = new MinQueue();
+    for (const [id, p] of nodePoint) {
+      const ga = gap(p, a),
+        gb = gap(p, b);
+      if (ga <= STEP_FREE_REACH) {
+        d.set(seed(id), ga);
+        queue.push({ id: seed(id), cost: ga });
+      }
+      if (gb <= STEP_FREE_REACH) endGap.set(id, gb);
+    }
+    let best: { key: string; total: number } | null = null;
+    for (let item = queue.pop(); item; item = queue.pop()) {
+      if (item.cost !== d.get(item.id)) continue;
+      if (best && item.cost >= best.total) break;
+      const walked = !item.id.startsWith("@");
+      const node = walked ? item.id : item.id.slice(1);
+      const g = walked ? endGap.get(node) : undefined;
+      if (g !== undefined && (!best || item.cost + g < best.total))
+        best = { key: item.id, total: item.cost + g };
+      for (const e of adjacency.get(node) || []) {
+        if (!stepFree(e)) continue;
+        const cost = item.cost + e.distance;
+        if (cost < (d.get(e.to) ?? Infinity)) {
+          d.set(e.to, cost);
+          prev.set(e.to, { edge: e, from: item.id });
+          queue.push({ id: e.to, cost });
+        }
+      }
+    }
+    if (!best) return null;
+    const edges: GraphEdge[] = [];
+    for (let key = best.key; prev.has(key); key = prev.get(key)!.from)
+      edges.push(prev.get(key)!.edge);
+    if (!edges.length) return null;
+    edges.reverse();
+    return {
+      edges,
+      gap: {
+        start: Math.round(gap(nodePoint.get(edges[0].from)!, a)),
+        end: Math.round(endGap.get(best.key)!),
+      },
+    };
+  }
   const water = (w.amenities ?? []).filter((a) => a.kind === "water");
   /** Mapped drinking water within a few steps of the walk. */
   function waterAlong(points: Point[]) {
@@ -281,6 +344,7 @@ function planner(
     if (!quick) return null;
     const warnings: string[] = [];
     let coolStop: string | undefined;
+    let stepFreeGap: RouteResult["stepFreeGap"];
     let edges: GraphEdge[] | null;
     if (preference === "quickest") edges = quick;
     else if (preference === "indoors") {
@@ -290,7 +354,12 @@ function planner(
     } else edges = solve(preference);
     // Never fall back to a route with steps when step-free was asked for.
     if (preference === "stepfree") {
-      if (!edges) return null;
+      if (!edges) {
+        const near = solveStepFreeNear();
+        if (!near) return null;
+        edges = near.edges;
+        stepFreeGap = near.gap;
+      }
       if (length(edges) > length(quick) * o.maxDetour)
         warnings.push("Longer than your detour budget to stay step-free.");
     } else {
@@ -331,6 +400,7 @@ function planner(
       directions: walkingDirections(edges),
       warnings,
       ...(coolStop ? { coolStop } : {}),
+      ...(stepFreeGap ? { stepFreeGap } : {}),
       ...(waterStops ? { waterStops } : {}),
     };
   };
