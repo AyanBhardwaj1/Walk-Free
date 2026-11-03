@@ -76,6 +76,33 @@ describe("assistant demo without a model", () => {
     expect(h.calls[0]).toMatch(/^time /);
   });
 
+  it("keeps the clock it set when later steps show routes", async () => {
+    vi.useFakeTimers();
+    // A host that, like the app, is rebuilt with the latest state.
+    let current = env;
+    const times: string[] = [];
+    const live = () => ({
+      ...host(),
+      env: current,
+      setDateTime: (iso: string) => {
+        current = { ...current, dateTime: iso };
+      },
+      showRoute: (r: { dateTime: string }) => {
+        times.push(r.dateTime);
+        current = { ...current, dateTime: r.dateTime };
+      },
+    });
+    const done = runToolDemo(live, () => {});
+    await vi.runAllTimersAsync();
+    await done;
+    vi.useRealTimers();
+    const atThree = current.dateTime;
+    expect(times.length).toBeGreaterThan(0);
+    // Every route shown after 3 PM was set stays at that time.
+    expect(times.every((t) => t === atThree)).toBe(true);
+    expect(atThree).not.toBe(env.dateTime);
+  });
+
   it("writes temperatures in °C when asked", async () => {
     vi.useFakeTimers();
     const turns: DemoTurn[] = [];

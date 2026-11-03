@@ -381,7 +381,11 @@ function planner(
         );
       }
     }
-    const distance = length(edges);
+    const walked = length(edges);
+    // A step-free walk that starts or ends away from the pins still has to
+    // cover that gap; count it, so it never looks quicker than it is.
+    const distance =
+      walked + (stepFreeGap ? stepFreeGap.start + stepFreeGap.end : 0);
     const points = edges.flatMap((e, i) => (i ? e.points.slice(1) : e.points));
     const waterStops = waterAlong(points);
     return {
@@ -392,10 +396,10 @@ function planner(
       points,
       durationMinutes: distance / 78,
       shadeFraction:
-        edges.reduce((s, e) => s + e.distance * edgeShade(e), 0) / distance,
+        edges.reduce((s, e) => s + e.distance * edgeShade(e), 0) / walked,
       indoorFraction:
         edges.reduce((s, e) => s + (e.indoor !== "no" ? e.distance : 0), 0) /
-        distance,
+        walked,
       hypothetical: edges.some((e) => e.indoor === "hypothetical"),
       directions: walkingDirections(edges),
       warnings,

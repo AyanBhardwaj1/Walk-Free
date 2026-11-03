@@ -252,7 +252,7 @@ export async function runTool(
                 ? {
                     step_free_gap_m: r.stepFreeGap,
                     step_free_note:
-                      "No step-free path from the exact points: this walk starts and/or ends this many metres away, not counted in minutes or meters. Say so.",
+                      "No step-free path from the exact points: this walk starts and/or ends this many metres away (included in minutes and meters). Say so.",
                   }
                 : {}),
               feels_like_f: deg(heat.feelsLikeC),

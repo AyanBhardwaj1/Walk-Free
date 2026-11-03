@@ -216,6 +216,19 @@ const LIVE_REFRESH_MS = 10 * 60 * 1000;
 const NEXT_STRETCH_M = 150;
 const PLANT_PICK_M = 30;
 const SHEET_HEIGHTS = ["132px", "46dvh", "88dvh"];
+/** "3 building(s)" as "3 buildings", "1 way(s)" as "1 way" in stored notes. */
+function plainCounts(note: string) {
+  return note
+    .replace(/\b(\d{4,})(?= [a-z])/g, (n) => Number(n).toLocaleString("en-US"))
+    .replace(
+      /\b(\d+) ([^()\s]+(?: [^()\s]+)?)\(s\)(?: (are|were)\b)?/g,
+      (_, n: string, word: string, verb?: string) => {
+        const one = n === "1";
+        const v = verb && (one ? (verb === "are" ? "is" : "was") : verb);
+        return `${n} ${word}${one ? "" : "s"}${v ? ` ${v}` : ""}`;
+      },
+    );
+}
 /** Where a clicked point is, in plain words, from the area's centre. */
 function probeLabel([x, z]: Point) {
   const part = (v: number, plus: string, minus: string) =>
@@ -559,9 +572,17 @@ export default function App({
       const a = aside.getBoundingClientRect(),
         m = main.getBoundingClientRect();
       const phone = window.matchMedia("(max-width: 650px)").matches;
+      // On phones the guided tour's card covers the top of the map.
+      const tour = phone
+        ? main.querySelector(".demo-tour:not(.is-low)")?.getBoundingClientRect()
+        : undefined;
       const next = phone
         ? // Above the sheet and the time-of-day card that sits on it.
-          { left: 0, bottom: Math.max(0, m.bottom - a.top) + 110, top: 64 }
+          {
+            left: 0,
+            bottom: Math.max(0, m.bottom - a.top) + 110,
+            top: tour ? Math.max(64, Math.round(tour.bottom - m.top) + 12) : 64,
+          }
         : {
             left: panelOpen ? Math.max(0, a.right - m.left) : 0,
             bottom: 110,
@@ -579,12 +600,16 @@ export default function App({
     const settle = setTimeout(measure, 320);
     const observer = new ResizeObserver(measure);
     observer.observe(main);
+    // The sheet itself, so the end of its slide is measured too.
+    observer.observe(aside);
+    aside.addEventListener("transitionend", measure);
     measure();
     return () => {
       clearTimeout(settle);
       observer.disconnect();
+      aside.removeEventListener("transitionend", measure);
     };
-  }, [panelOpen, sheet]);
+  }, [panelOpen, sheet, tourOpen]);
   const sheetDrag = useRef<number | null>(null);
   // The scene before the first tree in this comparison, and the last row.
   const [heatBaseline, setHeatBaseline] = useState<World | null>(null);
@@ -1138,7 +1163,11 @@ export default function App({
       }));
       // Stay in the conversation; the studio holds the before/after card.
       flash(
-        `Planted ${result.planted} shade trees along ${result.street}. See Heat impact in Design studio.`,
+        `Planted ${result.planted} shade trees along ${result.street}. ${
+          mode === "studio"
+            ? "The Heat impact card shows before and after."
+            : "See Heat impact in Design studio."
+        }`,
       );
     },
     async proposeDesign(request) {
@@ -1472,6 +1501,16 @@ export default function App({
     setPanelOpen(true);
     if (window.matchMedia("(max-width: 720px)").matches) setSheet(level);
   }
+  /** After the panel re-renders, scroll a section of it into view. */
+  function revealInPanel(selector: string) {
+    setTimeout(
+      () =>
+        asideRef.current
+          ?.querySelector(selector)
+          ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+      350,
+    );
+  }
   function openTour() {
     setTourOpen(true);
     if (window.matchMedia("(max-width: 720px)").matches) setSheet(0);
@@ -1524,6 +1563,7 @@ export default function App({
         setTab("heat");
         setHeatMap(true);
         tourPanel(1);
+        revealInPanel(".place-list");
       },
     },
     {
@@ -1576,6 +1616,7 @@ export default function App({
         else {
           setMode("studio");
           tourPanel(1);
+          revealInPanel(".heat-impact");
         }
       },
     },
@@ -3300,12 +3341,17 @@ export default function App({
                 <p className="fine">{world.provenance.attribution}</p>
                 {world.provenance.notes.map((n) => (
                   <p className="fine" key={n}>
-                    {n}
+                    {plainCounts(n)}
                   </p>
                 ))}
                 <div className="data-counts">
-                  <span>{world.objects.length} objects</span>
-                  <span>{world.graph.edges.length} walking links</span>
+                  <span>
+                    {world.objects.length.toLocaleString("en-US")} objects
+                  </span>
+                  <span>
+                    {world.graph.edges.length.toLocaleString("en-US")} walking
+                    links
+                  </span>
                 </div>
                 <button
                   className="secondary"
@@ -3782,7 +3828,11 @@ export default function App({
               </>
             )}
             {!atlas && (
-              <div className={`timeline${walking ? " is-walking" : ""}`}>
+              <div
+                className={`timeline${walking ? " is-walking" : ""}${
+                  tourOpen && sheet === 1 ? " is-tucked" : ""
+                }`}
+              >
                 <div>
                   <Sun size={18} />
                   <strong>Time of day</strong>

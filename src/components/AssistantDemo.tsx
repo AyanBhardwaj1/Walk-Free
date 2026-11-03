@@ -38,7 +38,10 @@ export default function AssistantDemo({
   const log = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = log.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // The log can run past the panel's fold; bring the newest reply in.
+    el.lastElementChild?.scrollIntoView({ block: "nearest" });
   }, [turns]);
   const play = async () => {
     abort.current?.abort();
@@ -49,7 +52,7 @@ export default function AssistantDemo({
     setFailed(false);
     try {
       await runToolDemo(
-        host(),
+        host,
         (t) => setTurns((all) => [...all, t]),
         controller.signal,
         unit,
