@@ -317,7 +317,22 @@ function HeatPaths({
         }}
       />
       {highlight.length > 0 && (
-        <Line points={highlight} segments color={sc("#1f2a1c")} lineWidth={7} />
+        <>
+          {/* A pale halo under a gold line: the chosen street stands out
+              without reading as a black gash across the map. */}
+          <Line
+            points={highlight}
+            segments
+            color={sc("#fffdf4")}
+            lineWidth={11}
+          />
+          <Line
+            points={highlight}
+            segments
+            color={sc("#d9a441")}
+            lineWidth={6}
+          />
+        </>
       )}
     </>
   );
