@@ -17,7 +17,7 @@ import MergedBuildings from "./scene/MergedBuildings";
 import Crowd from "./scene/Crowd";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
-import { partialLine, type P3 } from "../lib/polyline";
+import { crownsOnPath, partialLine, type P3 } from "../lib/polyline";
 import { sc, sceneTheme, setSceneTheme } from "../lib/scene-theme";
 import type { ThemeName } from "../lib/theme";
 import type { Ambient } from "./AmbientBackdrop";
@@ -927,6 +927,14 @@ export default function WorldCanvas({
         .getHexString()
     : sc("#e5e1d5");
   const extent = world.extent;
+  // At street level, crowns the camera would pass through are hidden, so the
+  // walk isn't seen from inside a tree.
+  const shownTrees = useMemo(() => {
+    const trees = world.objects.filter((o) => o.kind === "tree");
+    if (!walkthrough || walkthrough.length < 2) return trees;
+    const inTheWay = crownsOnPath(trees, walkthrough);
+    return trees.filter((t) => !inTheWay.has(t.id));
+  }, [world.objects, walkthrough]);
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
   const [reducedMotion] = useState(
@@ -1137,7 +1145,7 @@ export default function WorldCanvas({
             ))}
         {showTrees && (
           <Trees
-            objects={world.objects.filter((o) => o.kind === "tree")}
+            objects={shownTrees}
             terrain={world.terrain}
             selectedId={selectedId}
             onPointerDown={
