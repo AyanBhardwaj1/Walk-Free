@@ -69,8 +69,13 @@ export default function AssistantDemo({
   };
   const playRef = useRef(play);
   playRef.current = play;
+  // Only a raise after mounting starts it, not a value left from before
+  // (the tab can close and reopen).
+  const handled = useRef(start);
   useEffect(() => {
-    if (start > 0) void playRef.current();
+    if (start <= handled.current) return;
+    handled.current = start;
+    void playRef.current();
   }, [start]);
   return (
     <div className="assistant-demo">

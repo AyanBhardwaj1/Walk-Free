@@ -36,30 +36,32 @@ Weighted: about 6.0/10. A solid entry, not yet a winner.
 
 ## Faults and fixes, in order of score impact
 
+Status as of the end of Nov 4: everything that doesn't need the owner's accounts is done.
+
 | # | Fault | Moves | Fix | Status |
 |---|---|---|---|---|
-| 1 | Meta AI is invisible to guests and judges | Meta, Demo | Guests on `/demo` can ask the shared Muse Spark, with a small per-IP daily cap | Planned |
-| 2 | Muse Spark compatibility is untested (tools, `json_object`, two system messages) | Meta | Merge the system messages; if the model rejects `response_format`, retry without it | Planned |
-| 3 | The video script buries Meta until 1:15 | Demo, Meta | Open on a Spanish question to Muse Spark that draws the route, then the DINOv3 canopy, then planting with a Muse Image render | Planned |
-| 4 | The model's work is hidden | Meta, Depth | Show each tool call (function, arguments, result) under the answer | Planned |
-| 5 | Landing page: 106°F at 6 AM | Impact | Regenerate the landing data with the daily temperature cycle | Planned |
-| 6 | The hero stat is a map-edge artifact (a "park" that is a street past the area's edge) | Impact | Leave places at the map edge out of rankings; regenerate | Planned |
-| 7 | The "Built with Meta AI" section is 9th of 11 and its intro talks about weather alerts | Meta | Move it under the hero, add it to the nav, put Muse Spark and DINOv3 in the hero | Planned |
-| 8 | No moment in the app that shows DINOv3 | Meta | A "Meta canopy" toggle that shows how the route's shade changes without it | Planned |
+| 1 | Meta AI is invisible to guests and judges | Meta, Demo | Guests on `/demo` can ask the shared Muse Spark, with a small per-IP daily cap | Done (live once the key is set) |
+| 2 | Muse Spark compatibility is untested (tools, `json_object`, two system messages) | Meta | Merge the system messages; if the model rejects `response_format`, retry without it | Done |
+| 3 | The video script buries Meta until 1:15 | Demo, Meta | Open on a Spanish question to Muse Spark that draws the route, then the DINOv3 canopy, then planting with a Muse Image render | Done |
+| 4 | The model's work is hidden | Meta, Depth | Show each tool call (function, arguments, result) under the answer | Done |
+| 5 | Landing page: 106°F at 6 AM | Impact | Regenerate the landing data with the daily temperature cycle | Done |
+| 6 | The hero stat is a map-edge artifact (a "park" that is a street past the area's edge) | Impact | Leave places at the map edge out of rankings; regenerate | Done |
+| 7 | The "Built with Meta AI" section is 9th of 11 and its intro talks about weather alerts | Meta | Move it under the hero, add it to the nav, put Muse Spark and DINOv3 in the hero | Done |
+| 8 | No moment in the app that shows DINOv3 | Meta | A "Meta canopy" toggle that shows how the route's shade changes without it | Done |
 | 9 | Muse Image unfinished | Meta | Done: "See it as a photo" after planting (`/images/edits`, `muse-image-1.0`) | Done (needs the key) |
 | 10 | SAM 3.1 unused | Meta | Not built: there's no documented SAM 3.1 endpoint on the Model API to test against. Not claimed. | Not done |
-| 11 | No evidence of impact | Impact | Cite heat-illness sources; owner gathers photos and quotes | Partly the owner's |
-| 12 | The deltas look small | Impact | Express the gain as time in the sun saved over a semester | Planned |
-| 13 | The submission reads as a feature list | All | Restructure: problem, Meta AI, evidence, links | Planned |
-| 14 | Numbers contradict (5 vs 7 cities, 214 vs 216 trees, `build_area` can't open two cities) | Demo | Make them consistent | Planned |
-| 15 | README undercuts the pitch ("OpenAI by default", stale limits, "no deployment claimed") | Demo | Rewrite those lines | Planned |
-| 16 | The tour dead-ends: Ask only opens a tab, the last step leaves an unbuilt form, narration is cut off | Demo | Run the demo, build the city, wait for speech to end | Planned |
-| 17 | The street-level camera sits inside a tree crown | Demo | Hide tree crowns next to the walker | Planned |
-| 18 | At night "More shade" is chosen and the legend talks about sun | Demo | After dark, choose Lit at night and show a night legend | Planned |
-| 19 | On phones, toasts and titles cover the map | Demo | Fewer and shorter messages, out of the map's way | Planned |
-| 20 | The landing visuals are CSS mockups, not the product | Demo | Real screenshots of the app | Planned |
-| 21 | Unverified open-model preset IDs | Meta | Remove the presets that can't be verified | Planned |
-| 22 | Map labels overlap the Finish marker on desktop | Demo | Larger gap around markers | Planned |
+| 11 | No evidence of impact | Impact | Cite heat-illness sources; owner gathers photos and quotes | Sources cited; photos and quotes are the owner's |
+| 12 | The deltas look small | Impact | Express the gain as time in the sun saved over a semester | Done |
+| 13 | The submission reads as a feature list | All | Restructure: problem, Meta AI, evidence, links | Done |
+| 14 | Numbers contradict (5 vs 7 cities, 214 vs 216 trees, `build_area` can't open two cities) | Demo | Make them consistent | Done |
+| 15 | README undercuts the pitch ("OpenAI by default", stale limits, "no deployment claimed") | Demo | Rewrite those lines | Done |
+| 16 | The tour dead-ends: Ask only opens a tab, the last step leaves an unbuilt form, narration is cut off | Demo | Run the demo, build the city, wait for speech to end | Done |
+| 17 | The street-level camera sits inside a tree crown | Demo | Hide tree crowns next to the walker | Done |
+| 18 | At night "More shade" is chosen and the legend talks about sun | Demo | After dark, choose Lit at night and show a night legend | Done |
+| 19 | On phones, toasts and titles cover the map | Demo | Fewer and shorter messages, out of the map's way | Done |
+| 20 | The landing visuals are CSS mockups, not the product | Demo | Real screenshots of the app | Done |
+| 21 | Unverified open-model preset IDs | Meta | Remove the presets that can't be verified | Done |
+| 22 | Map labels overlap the Finish marker on desktop | Demo | Larger gap around markers | Done |
 
 ## What only the owner can do
 

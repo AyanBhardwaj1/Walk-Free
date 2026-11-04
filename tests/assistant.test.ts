@@ -696,6 +696,25 @@ describe("AI city generation", () => {
     expect(requestJson).not.toHaveBeenCalled();
   });
 
+  it("charges nothing when the shared key can't render photos", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "1");
+    setUsageStore(memoryUsage());
+    const render = await post("/api/agent/visualize", {
+      image: view,
+      place: "UT Austin",
+    });
+    expect(render.body.code).toBe("AI_IMAGE_PROVIDER");
+    requestJson.mockResolvedValue({
+      choices: [{ message: { content: "Speedway." } }],
+    });
+    const chat = await post("/api/agent/chat", {
+      messages: [{ role: "user", content: "Where is it hottest?" }],
+      context,
+    });
+    expect(chat.status).toBe(200);
+  });
+
   it("refuses anything but a JPEG or PNG data URL", async () => {
     const result = await post(
       "/api/agent/visualize",
@@ -726,6 +745,14 @@ describe("guests trying the assistant", () => {
     expect(third.status).toBe(429);
     expect(third.body.code).toBe("AI_GUEST_LIMIT");
     expect(requestJson).toHaveBeenCalledTimes(2);
+  });
+  it("treats a cap of 0 as no guest questions", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI_DAILY", "0");
+    setUsageStore(memoryUsage());
+    const result = await ask();
+    expect(result.status).toBe(429);
+    expect(requestJson).not.toHaveBeenCalled();
   });
   it("can be turned off", async () => {
     vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");

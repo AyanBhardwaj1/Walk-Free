@@ -8,6 +8,7 @@ import {
   chargeGuestCall,
   chatCompletion,
   imageEdit,
+  requireImageProvider,
   requireAi,
   userAiConfig,
   type AiConfig,
@@ -240,6 +241,8 @@ agentRouter.post("/visualize", async (q, r, next) => {
       })
       .parse(q.body);
     requireVerifiedForSharedKey(config, r.locals.account);
+    // A render the provider can't serve costs nothing.
+    requireImageProvider(config);
     await chargeAiCall(r.locals.account.id, new Date(), config.own);
     const image = await imageEdit(
       config,

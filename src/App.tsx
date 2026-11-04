@@ -788,6 +788,8 @@ export default function App({
   );
   // Hide the canopy crowns on the map to see the walk without them.
   const [hideCanopy, setHideCanopy] = useState(false);
+  // A new area starts with its trees shown.
+  useEffect(() => setHideCanopy(false), [world.id]);
   const withoutCanopy = useMemo(
     () =>
       hideCanopy
@@ -1849,7 +1851,7 @@ export default function App({
       dwell: 20000,
       text: "Meta's Muse Spark uses the same tools you do: it plans routes, ranks heat, moves the clock and plants trees on this map, in your language. Here it is at work.",
       action: "Ask it",
-      run: () => {
+      run: async () => {
         setMode("explore");
         setTab("ask");
         tourPanel(1);
@@ -1857,10 +1859,16 @@ export default function App({
         // works in your language); without one, the scripted demo runs the
         // same tools.
         if (!guest || guestAi)
-          void sendChat(
+          // Waits for the answer, so the next step can't change the map
+          // under a conversation still using it.
+          await sendChat(
             "¿Cuál es la ruta con más sombra ahora mismo, y a qué hora conviene salir?",
           );
-        else setDemoStart((n) => n + 1);
+        else {
+          // Once the tab (and its demo) is on screen, start it.
+          await new Promise((r) => setTimeout(r, 120));
+          setDemoStart((n) => n + 1);
+        }
       },
     },
     {
@@ -2371,7 +2379,7 @@ export default function App({
       setPhotoRender({
         before,
         title,
-        note: "Rendering a photo uses Meta's Muse Image. Create a free account (or add your own Meta Model API key in AI settings) to see this street planted.",
+        note: "Rendering a photo uses Meta's Muse Image. Create a free account to see this street planted.",
       });
       return;
     }
@@ -3045,7 +3053,8 @@ export default function App({
                         />
                       )}
                       {canopyPart &&
-                        canopyPart.with - canopyPart.without >= 0.01 && (
+                        (hideCanopy ||
+                          canopyPart.with - canopyPart.without >= 0.01) && (
                           <div className="canopy-part">
                             <Trees size={15} aria-hidden />
                             <span>

@@ -600,6 +600,8 @@ aside.collapsed ~ .viewport .map-heading {
 }
 .app > main:has(> aside:not(.collapsed)) .map-legend {
   left: 432px;
+  /* Above the time-of-day card, which starts beside the panel. */
+  bottom: 178px;
 }
 @media (max-width: 1100px) {
   .map-legend {

@@ -463,36 +463,42 @@ const FEATURES = [
     title: "A heat map you can touch",
     text: "Tap any street to see how it feels in sun and shade, when it peaks, and compare it with another place.",
     tone: "heat",
+    shot: "heat",
   },
   {
     icon: Sparkles,
     title: "Describe any city. Walk it a minute later.",
     text: "A rain-soaked noir metropolis, a desert souk, your hometown in a heatwave. Meta's Muse Spark plans the districts and landmarks, Walk-Free builds every street and drops you in the middle, with weather you control.",
     tone: "generate",
+    shot: "generate",
   },
   {
     icon: Footprints,
     title: "Live a day there, at street level",
     text: "Coffee, class, lunch outside, home: each walk planned in shade at its own hour. Then drop to eye level and walk it under the trees, with people out on the streets around you.",
     tone: "street",
+    shot: "street",
   },
   {
     icon: Route,
     title: "Routes for how you move",
     text: "Step-free never uses mapped stairs or steep slopes. Night routes favour lit, busier streets. Cool stops pass through libraries and unions.",
     tone: "routes",
+    shot: "routes",
   },
   {
     icon: MessageCircle,
     title: "Ask it anything about the walk",
     text: "“Shadiest way from Andrews Hall to GDC at 3?” The assistant plans it on the map, explains the trade-off and can answer out loud.",
     tone: "ask",
+    shot: "ask",
   },
   {
     icon: Trees,
     title: "Plant trees, watch the heat drop",
     text: "Line a street with trees in the design studio and see shade and feels-like change for that street and the whole campus. Then turn it into a one-page proposal for your campus or city, or download every street's heat as a spreadsheet.",
     tone: "trees",
+    shot: "trees",
   },
   {
     icon: AlertTriangle,
@@ -837,10 +843,22 @@ export default function LandingPage({
               key={f.title}
             >
               <div
-                className={`feature-visual tone-${f.tone}`}
+                className={`feature-visual tone-${f.tone}${"shot" in f ? " has-shot" : ""}`}
                 aria-hidden="true"
               >
-                <FeatureScene tone={f.tone} />
+                {"shot" in f ? (
+                  // A real screenshot of the app doing this.
+                  <img
+                    src={`/landing/shots/${f.shot}.jpg`}
+                    alt=""
+                    width={1280}
+                    height={800}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <FeatureScene tone={f.tone} />
+                )}
               </div>
               <div className="feature-copy">
                 <h3>{f.title}</h3>

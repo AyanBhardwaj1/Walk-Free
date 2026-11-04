@@ -317,6 +317,13 @@ export async function chargeGuestCall(visitor: string, now = new Date()) {
       "Create a free account to ask the assistant.",
       401,
     );
+  // A cap of 0 means no guest questions (the shared store can't enforce 0).
+  if (guest.perVisitor === 0 || guest.perDay === 0)
+    throw new ServiceError(
+      "AI_GUEST_LIMIT",
+      "Guest questions are paused. Create a free account to ask the assistant.",
+      429,
+    );
   const day = now.toISOString().slice(0, 10);
   const limits = usageLimits();
   let mine: UsageResult, all: UsageResult;
@@ -506,7 +513,21 @@ export async function chargeAiCall(
 /** Muse Image, Meta's image model, for edits on the Meta Model API. */
 export const IMAGE_MODEL = () =>
   process.env.WALK_FREE_IMAGE_MODEL || "muse-image-1.0";
-const IMAGE_TIMEOUT_MS = 90_000;
+/** The whole render, call and download, fits Vercel's 60 s function limit. */
+const IMAGE_BUDGET_MS = 52_000;
+/** The reply goes back as JSON, under Vercel's 4.5 MB response limit. */
+const IMAGE_MAX_BYTES = 3_200_000;
+/** Muse Image runs only on the Meta Model API; checked before any charge. */
+export function requireImageProvider(config: AiConfig) {
+  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
+    throw new ServiceError(
+      "AI_IMAGE_PROVIDER",
+      config.own
+        ? "Rendering photos uses Meta's Muse Image: choose Meta Model API in AI settings."
+        : "Rendering photos needs the site's Meta Model API key.",
+      400,
+    );
+}
 /**
  * Edits an image with Muse Image (POST /images/edits, JSON body with the
  * input as a data URI, as in Meta's Model API reference). Returns a data URL
@@ -517,14 +538,8 @@ export async function imageEdit(
   prompt: string,
   imageDataUrl: string,
 ): Promise<string> {
-  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
-    throw new ServiceError(
-      "AI_IMAGE_PROVIDER",
-      config.own
-        ? "Rendering photos uses Meta's Muse Image: choose Meta Model API in AI settings."
-        : "Rendering photos needs the site's Meta Model API key.",
-      400,
-    );
+  requireImageProvider(config);
+  const deadline = Date.now() + IMAGE_BUDGET_MS;
   const result = await requestJson<{
     data?: { b64_json?: string; url?: string }[];
   }>(`${config.baseUrl}/images/edits`, {
@@ -533,8 +548,9 @@ export async function imageEdit(
       Authorization: `Bearer ${config.key}`,
       "Content-Type": "application/json",
     },
-    timeoutMs: IMAGE_TIMEOUT_MS,
-    maxBytes: 16_000_000,
+    timeoutMs: IMAGE_BUDGET_MS - 6_000,
+    // Base64 is a third larger than the picture it carries.
+    maxBytes: Math.ceil(IMAGE_MAX_BYTES * 1.4),
     errorReason: config.own,
     body: JSON.stringify({
       model: IMAGE_MODEL(),
@@ -577,8 +593,8 @@ export async function imageEdit(
   if (out?.url && /^https:\/\//.test(out.url)) {
     // The page only shows images it holds (data: URLs), so fetch it here.
     const bytes = await requestBytes(out.url, {
-      timeoutMs: IMAGE_TIMEOUT_MS,
-      maxBytes: 16_000_000,
+      timeoutMs: Math.max(3_000, deadline - Date.now()),
+      maxBytes: IMAGE_MAX_BYTES,
     });
     return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
   }
