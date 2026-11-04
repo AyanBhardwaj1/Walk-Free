@@ -12,7 +12,7 @@ Before recording, set the site key (see docs/LAUNCH_CHECKLIST.md) so the guest d
 | 0:45–1:00 | Drag the time slider from 9 AM to 3 PM; Route tab: Quickest vs More shade | "Shade moves through the day, so the best walk does too. The shade route avoids about a fifth of the sun for a few percent more walking: about nine hours less in full sun over a semester." |
 | 1:00–1:12 | Best time to go: tap the coolest hour; Heat tab: the hottest streets | "It tells you when to leave, and which streets bake at 3 PM." |
 | 1:12–1:35 | Ask: "Plant trees along the hottest street." Then See it as a photo | "Then from a walk to civic action: Muse Spark plants a row of trees, the model shows the street cooling, and Meta's Muse Image turns the 3D view into a photo of the greener street." |
-| 1:35–1:48 | Write a proposal | "One click turns it into a proposal for the campus or the city council." |
+| 1:35–1:48 | Design studio: Find where trees help the most walkers, then Write a proposal | "Walk-Free finds the streets where trees would help the most walkers, and one click turns it into a proposal, with a link that opens the campus with the trees already planted." |
 | 1:48–2:00 | Landing page, Built with Meta AI section | "Muse Spark, Muse Image, DINOv3 and open data, pointed at the heat. Walk-Free: a cooler way across campus." |
 
 Optional, if there is time:
