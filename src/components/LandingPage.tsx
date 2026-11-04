@@ -400,6 +400,12 @@ function HeatPreview({ preview }: { preview: Preview | null }) {
 }
 
 /** How Meta's models and data power Walk-Free. */
+/** Walks in a semester: four a weekday for fifteen weeks. */
+export const SEMESTER_WALKS = 4 * 5 * 15;
+/** Minutes of sun saved per walk, as hours over a semester (to the half). */
+export const semesterHours = (minutesPerWalk: number) =>
+  Math.round(((minutesPerWalk * SEMESTER_WALKS) / 60) * 2) / 2;
+
 const META_PARTS = [
   {
     icon: Sparkles,
@@ -696,8 +702,16 @@ export default function LandingPage({
             <span>of walkable paths</span>
           </div>
           <div>
-            <strong>6</strong>
-            <span>ways to choose a route</span>
+            <strong>
+              {ut?.shade_route
+                ? `${semesterHours(ut.shade_route.sun_minutes_saved)} h`
+                : "6"}
+            </strong>
+            <span>
+              {ut?.shade_route
+                ? "less in full sun per semester at UT Austin"
+                : "ways to choose a route"}
+            </span>
           </div>
         </section>
 
@@ -828,7 +842,8 @@ export default function LandingPage({
             </h2>
             {campusData && (
               <p className="fine-note">
-                {campusData.scenario}. Model estimates.
+                {campusData.scenario}. A semester is four walks a weekday for 15
+                weeks. Model estimates.
               </p>
             )}
           </div>
@@ -865,7 +880,11 @@ export default function LandingPage({
                         avoids{" "}
                         <strong>{c.shade_route.sun_avoided_percent}%</strong> of
                         the sun for {c.shade_route.extra_distance_percent}% more
-                        walking
+                        walking: about{" "}
+                        <strong>
+                          {semesterHours(c.shade_route.sun_minutes_saved)} hours
+                        </strong>{" "}
+                        less in full sun over a semester
                       </dd>
                     </div>
                   )}

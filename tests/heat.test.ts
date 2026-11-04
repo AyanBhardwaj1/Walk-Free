@@ -126,6 +126,15 @@ describe("heat estimates", () => {
     expect(toF(speedway.feelsLikeC) - toF(mall.feelsLikeC)).toBeGreaterThan(5);
   });
 
+  it("leaves streets in the map's outer band out of the ranking", () => {
+    const w = campus();
+    // extent 400: the last 60 m before ±200 has no shade data past it.
+    w.graph.edges.push(edge("rim", "Rim Road", 190));
+    expect(placeHeat(w, afternoon).map((p) => p.name)).not.toContain(
+      "Rim Road",
+    );
+  });
+
   it("treats covered edges as fully shaded and skips hypothetical ones", () => {
     const w = campus();
     w.graph.edges.push(

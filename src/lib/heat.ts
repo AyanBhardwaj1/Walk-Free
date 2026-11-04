@@ -24,6 +24,8 @@ const WALK_METERS_PER_MINUTE = 78;
 const SAMPLE_SPACING_M = 15;
 const MAX_EDGE_SAMPLES = 32;
 const MIN_STREET_LENGTH_M = 60;
+/** Places this close to the area's edge are left out of rankings. */
+const EDGE_BAND_M = 60;
 const GENERIC_NAMES = new Set(["Footpath", "Street", "Path", "Green space"]);
 
 export const HEAT_LEVELS = [
@@ -177,9 +179,15 @@ export function placeHeat(
     string,
     { length: number; shaded: number; edgeIds: string[]; sum: Point }
   >();
+  // Past the mapped area nothing casts shade, so a path or park in the
+  // outer band would read as full sun when it may not be.
+  const reach = w.extent / 2 - EDGE_BAND_M;
+  const inArea = (c: Point) =>
+    reach <= 0 || (Math.abs(c[0]) <= reach && Math.abs(c[1]) <= reach);
   for (const e of w.graph.edges) {
     const reading = edges.get(e.id);
     if (!reading || GENERIC_NAMES.has(e.name)) continue;
+    if (!inArea(e.points[Math.floor(e.points.length / 2)])) continue;
     const street = streets.get(e.name) ?? {
       length: 0,
       shaded: 0,
@@ -210,6 +218,11 @@ export function placeHeat(
     if (l.kind !== "park" || GENERIC_NAMES.has(l.name)) continue;
     const samples = polygonSamples(l.points);
     if (!samples.length) continue;
+    const center: Point = [
+      samples.reduce((s, p) => s + p[0], 0) / samples.length,
+      samples.reduce((s, p) => s + p[1], 0) / samples.length,
+    ];
+    if (!inArea(center)) continue;
     places.push({
       id: `park:${l.id}`,
       name: l.name,
@@ -217,10 +230,7 @@ export function placeHeat(
       length: 0,
       edgeIds: [],
       samples,
-      center: [
-        samples.reduce((s, p) => s + p[0], 0) / samples.length,
-        samples.reduce((s, p) => s + p[1], 0) / samples.length,
-      ],
+      center,
       ...readHeat(conditions, samples.filter(shadedAt).length / samples.length),
     });
   }

@@ -12,3 +12,12 @@ describe("assistant trace", () => {
     expect(traceText("x".repeat(20), 5)).toBe("xxxxx…");
   });
 });
+
+import { semesterHours, SEMESTER_WALKS } from "../src/components/LandingPage";
+describe("semester framing", () => {
+  it("turns minutes per walk into hours per semester", () => {
+    expect(SEMESTER_WALKS).toBe(300);
+    expect(semesterHours(1.8)).toBe(9);
+    expect(semesterHours(1.2)).toBe(6);
+  });
+});

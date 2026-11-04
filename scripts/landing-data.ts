@@ -11,6 +11,7 @@ import {
   heatConditions,
   placeHeat,
   readHeat,
+  scenarioAt,
   toF,
 } from "../src/lib/heat.js";
 import { plantShadeRow } from "../src/lib/planting.js";
@@ -111,12 +112,19 @@ const inside = (p: [number, number]) =>
   Math.abs(p[1] - mid[1]) <= PREVIEW_HALF_M;
 const planted = plantShadeRow(ut, speedway[0].id)!;
 const edges = ut.graph.edges.filter((e) => e.points.every(inside));
+// The July high is the 3 PM air; other hours follow the app's daily cycle,
+// so the morning reads cool and the afternoon hot, as in the app.
+const utAfternoon = {
+  ...summer("ut-austin"),
+  dateTime: atLocalHour(JULY.dateTime, ut.timezone, AFTERNOON_HOUR),
+};
 function shadeByHour(world: World) {
   return HOURS.map((hour) => {
-    const env = {
-      ...summer("ut-austin"),
-      dateTime: atLocalHour(JULY.dateTime, world.timezone, hour),
-    };
+    const env = scenarioAt(
+      utAfternoon,
+      atLocalHour(JULY.dateTime, world.timezone, hour),
+      world.timezone,
+    );
     const tester = createShadeTester(world, env);
     return {
       hour,
