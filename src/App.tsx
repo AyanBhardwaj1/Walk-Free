@@ -396,6 +396,8 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // ?tour=auto plays every step on its own, for judges and recordings.
+  const [autoTour, setAutoTour] = useState(false);
   // The on-screen map controls drive the 3D camera through this.
   const cameraApi = useRef<MapCamera | null>(null);
   const [bearing, setBearing] = useState(0);
@@ -1495,7 +1497,10 @@ export default function App({
       openGenerated(stored.spec, stored.realism, stored.via, stored.prompt);
       return;
     }
-    if (params0.has("tour")) openTour();
+    if (params0.has("tour")) {
+      setAutoTour(params0.get("tour") === "auto");
+      openTour();
+    }
     if (params0.has("generate")) {
       setGenPrompt((params0.get("generate") ?? "").slice(0, 600));
       setGenOpen(true);
@@ -1698,6 +1703,7 @@ export default function App({
     },
     {
       title: "Walk it at street level",
+      dwell: 16000,
       text: "Drop to street level and walk the shade route between the buildings, then come back up whenever you like.",
       action: "Walk it",
       run: () => {
@@ -1723,6 +1729,7 @@ export default function App({
     },
     {
       title: "A day in the life",
+      dwell: 18000,
       text: "Coffee, class, lunch outside, an errand, home: each walk planned in shade at its own hour, played one after another.",
       action: "Plan and play my day",
       run: () => {
@@ -3684,6 +3691,7 @@ export default function App({
                   steps={tourSteps}
                   waiting={!!busy}
                   low={walking}
+                  autoPlay={autoTour}
                   left={mapInsets.left}
                   onClose={() => setTourOpen(false)}
                 />

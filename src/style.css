@@ -3706,6 +3706,25 @@ dialog.city-gen .city-gen-go:active:not(:disabled) {
   text-transform: uppercase;
   color: var(--c-fg-b9cfa3, #b9cfa3);
 }
+.demo-tour-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.demo-tour .demo-tour-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding: 4px 9px;
+  border: 1px solid var(--c-line-ffffff40, #ffffff40);
+  background: transparent;
+  color: var(--c-fg-f4d77d, #f4d77d);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
 .demo-tour .icon-button {
   color: var(--c-fg-f4f1e6, #f4f1e6);
   background: transparent;
