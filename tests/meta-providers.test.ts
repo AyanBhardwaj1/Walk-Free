@@ -56,9 +56,13 @@ describe("Meta model providers", () => {
     expect(model("fireworks")).toBe(
       "accounts/fireworks/models/muse-spark-open",
     );
-    expect(model("baseten")).toBe("meta-llama/Llama-4-Maverick-17B-128E-Instruct");
+    expect(model("baseten")).toBe(
+      "meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+    );
     expect(model("together")).toBe("meta-models/Muse-Spark-Open-816B-A42B");
-    expect(model("deepinfra")).toBe("meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8");
+    expect(model("deepinfra")).toBe(
+      "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    );
   });
 
   it("rejects provider names outside the allow-list", () => {
