@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { ServiceError } from "./network.js";
-import { chargeAiCall, chatCompletion, requireAi, userAiConfig } from "./ai.js";
+import {
+  chargeAiCall,
+  chatCompletion,
+  imageEdit,
+  requireAi,
+  userAiConfig,
+} from "./ai.js";
 import { ASSISTANT_TOOLS, MAX_TOOL_ROUNDS } from "../shared/assistant.js";
 import {
   REALISM,
@@ -198,6 +204,52 @@ agentRouter.post("/city", async (q, r, next) => {
       realism: input.realism,
       credits: charged,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** Credits a rendered photo costs: one to start, one when it arrives. */
+export const RENDER_CREDITS = 2;
+/** A JPEG or PNG data URL of the current 3D view, up to ~1.5 MB. */
+const viewImage = z
+  .string()
+  .max(1_600_000)
+  .regex(/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/);
+export function renderPrompt(place: string, street?: string, trees?: number) {
+  const where = street ? `${street} in ${place}` : place;
+  return `Turn this simple 3D model into a realistic aerial photograph of ${where} on a bright summer afternoon. Keep every building, street, path and tree exactly where it is and keep the camera angle. ${
+    street
+      ? `The ${trees ? `${trees} ` : ""}trees along ${street} are newly planted: render them as mature, leafy shade trees casting deep, dappled shade on the walkway. `
+      : ""
+  }Natural colours, realistic materials, documentary photo style; no text, labels or people in focus.`;
+}
+agentRouter.post("/visualize", async (q, r, next) => {
+  try {
+    const config = userAiConfig(q.headers) ?? requireAi();
+    const input = z
+      .object({
+        image: viewImage,
+        place: z.string().trim().min(1).max(100),
+        street: z.string().trim().max(100).optional(),
+        trees: z.number().int().min(0).max(500).optional(),
+      })
+      .parse(q.body);
+    requireVerifiedForSharedKey(config, r.locals.account);
+    await chargeAiCall(r.locals.account.id, new Date(), config.own);
+    const image = await imageEdit(
+      config,
+      renderPrompt(input.place, input.street, input.trees),
+      input.image,
+    );
+    let charged = 1;
+    try {
+      for (; charged < RENDER_CREDITS; charged++)
+        await chargeAiCall(r.locals.account.id, new Date(), config.own);
+    } catch {
+      // Out of credits after the render: it's made, so deliver it.
+    }
+    r.json({ image, credits: charged });
   } catch (e) {
     next(e);
   }

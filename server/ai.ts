@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requestJson, ServiceError } from "./network.js";
+import { requestBytes, requestJson, ServiceError } from "./network.js";
 
 /**
  * One OpenAI-compatible chat endpoint for every assistant feature. OpenAI is
@@ -413,6 +413,92 @@ export async function chargeAiCall(
         : "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
       429,
     );
+}
+
+/** Muse Image, Meta's image model, for edits on the Meta Model API. */
+export const IMAGE_MODEL = () =>
+  process.env.WALK_FREE_IMAGE_MODEL || "muse-image-1.0";
+const IMAGE_TIMEOUT_MS = 90_000;
+/**
+ * Edits an image with Muse Image (POST /images/edits, JSON body with the
+ * input as a data URI, as in Meta's Model API reference). Returns a data URL
+ * of the result. Only the Meta Model API serves Muse Image.
+ */
+export async function imageEdit(
+  config: AiConfig,
+  prompt: string,
+  imageDataUrl: string,
+): Promise<string> {
+  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
+    throw new ServiceError(
+      "AI_IMAGE_PROVIDER",
+      config.own
+        ? "Rendering photos uses Meta's Muse Image: choose Meta Model API in AI settings."
+        : "Rendering photos needs the site's Meta Model API key.",
+      400,
+    );
+  const result = await requestJson<{
+    data?: { b64_json?: string; url?: string }[];
+  }>(`${config.baseUrl}/images/edits`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    timeoutMs: IMAGE_TIMEOUT_MS,
+    maxBytes: 16_000_000,
+    errorReason: config.own,
+    body: JSON.stringify({
+      model: IMAGE_MODEL(),
+      prompt,
+      images: [{ image_url: imageDataUrl }],
+      n: 1,
+    }),
+  }).catch((error: unknown) => {
+    const status = Number(
+      (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
+    );
+    const reason =
+      config.own && error instanceof ServiceError && error.providerReason
+        ? ` The provider said: “${error.providerReason}”`
+        : "";
+    if (status === 401 || status === 403)
+      throw new ServiceError(
+        "AI_KEY_REJECTED",
+        config.own
+          ? `Meta rejected your key for Muse Image. Check it in AI settings.${reason}`
+          : "The site's AI key was rejected for Muse Image. Please tell the site owner.",
+        400,
+      );
+    if (status === 429)
+      throw new ServiceError(
+        "AI_BUSY",
+        `Muse Image is busy or the account is out of credit. Try again in a moment.${reason}`,
+        429,
+      );
+    if (status)
+      throw new ServiceError(
+        "AI_IMAGE_FAILED",
+        `Muse Image couldn't render this view (HTTP ${status}).${reason}`,
+        502,
+      );
+    throw error;
+  });
+  const out = result.data?.[0];
+  if (out?.b64_json) return `data:image/png;base64,${out.b64_json}`;
+  if (out?.url && /^https:\/\//.test(out.url)) {
+    // The page only shows images it holds (data: URLs), so fetch it here.
+    const bytes = await requestBytes(out.url, {
+      timeoutMs: IMAGE_TIMEOUT_MS,
+      maxBytes: 16_000_000,
+    });
+    return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+  }
+  throw new ServiceError(
+    "AI_IMAGE_FAILED",
+    "Muse Image returned no picture. Try again.",
+    502,
+  );
 }
 
 export function requireAi(): AiConfig {

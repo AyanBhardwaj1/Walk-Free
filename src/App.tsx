@@ -70,6 +70,9 @@ import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteProfile from "./components/RouteProfile";
+import PhotoRenderDialog, {
+  type PhotoRender,
+} from "./components/PhotoRenderDialog";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
@@ -2268,6 +2271,67 @@ export default function App({
     }
   }
   /** Save the 3D view as a picture, with its sky and a small caption. */
+  // The planted street as a photo, rendered by Meta's Muse Image.
+  const [photoRender, setPhotoRender] = useState<PhotoRender | null>(null);
+  async function renderPlantedPhoto() {
+    const shot = captureRef.current?.();
+    if (!shot) return;
+    // A JPEG up to 1024 px wide keeps the request small.
+    let before = shot;
+    try {
+      const img = new Image();
+      img.src = shot;
+      await img.decode();
+      const k = Math.min(1, 1024 / img.width);
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        // The scene may be transparent behind a backdrop: give it a sky.
+        ctx.fillStyle = sky?.sky[0] ?? "#e9ecdf";
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        before = c.toDataURL("image/jpeg", 0.85);
+      }
+    } catch {
+      /* Keep the full-size capture. */
+    }
+    const place = world.name.split(" · ")[0];
+    const title = `${planting?.street ?? place}, planted`;
+    if (guest) {
+      setPhotoRender({
+        before,
+        title,
+        note: "Rendering a photo uses Meta's Muse Image. Create a free account (or add your own Meta Model API key in AI settings) to see this street planted.",
+      });
+      return;
+    }
+    setPhotoRender({ before, title, busy: true });
+    try {
+      const data = (await api(
+        "/api/agent/visualize",
+        {
+          image: before,
+          place,
+          ...(planting && planting.street !== "this path"
+            ? { street: planting.street, trees: planting.planted }
+            : {}),
+        },
+        ownKeyHeaders(ownKey),
+      )) as { image: string };
+      setPhotoRender((r) => r && { ...r, busy: false, after: data.image });
+    } catch (e) {
+      setPhotoRender(
+        (r) =>
+          r && {
+            ...r,
+            busy: false,
+            note: friendlyError(e, "Muse Image couldn't render this view."),
+          },
+      );
+    }
+  }
   async function saveImage() {
     const shot = captureRef.current?.();
     if (!shot) return;
@@ -2612,6 +2676,10 @@ export default function App({
                   ? "You're exploring as a guest, so the offline designer builds this from your words, free. Sign in and the AI (Meta's Muse Spark, or your own key) plans districts, landmarks and street names in full."
                   : "The AI plans the districts, landmarks and street names (Meta's Muse Spark, or your own key from AI settings). If it can't, the offline designer builds it from your words instead."
               }
+            />
+            <PhotoRenderDialog
+              render={photoRender}
+              onClose={() => setPhotoRender(null)}
             />
             {fiction && !atlas && (
               <nav className="fiction-switch" aria-label="Fictional cities">
@@ -3272,6 +3340,7 @@ export default function App({
                     sunUp={sunDirection(heatEnv, world.origin).y > 0}
                     canopy={world.objects.some((o) => o.source === "canopy")}
                     liveWeather={heatEnv.weatherMode === "forecast"}
+                    onRenderPhoto={() => void renderPlantedPhoto()}
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);

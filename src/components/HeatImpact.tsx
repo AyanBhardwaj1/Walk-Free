@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, TreePine } from "lucide-react";
+import { FileText, Sparkles, TreePine } from "lucide-react";
 import { formatTemp, tempDelta, useUnit, type TempUnit } from "../lib/units";
 import { plantingProposal } from "../lib/plant-proposal";
 import ProposalDialog from "./ProposalDialog";
@@ -54,6 +54,7 @@ export default function HeatImpact({
   sunUp,
   canopy,
   liveWeather,
+  onRenderPhoto,
 }: {
   impact: { street: Summary[]; area: Summary[] };
   street: string;
@@ -67,6 +68,8 @@ export default function HeatImpact({
   sunUp: boolean;
   canopy: boolean;
   liveWeather: boolean;
+  /** Render the planted street as a photo with Meta's Muse Image. */
+  onRenderPhoto?: () => void;
 }) {
   const unit = useUnit();
   const [proposal, setProposal] = useState<{
@@ -109,6 +112,11 @@ export default function HeatImpact({
         >
           <FileText size={15} aria-hidden /> Write a proposal
         </button>
+        {onRenderPhoto && (
+          <button className="secondary" onClick={onRenderPhoto}>
+            <Sparkles size={15} aria-hidden /> See it as a photo
+          </button>
+        )}
         <button className="text-button" onClick={onReset}>
           Compare from here
         </button>

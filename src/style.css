@@ -2842,6 +2842,54 @@ aside.collapsed ~ .viewport .map-heading {
 .proposal-dialog {
   width: min(640px, calc(100vw - 32px));
 }
+/* The planted street: the model beside Muse Image's photo of it. */
+.render-dialog {
+  width: min(980px, calc(100vw - 32px));
+}
+.render-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.render-pair figure {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.render-pair img,
+.render-wait {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--c-bg-efeee5, #efeee5);
+  border: 1px solid var(--c-line-d9ddcb, #d9ddcb);
+}
+.render-wait {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-fg-313b30, #313b30);
+}
+.render-pair figcaption {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+}
+@media (max-width: 650px) {
+  .render-pair {
+    grid-template-columns: 1fr;
+  }
+}
 .proposal-text {
   width: 100%;
   box-sizing: border-box;
