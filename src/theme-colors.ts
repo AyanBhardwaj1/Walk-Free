@@ -53,6 +53,7 @@ export const THEME_COLORS = [
   "bg-fcfaf0",
   "bg-fcfaf5",
   "bg-fdfbf5",
+  "bg-fffdf4",
   "bg-fffdf4f5",
   "bg-fffdf5",
   "bg-fffdf6",

@@ -186,6 +186,32 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "plan_tree_planting",
+      description:
+        "Find where new street trees would keep the most walkers out of the sun: samples typical walks across the loaded area at the time shown and ranks sunny, well-walked streets by sun minutes a row of trees would save. Use for 'where should we plant trees?' Then plant_shade_trees can plant one.",
+      parameters: {
+        type: "object",
+        properties: {
+          count: {
+            type: "integer",
+            description: "How many streets to rank, 1-5 (default 3).",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "cool_refuges",
+      description:
+        "Places to get out of the heat in the loaded area at the time shown (air-conditioned cool stops, shade shelters, mostly shaded parks), how much of the walking network is within a 5- and 10-minute walk of one, and the streets farthest from any. Use for 'where can I cool down?' or 'where does campus need a cooling centre?'",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "propose_design",
       description:
         "Draft a design change to the 3D scene, such as planting trees along a street or adding a building. The person previews it and decides whether to apply it.",

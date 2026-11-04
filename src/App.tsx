@@ -22,6 +22,7 @@ import {
   Undo2,
   Download,
   Camera,
+  Video,
   FileText,
   Upload,
   Trash2,
@@ -152,6 +153,7 @@ import {
   type WalkStop,
 } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
+import { treePriorities, type TreePlan } from "./lib/tree-priority";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { loadOutlook } from "./lib/outlook-source";
@@ -164,6 +166,12 @@ import {
 import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
+import TreePlanner from "./components/TreePlanner";
+import HeatStressLine from "./components/HeatStressLine";
+import { heatStress } from "./lib/heat-stress";
+import { recordTimelapse, recordingType } from "./lib/timelapse";
+import RefugeCard from "./components/RefugeCard";
+import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
 import { heatBrief } from "./lib/heat-brief";
@@ -414,6 +422,9 @@ export default function App({
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
   // Raised by the tour to run the scripted assistant demo for guests.
   const [demoStart, setDemoStart] = useState(0);
+  // The studio's tree plan, kept here so it survives switching tabs.
+  const [treePlan, setTreePlan] = useState<TreePlan | null>(null);
+  useEffect(() => setTreePlan(null), [world.id]);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -457,6 +468,10 @@ export default function App({
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
     captureRef.current = capture;
+  }, []);
+  const frameRef = useRef<(() => HTMLCanvasElement) | null>(null);
+  const setFrame = useCallback((frame: (() => HTMLCanvasElement) | null) => {
+    frameRef.current = frame;
   }, []);
   /** The open fictional city, if any; it brings its own sky and weather. */
   const fiction = useMemo(
@@ -791,6 +806,11 @@ export default function App({
       currentRoute ? canopyShare(world, routeEnv, currentRoute.edges) : null,
     [world, routeEnv, currentRoute],
   );
+  // UTCI in sun and shade at the walk's hour, and at the map's hour.
+  const routeStress = useMemo(
+    () => heatStress(routeEnv, world.origin),
+    [routeEnv, world.origin],
+  );
   // Hide the canopy crowns on the map to see the walk without them.
   const [hideCanopy, setHideCanopy] = useState(false);
   // A new area starts with its trees shown.
@@ -842,6 +862,10 @@ export default function App({
   }, [routeKey, bestTimeDay, world, forecast, mode, tab, atlas]);
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
+  const mapStress = useMemo(
+    () => heatStress(heatEnv, world.origin),
+    [heatEnv, world.origin],
+  );
   const heatActive = !atlas && (heatMap || tab === "heat");
   const edgeHeat = useMemo(
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
@@ -1002,7 +1026,22 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [heatPlace?.id, world, profileDay, profileWeather],
   );
+  // Cool refuges within reach, worked out while the Heat tab is open.
+  const [refugeMap, setRefugeMap] = useState(false);
+  const refuges = useMemo(
+    () =>
+      mode === "explore" && tab === "heat"
+        ? refugeCoverage(world, findRefuges(world, heatEnv, places))
+        : null,
+    [mode, tab, world, heatEnv, places],
+  );
+  const showRefuges = refugeMap && !!refuges && tab === "heat";
   const heatOverlay = useMemo(() => {
+    if (showRefuges && refuges) {
+      const colors = new Map<string, string>();
+      for (const [id, m] of refuges.minutes) colors.set(id, refugeColor(m));
+      return { colors, highlight: new Set(heatPlace?.edgeIds ?? []) };
+    }
     if (!edgeHeat || !heatMap) return null;
     const colors = new Map<string, string>();
     for (const [id, reading] of edgeHeat)
@@ -1013,7 +1052,14 @@ export default function App({
     ]);
     return { colors, highlight };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
+  }, [
+    edgeHeat,
+    heatMap,
+    heatPlace?.id,
+    comparePlace?.id,
+    showRefuges,
+    refuges,
+  ]);
   const currentHour = localHour(env.dateTime, world.timezone);
   /** Shade at each point of the route (as RouteResult.points), by edge. */
   const routeShade = useMemo(() => {
@@ -1239,7 +1285,7 @@ export default function App({
     const result = plantShadeRow(world, edgeId);
     if (!result) {
       setMessage("There's no room for more trees along this path.");
-      return;
+      return 0;
     }
     if (!heatBaseline) setHeatBaseline(world);
     edit(result.world);
@@ -1250,6 +1296,7 @@ export default function App({
       planted: (planting?.planted ?? 0) + result.planted,
     });
     flash(`Planted ${result.planted} shade trees along ${result.street}.`);
+    return result.planted;
   }
   const baselineHeat = useMemo(
     () =>
@@ -1439,6 +1486,8 @@ export default function App({
               build_area: "Building the area…",
               generate_city: "Planning and building your city…",
               propose_design: "Sketching a design…",
+              plan_tree_planting:
+                "Walking the area to find where trees help most…",
             }[name] ?? "Working…",
           ),
       );
@@ -1812,11 +1861,12 @@ export default function App({
       },
     },
     {
-      title: "Plant trees, watch it cool",
-      text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
-      action: "Plant the hottest street",
+      title: "Where should the next trees go?",
+      dwell: 14000,
+      text: "Walk-Free samples typical walks across campus, finds the sunny street most of them share, and plants a row of trees there. Watch the shade and feels-like change, then turn it into a proposal.",
+      action: "Find and plant the best street",
       run: async () => {
-        // Plant for the afternoon peak, whatever hour the day step left.
+        // Plan for the afternoon peak, whatever hour the day step left.
         // The studio view also ends any day still playing on the Route tab.
         setPlaying(false);
         setDayAutoPlay(false);
@@ -1830,10 +1880,23 @@ export default function App({
         );
         // Let the assistant tools see the new hour before planting.
         await new Promise((r) => setTimeout(r, 60));
+        const plan = await treePriorities(world, afternoon).catch(() => null);
+        const top = plan?.streets[0];
+        if (plan && top) {
+          // Plant exactly the street the plan names, and keep its list on
+          // screen beside the result.
+          setTreePlan(plan);
+          if (plantShade(top.edgeIds[0]) > 0) {
+            setMode("studio");
+            tourPanel(1);
+            revealInPanel(".heat-impact");
+          }
+          return;
+        }
+        // Without a plan, fall back to the hottest street with a street name.
         const streets = placeHeat(world, afternoon).filter(
           (p) => p.kind === "street",
         );
-        // Prefer a name that reads as a street ("Speedway", "24th Street").
         const hottest =
           streets.find((p) =>
             /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
@@ -2419,6 +2482,57 @@ export default function App({
             note: friendlyError(e, "Muse Image couldn't render this view."),
           },
       );
+    }
+  }
+  // Recording a time-lapse of the day: the sun sweeps, the video records.
+  const [recording, setRecording] = useState(false);
+  const playingRef = useRef(false);
+  playingRef.current = playing;
+  const captionRef = useRef("");
+  captionRef.current = (() => {
+    try {
+      return `${world.name.split(" · ")[0]} · ${new Date(
+        env.dateTime,
+      ).toLocaleString("en-US", {
+        timeZone: world.timezone || undefined,
+        hour: "numeric",
+        minute: "2-digit",
+      })}`;
+    } catch {
+      return world.name;
+    }
+  })();
+  async function recordDay() {
+    const frame = frameRef.current;
+    if (recording || !frame) return;
+    if (!recordingType()) {
+      setMessage(
+        "This browser can't record video. Try Chrome, Edge or Firefox.",
+      );
+      return;
+    }
+    setRecording(true);
+    setLocalHour(DAY_START_HOUR);
+    setPlaying(true);
+    // Let the first step of the day render before recording starts.
+    await new Promise((r) => setTimeout(r, 150));
+    try {
+      const { blob, type } = await recordTimelapse({
+        frame,
+        caption: () => captionRef.current,
+        done: () => !playingRef.current,
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `walk-free-${world.id.replace(/[^a-z0-9-]+/gi, "-")}-day.${type.includes("mp4") ? "mp4" : "webm"}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      flash("Saved a time-lapse of the day.");
+    } catch {
+      setMessage("The time-lapse couldn't be recorded. Try again.");
+    } finally {
+      setPlaying(false);
+      setRecording(false);
     }
   }
   async function saveImage() {
@@ -3071,6 +3185,13 @@ export default function App({
                           modeled shade
                         </span>
                       </div>
+                      {!routeDark && (
+                        <HeatStressLine
+                          stress={routeStress}
+                          shadeFraction={currentRoute.shadeFraction}
+                          compareShade={routeChoices.quickest?.shadeFraction}
+                        />
+                      )}
                       {edgeHeat && (
                         <RouteProfile
                           route={currentRoute}
@@ -3349,6 +3470,28 @@ export default function App({
                 timeZone={world.timezone}
               />
             )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "heat" &&
+              sunDirection(heatEnv, world.origin).altitude > 0 && (
+                <HeatStressLine stress={mapStress} />
+              )}
+            {!atlas && mode === "explore" && tab === "heat" && (
+              <RefugeCard
+                coverage={refuges}
+                shown={refugeMap}
+                onToggle={setRefugeMap}
+                onShow={(street) => {
+                  setHeatPlaceId(`street:${street}`);
+                  setComparePlaceId(null);
+                  setFocusOn(
+                    world.graph.edges
+                      .filter((e) => e.name === street)
+                      .flatMap((e) => e.points),
+                  );
+                }}
+              />
+            )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <HeatPanel
                 places={places}
@@ -3485,6 +3628,25 @@ export default function App({
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);
+                    }}
+                  />
+                )}
+                {world.graph.edges.length > 0 && (
+                  <TreePlanner
+                    world={world}
+                    env={heatEnv}
+                    plan={treePlan}
+                    onPlan={setTreePlan}
+                    onPlant={(edgeId) => plantShade(edgeId)}
+                    onShow={(street) => {
+                      setHeatMap(true);
+                      setHeatPlaceId(`street:${street}`);
+                      setComparePlaceId(null);
+                      setFocusOn(
+                        world.graph.edges
+                          .filter((e) => e.name === street)
+                          .flatMap((e) => e.points),
+                      );
                     }}
                   />
                 )}
@@ -3847,6 +4009,7 @@ export default function App({
                       : null
                   }
                   onCaptureReady={setCapture}
+                  onFrameReady={setFrame}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
                       ? selectHeatEdge
@@ -4209,6 +4372,22 @@ export default function App({
                       <Camera size={19} />
                     </button>
                   )}
+                  {!(view === "2d" && mode === "explore") && (
+                    <button
+                      className="desktop-only"
+                      title={
+                        recording
+                          ? "Recording the day…"
+                          : "Record the day as a time-lapse video"
+                      }
+                      aria-label="Record the day as a time-lapse video"
+                      aria-pressed={recording}
+                      disabled={recording}
+                      onClick={() => void recordDay()}
+                    >
+                      <Video size={19} />
+                    </button>
+                  )}
                   <button
                     className="desktop-only"
                     title="Import scene"
@@ -4232,20 +4411,31 @@ export default function App({
                   !tourOpen &&
                   edgeHeat && (
                     <div className="map-legend" aria-hidden>
-                      <span>
-                        <i
-                          style={{
-                            background: `linear-gradient(90deg, ${heatRamp(
-                              edgeHeat.values().next().value ?? {
-                                sunFeelsC: 40,
-                              },
-                            ).join(", ")})`,
-                          }}
-                        />
-                        {routeDark
-                          ? "Paths: cooler → warmer tonight"
-                          : "Paths: shaded → full sun"}
-                      </span>
+                      {showRefuges ? (
+                        <span>
+                          <i
+                            style={{
+                              background: `linear-gradient(90deg, ${refugeColor(0)} 33%, ${refugeColor(7)} 33% 66%, ${refugeColor(20)} 66%)`,
+                            }}
+                          />
+                          Walk to a refuge: 5 · 10 · more min
+                        </span>
+                      ) : (
+                        <span>
+                          <i
+                            style={{
+                              background: `linear-gradient(90deg, ${heatRamp(
+                                edgeHeat.values().next().value ?? {
+                                  sunFeelsC: 40,
+                                },
+                              ).join(", ")})`,
+                            }}
+                          />
+                          {routeDark
+                            ? "Paths: cooler → warmer tonight"
+                            : "Paths: shaded → full sun"}
+                        </span>
+                      )}
                       {currentRoute && (
                         <span>
                           <i className="map-legend-route" />

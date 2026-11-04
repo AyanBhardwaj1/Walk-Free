@@ -11,6 +11,9 @@ import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
 import { bestTimeToLeave } from "./best-time.js";
 import { coolWalkability } from "./cool-walkability.js";
+import { treePriorities } from "./tree-priority.js";
+import { heatStress, UTCI_BANDS, utciBand, walkUtci } from "./heat-stress.js";
+import { findRefuges, refugeCoverage } from "./refuges.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -91,6 +94,10 @@ const schemas = {
       .optional(),
   }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
+  cool_refuges: z.object({}),
+  plan_tree_planting: z.object({
+    count: z.number().int().min(1).max(5).optional(),
+  }),
   generate_city: z.object({
     description: z.string().min(3).max(600),
     realism: z.enum(["sketch", "detailed", "dense"]).optional(),
@@ -238,6 +245,7 @@ export async function runTool(
       });
       const name = (id: string) =>
         host.catalog.find((d) => d.id === id)?.label ?? id;
+      const stress = heatStress(env, host.world.origin);
       return {
         from: name(start),
         ...(fromWalk
@@ -273,6 +281,13 @@ export async function runTool(
                   }
                 : {}),
               feels_like_f: deg(heat.feelsLikeC),
+              ...(stress
+                ? {
+                    heat_stress_utci:
+                      UTCI_BANDS[utciBand(walkUtci(stress, r.shadeFraction))]
+                        .label,
+                  }
+                : {}),
             },
           ];
         }),
@@ -474,6 +489,56 @@ export async function runTool(
         ],
         feels_like_f: [deg(before.feelsLikeC), deg(after.feelsLikeC)],
         note: "Shown in the Design studio; the person can undo it.",
+      };
+    }
+    case "plan_tree_planting": {
+      const scene = host.scene ?? host.world;
+      const plan = await treePriorities(scene, host.env, {
+        top: a.count ?? 3,
+      });
+      if (!plan?.streets.length)
+        return {
+          error:
+            "No sunny, well-walked street to plant at this hour (try an afternoon hour).",
+        };
+      host.highlightPlace(`street:${plan.streets[0].street}`);
+      return {
+        at: clockLabel(host.env.dateTime, host.world.timezone),
+        walks_sampled: plan.walks,
+        streets: plan.streets.map((s) => ({
+          street: s.street,
+          share_of_walks_percent: Math.round(s.walkShare * 100),
+          shaded_percent_now: Math.round(s.shadeNow * 100),
+          shaded_percent_with_trees: Math.round(s.shadeAfter * 100),
+          trees: s.trees,
+          sun_minutes_saved_per_100_walks: Math.round(s.sunMinutesSavedPer100),
+        })),
+        note: "The top street is highlighted on the map.",
+      };
+    }
+    case "cool_refuges": {
+      const coverage = refugeCoverage(
+        host.world,
+        findRefuges(host.world, host.env),
+      );
+      if (!coverage)
+        return {
+          error:
+            "No cool refuges known here at this hour (cool stops are listed for the six campuses in the daytime).",
+        };
+      return {
+        at: clockLabel(host.env.dateTime, host.world.timezone),
+        refuges: coverage.refuges.map((r) => ({
+          name: r.name,
+          kind: r.kind,
+        })),
+        paths_within_5_min_percent: Math.round(coverage.within[0] * 100),
+        paths_within_10_min_percent: Math.round(coverage.within[1] * 100),
+        farthest_streets: coverage.gaps.map((g) => ({
+          street: g.street,
+          walk_minutes: Math.round(g.minutes),
+        })),
+        note: "Cool-stop opening hours are not verified.",
       };
     }
     case "propose_design":

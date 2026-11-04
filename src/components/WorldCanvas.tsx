@@ -317,7 +317,22 @@ function HeatPaths({
         }}
       />
       {highlight.length > 0 && (
-        <Line points={highlight} segments color={sc("#1f2a1c")} lineWidth={7} />
+        <>
+          {/* A pale halo under a gold line: the chosen street stands out
+              without reading as a black gash across the map. */}
+          <Line
+            points={highlight}
+            segments
+            color={sc("#fffdf4")}
+            lineWidth={11}
+          />
+          <Line
+            points={highlight}
+            segments
+            color={sc("#d9a441")}
+            lineWidth={6}
+          />
+        </>
       )}
     </>
   );
@@ -606,8 +621,10 @@ function FogFollowsCamera({ extent }: { extent?: number }) {
 /** Hands the app a way to snapshot the current view as a PNG data URL. */
 function CaptureBridge({
   onReady,
+  onFrameReady,
 }: {
   onReady: (capture: (() => string) | null) => void;
+  onFrameReady?: (frame: (() => HTMLCanvasElement) | null) => void;
 }) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
@@ -616,8 +633,16 @@ function CaptureBridge({
       gl.render(scene, camera);
       return gl.domElement.toDataURL("image/png");
     });
-    return () => onReady(null);
-  }, [gl, scene, camera, onReady]);
+    // For video: a fresh render, read from the canvas in the same task.
+    onFrameReady?.(() => {
+      gl.render(scene, camera);
+      return gl.domElement;
+    });
+    return () => {
+      onReady(null);
+      onFrameReady?.(null);
+    };
+  }, [gl, scene, camera, onReady, onFrameReady]);
   return null;
 }
 /** Eye height for the street-level walk: a person walking, under the trees. */
@@ -849,6 +874,7 @@ export default function WorldCanvas({
   theme = "editorial",
   ambient,
   onCaptureReady,
+  onFrameReady,
   crowd,
   walkthrough,
   onWalkthroughDone,
@@ -881,6 +907,8 @@ export default function WorldCanvas({
   ambient?: Ambient | null;
   /** Receives a snapshot function while the scene is mounted. */
   onCaptureReady?: (capture: (() => string) | null) => void;
+  /** Renders a frame and returns the canvas, for recording video. */
+  onFrameReady?: (frame: (() => HTMLCanvasElement) | null) => void;
   /** People walking the streets (null for none). */
   crowd?: { count: number; shade?: Map<string, number>; hot: boolean } | null;
   /** Walk this route at street level (null when not walking). */
@@ -1005,7 +1033,9 @@ export default function WorldCanvas({
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
       {ambient ? <FogFollowsCamera /> : <FogFollowsCamera extent={extent} />}
-      {onCaptureReady && <CaptureBridge onReady={onCaptureReady} />}
+      {onCaptureReady && (
+        <CaptureBridge onReady={onCaptureReady} onFrameReady={onFrameReady} />
+      )}
       {walkthrough && (
         <StreetWalk
           framed={framed}

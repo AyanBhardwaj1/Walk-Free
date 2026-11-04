@@ -15,6 +15,9 @@ import {
   Languages,
   Boxes,
   Image as ImageIcon,
+  Sprout,
+  ShieldCheck,
+  ScanSearch,
   AlertTriangle,
 } from "lucide-react";
 import FictionGallery from "./FictionGallery";
@@ -428,6 +431,11 @@ const META_PARTS = [
     text: "Plant trees on a hot street and Muse Image turns the 3D view into a photo of the greener street, ready for a proposal to the city.",
   },
   {
+    icon: ScanSearch,
+    title: "SAM 3.1 checks the street",
+    text: "Snap a sunny walk and SAM 3.1 finds the trees and awnings in the photo. A street with none goes straight into the tree plan.",
+  },
+  {
     icon: Languages,
     title: "Speaks your language",
     text: "Ask in Spanish, Hindi or Mandarin and the assistant answers in kind, with the same map and numbers.",
@@ -491,6 +499,20 @@ const FEATURES = [
     title: "Ask it anything about the walk",
     text: "“Shadiest way from Andrews Hall to GDC at 3?” The assistant plans it on the map, explains the trade-off and can answer out loud.",
     tone: "ask",
+  },
+  {
+    icon: Sprout,
+    title: "Where should the next trees go?",
+    text: "Walk-Free samples typical walks across campus, finds the sunny streets most of them share, and ranks them by how many minutes in the sun a row of trees would save. Plant the top one in a click, or ask Muse Spark.",
+    tone: "trees",
+    shot: "planner",
+  },
+  {
+    icon: ShieldCheck,
+    title: "A cool refuge within reach",
+    text: "Like Barcelona's climate shelters, Walk-Free measures the walk from every path to the nearest air-conditioned building, shade shelter or shaded park, and shows where a new one would help most.",
+    tone: "routes",
+    shot: "refuges",
   },
   {
     icon: Trees,
@@ -684,7 +706,7 @@ export default function LandingPage({
             </div>
             <p className="hero-meta">
               <Sparkles size={14} aria-hidden /> Built on Meta's Muse Spark,
-              Muse Image and the DINOv3 canopy map
+              Muse Image, SAM 3.1 and the DINOv3 canopy map
             </p>
             {ut && (
               <p className="cine-stat">
@@ -752,7 +774,8 @@ export default function LandingPage({
               Muse Spark doesn't just chat: it plans routes, moves the clock,
               ranks hot streets and plants trees on the live map, in your own
               language. DINOv3's canopy map finds the trees OpenStreetMap is
-              missing, and Muse Image turns a planted street into a photo.
+              missing, SAM 3.1 spots shade in your street photos, and Muse Image
+              turns a planted street into a photo.
             </p>
             <a
               className="landing-button meta-demo"
