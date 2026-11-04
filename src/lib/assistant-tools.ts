@@ -11,6 +11,7 @@ import { compareRoutes, routePreferences } from "./routing.js";
 import { openCoolStops } from "./cool-stops.js";
 import { bestTimeToLeave } from "./best-time.js";
 import { coolWalkability } from "./cool-walkability.js";
+import { treePriorities } from "./tree-priority.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -89,6 +90,9 @@ const schemas = {
       .optional(),
   }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
+  plan_tree_planting: z.object({
+    count: z.number().int().min(1).max(5).optional(),
+  }),
   generate_city: z.object({
     description: z.string().min(3).max(600),
     realism: z.enum(["sketch", "detailed", "dense"]).optional(),
@@ -450,6 +454,31 @@ export async function runTool(
         ],
         feels_like_f: [deg(before.feelsLikeC), deg(after.feelsLikeC)],
         note: "Shown in the Design studio; the person can undo it.",
+      };
+    }
+    case "plan_tree_planting": {
+      const scene = host.scene ?? host.world;
+      const plan = await treePriorities(scene, host.env, {
+        top: a.count ?? 3,
+      });
+      if (!plan?.streets.length)
+        return {
+          error:
+            "No sunny, well-walked street to plant at this hour (try an afternoon hour).",
+        };
+      host.highlightPlace(`street:${plan.streets[0].street}`);
+      return {
+        at: clockLabel(host.env.dateTime, host.world.timezone),
+        walks_sampled: plan.walks,
+        streets: plan.streets.map((s) => ({
+          street: s.street,
+          share_of_walks_percent: Math.round(s.walkShare * 100),
+          shaded_percent_now: Math.round(s.shadeNow * 100),
+          shaded_percent_with_trees: Math.round(s.shadeAfter * 100),
+          trees: s.trees,
+          sun_minutes_saved_per_100_walks: Math.round(s.sunMinutesSavedPer100),
+        })),
+        note: "The top street is highlighted on the map.",
       };
     }
     case "propose_design":

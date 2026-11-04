@@ -3983,3 +3983,68 @@ main:has(.demo-tour) .map-heading {
 .canopy-part .text-button {
   margin-left: auto;
 }
+
+/* Where should the next trees go? */
+.tree-planner {
+  margin-bottom: 18px;
+}
+.tree-plan {
+  list-style: none;
+  margin: 12px 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.tree-plan li {
+  padding: 10px 12px;
+  border: 1px solid var(--c-line-dedfd3, #dedfd3);
+  background: var(--c-bg-fffdf4, #fffdf4);
+}
+.tree-plan li p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.tree-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tree-plan-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--c-bg-2f4a33, #2f4a33);
+  color: var(--c-fg-f4f1e6, #f4f1e6);
+}
+.tree-plan-bar {
+  height: 5px;
+  margin-top: 8px;
+  background: linear-gradient(90deg, #8aa27a, #2f6577);
+  transform-origin: left;
+  animation: tree-plan-grow 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes tree-plan-grow {
+  from {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-plan-bar {
+    animation: none;
+  }
+}
+.tree-plan-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+}
+.tree-plan-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

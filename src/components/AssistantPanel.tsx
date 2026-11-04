@@ -14,6 +14,7 @@ const toolLabels: Record<string, string> = {
   generate_city: "Generated a city",
   propose_design: "Drafted a design change",
   plant_shade_trees: "Planted shade trees",
+  plan_tree_planting: "Found where trees help most",
 };
 export const toolActivity = (name: string) =>
   toolLabels[name] ?? "Worked on it";

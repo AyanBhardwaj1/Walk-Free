@@ -149,6 +149,7 @@ import {
   type WalkStop,
 } from "./lib/cool-stops";
 import { plantShadeRow } from "./lib/planting";
+import { treePriorities, type TreePlan } from "./lib/tree-priority";
 import { nearestEdge } from "./lib/geo";
 import { loadWeather } from "./lib/weather-source";
 import { loadOutlook } from "./lib/outlook-source";
@@ -161,6 +162,7 @@ import {
 import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
+import TreePlanner from "./components/TreePlanner";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
 import { heatBrief } from "./lib/heat-brief";
@@ -411,6 +413,12 @@ export default function App({
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
   // Raised by the tour to run the scripted assistant demo for guests.
   const [demoStart, setDemoStart] = useState(0);
+  // The tour's tree plan, shown in the studio's planner.
+  const [treePlanPreset, setTreePlanPreset] = useState<{
+    plan: TreePlan;
+    planted: string[];
+  } | null>(null);
+  useEffect(() => setTreePlanPreset(null), [world.id]);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -1234,7 +1242,7 @@ export default function App({
     const result = plantShadeRow(world, edgeId);
     if (!result) {
       setMessage("There's no room for more trees along this path.");
-      return;
+      return 0;
     }
     if (!heatBaseline) setHeatBaseline(world);
     edit(result.world);
@@ -1245,6 +1253,7 @@ export default function App({
       planted: (planting?.planted ?? 0) + result.planted,
     });
     flash(`Planted ${result.planted} shade trees along ${result.street}.`);
+    return result.planted;
   }
   const baselineHeat = useMemo(
     () =>
@@ -1431,6 +1440,8 @@ export default function App({
               build_area: "Building the area…",
               generate_city: "Planning and building your city…",
               propose_design: "Sketching a design…",
+              plan_tree_planting:
+                "Walking the area to find where trees help most…",
             }[name] ?? "Working…",
           ),
       );
@@ -1804,11 +1815,12 @@ export default function App({
       },
     },
     {
-      title: "Plant trees, watch it cool",
-      text: "Line the hottest street with shade trees and see shade and feels-like before and after, then turn it into a proposal.",
-      action: "Plant the hottest street",
+      title: "Where should the next trees go?",
+      dwell: 14000,
+      text: "Walk-Free samples typical walks across campus, finds the sunny street most of them share, and plants a row of trees there. Watch the shade and feels-like change, then turn it into a proposal.",
+      action: "Find and plant the best street",
       run: async () => {
-        // Plant for the afternoon peak, whatever hour the day step left.
+        // Plan for the afternoon peak, whatever hour the day step left.
         // The studio view also ends any day still playing on the Route tab.
         setPlaying(false);
         setDayAutoPlay(false);
@@ -1822,24 +1834,30 @@ export default function App({
         );
         // Let the assistant tools see the new hour before planting.
         await new Promise((r) => setTimeout(r, 60));
+        const plan = await treePriorities(world, afternoon).catch(() => null);
+        // Without a plan, fall back to the hottest street with a street name.
         const streets = placeHeat(world, afternoon).filter(
           (p) => p.kind === "street",
         );
-        // Prefer a name that reads as a street ("Speedway", "24th Street").
         const hottest =
+          plan?.streets[0] ??
           streets.find((p) =>
             /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
               p.name,
             ),
-          ) ?? streets[0];
+          ) ??
+          streets[0];
         if (!hottest) return;
+        const name = "street" in hottest ? hottest.street : hottest.name;
         const result = (await runTool(
           toolHost.current,
           "plant_shade_trees",
-          JSON.stringify({ street: hottest.name }),
+          JSON.stringify({ street: name }),
         )) as { error?: string };
         if (result?.error) flash(result.error);
         else {
+          // The plan's list stays on screen beside the result.
+          if (plan) setTreePlanPreset({ plan, planted: [name] });
           setMode("studio");
           tourPanel(1);
           revealInPanel(".heat-impact");
@@ -3455,6 +3473,24 @@ export default function App({
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);
+                    }}
+                  />
+                )}
+                {world.graph.edges.length > 0 && (
+                  <TreePlanner
+                    world={world}
+                    env={heatEnv}
+                    preset={treePlanPreset}
+                    onPlant={(edgeId) => plantShade(edgeId)}
+                    onShow={(street) => {
+                      setHeatMap(true);
+                      setHeatPlaceId(`street:${street}`);
+                      setComparePlaceId(null);
+                      setFocusOn(
+                        world.graph.edges
+                          .filter((e) => e.name === street)
+                          .flatMap((e) => e.points),
+                      );
                     }}
                   />
                 )}
