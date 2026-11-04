@@ -18,6 +18,8 @@ export interface ProposalInput {
   /** False when the numbers use the scenario weather, not a live forecast. */
   liveWeather?: boolean;
   impact: { street: readonly Summary[]; area: readonly Summary[] };
+  /** A link that opens the area with these trees planted, in 3D. */
+  link?: string;
 }
 
 const pct = (x: number, fine: boolean) =>
@@ -72,6 +74,9 @@ export function plantingProposal(p: ProposalInput) {
         ? "(These spots are already in shade at this hour; try another hour to see where the new trees help.)"
         : "(The sun is down at this hour, so shade doesn't change; the same trees matter most on summer afternoons.)"
       : null,
+    ...(p.link
+      ? ["", `See it planted, in 3D (no account needed): ${p.link}`]
+      : []),
     "",
     "Why it matters: extreme heat is the deadliest weather hazard in the US, and walkers in full sun feel far hotter than the air temperature. Street trees are one of the few changes that cool a walk all day, every summer.",
     "",

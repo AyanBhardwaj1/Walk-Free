@@ -24,7 +24,11 @@ export interface WalkLink {
   hour?: number;
   /** The panel tab to open, such as "ask" for the assistant demo. */
   tab?: LinkTab;
+  /** Streets to open with a row of shade trees planted, from a proposal. */
+  plant?: string[];
 }
+/** At most this many planted streets travel in a link. */
+export const MAX_LINK_PLANTINGS = 6;
 export type LinkTab = "route" | "heat" | "ask" | "climate" | "data";
 const TABS: LinkTab[] = ["route", "heat", "ask", "climate", "data"];
 
@@ -41,6 +45,8 @@ export function walkLinkUrl(origin: string, link: WalkLink) {
   if (link.to) params.set("to", link.to);
   if (link.pref) params.set("pref", link.pref);
   if (link.hour !== undefined) params.set("t", String(link.hour));
+  for (const street of link.plant?.slice(0, MAX_LINK_PLANTINGS) ?? [])
+    params.append("plant", street);
   return `${origin}/demo?${params}`;
 }
 
@@ -76,5 +82,11 @@ export function parseWalkLink(search: string): WalkLink {
   if (q.has("t") && hour >= 0 && hour <= 23.75) link.hour = hour;
   const tab = q.get("tab") as LinkTab | null;
   if (tab && TABS.includes(tab)) link.tab = tab;
+  const plant = q
+    .getAll("plant")
+    .map((s) => s.trim().slice(0, 80))
+    .filter((s) => s && !/[<>]/.test(s))
+    .slice(0, MAX_LINK_PLANTINGS);
+  if (plant.length) link.plant = [...new Set(plant)];
   return link;
 }

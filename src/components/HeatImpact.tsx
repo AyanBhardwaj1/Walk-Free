@@ -55,6 +55,7 @@ export default function HeatImpact({
   canopy,
   liveWeather,
   onRenderPhoto,
+  link,
 }: {
   impact: { street: Summary[]; area: Summary[] };
   street: string;
@@ -70,6 +71,8 @@ export default function HeatImpact({
   liveWeather: boolean;
   /** Render the planted street as a photo with Meta's Muse Image. */
   onRenderPhoto?: () => void;
+  /** A link that opens this area with the same trees planted. */
+  link?: string;
 }) {
   const unit = useUnit();
   const [proposal, setProposal] = useState<{
@@ -106,6 +109,7 @@ export default function HeatImpact({
                 liveWeather,
                 unit,
                 impact,
+                link,
               }),
             )
           }

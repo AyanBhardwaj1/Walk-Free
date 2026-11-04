@@ -312,6 +312,7 @@ function moodEnv(
 }
 /** Query parameters a shared walk link uses (lib/walk-links.ts). */
 const WALK_LINK_PARAMS = [
+  "plant",
   "fiction",
   "tour",
   "generate",
@@ -680,6 +681,13 @@ export default function App({
     street: string;
     edgeIds: string[];
     planted: number;
+    /** Every street planted this session, for a link that replays them. */
+    streets: string[];
+  } | null>(null);
+  // Streets a proposal link asks to plant once its area is on screen.
+  const [pendingPlant, setPendingPlant] = useState<{
+    worldId: string;
+    streets: string[];
   } | null>(null);
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
@@ -1147,6 +1155,28 @@ export default function App({
   const [savedWalks, setSavedWalks] = useState<SavedWalk[]>(loadSavedWalks);
   const labelOf = (id: string) =>
     endpointCatalog.find((d) => d.id === id)?.label ?? "Mapped point";
+  /** A link that opens this area at this hour with the trees planted. */
+  function plantingLink() {
+    if (!planting?.streets.length) return undefined;
+    // Only real places travel in a link (not fictional or generated ones).
+    if (!world.provenance.live) return undefined;
+    const area = prebuiltAreaFor(
+      world.origin.lat,
+      world.origin.lon,
+      world.extent / 2,
+    );
+    return walkLinkUrl(window.location.origin, {
+      ...(area
+        ? { area: area.slug }
+        : {
+            lat: world.origin.lat,
+            lon: world.origin.lon,
+            radius: world.extent / 2,
+          }),
+      hour: Math.round(currentHour * 4) / 4,
+      plant: planting.streets.filter((s) => s !== "this path"),
+    });
+  }
   /** A link anyone can open (no account) to this walk at this hour. */
   async function shareWalk() {
     const area = prebuiltAreaFor(
@@ -1296,10 +1326,53 @@ export default function App({
       street: result.street,
       edgeIds: result.edgeIds,
       planted: (planting?.planted ?? 0) + result.planted,
+      streets: [...new Set([...(planting?.streets ?? []), result.street])],
     });
     flash(`Planted ${result.planted} shade trees along ${result.street}.`);
     return result.planted;
   }
+  // A proposal link's trees, planted once its area (and Meta's canopy, so
+  // the before numbers count those trees) are on screen.
+  useEffect(() => {
+    if (!pendingPlant || pendingPlant.worldId !== world.id) return;
+    if (canopyPending === world.id) return;
+    setPendingPlant(null);
+    let next = world;
+    const edgeIds: string[] = [];
+    const streets: string[] = [];
+    let planted = 0;
+    for (const name of pendingPlant.streets) {
+      const lower = name.toLowerCase();
+      const edge = next.graph.edges.find((e) => e.name.toLowerCase() === lower);
+      const result = edge && plantShadeRow(next, edge.id);
+      if (!result) continue;
+      next = result.world;
+      edgeIds.push(...result.edgeIds);
+      streets.push(result.street);
+      planted += result.planted;
+    }
+    if (!planted) {
+      setMessage("The streets in this link weren't found on this map.");
+      return;
+    }
+    setHeatBaseline(world);
+    edit(next);
+    setHeatMap(true);
+    setPlanting({
+      street: streets.join(" and "),
+      edgeIds,
+      planted,
+      streets,
+    });
+    setMode("studio");
+    setTab("build");
+    revealInPanel(".heat-impact");
+    flash(
+      `Opened with ${planted} shade trees along ${streets.join(", ")}: see before and after in Heat impact.`,
+    );
+    // Runs when the area or its canopy arrives; the rest is read then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPlant, world.id, canopyPending]);
   const baselineHeat = useMemo(
     () =>
       heatBaseline && edgeHeat ? edgeHeatMap(heatBaseline, heatEnv) : null,
@@ -1414,6 +1487,7 @@ export default function App({
         street: result.street,
         edgeIds: result.edgeIds,
         planted: (current?.planted ?? 0) + result.planted,
+        streets: [...new Set([...(current?.streets ?? []), result.street])],
       }));
       // Stay in the conversation; the studio holds the before/after card.
       flash(
@@ -2187,6 +2261,8 @@ export default function App({
       setStart(has(link?.from) ? link!.from! : from);
       setEnd(has(link?.to) ? link!.to! : to);
       if (link?.pref) setPref(link.pref);
+      if (link?.plant?.length)
+        setPendingPlant({ worldId: w.id, streets: link.plant });
       setHypothetical(false);
       setMode("explore");
       setTab(link?.tab ?? "route");
@@ -3651,6 +3727,7 @@ export default function App({
                     canopy={world.objects.some((o) => o.source === "canopy")}
                     liveWeather={heatEnv.weatherMode === "forecast"}
                     onRenderPhoto={() => void renderPlantedPhoto()}
+                    link={plantingLink()}
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);
