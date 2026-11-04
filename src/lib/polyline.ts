@@ -1,4 +1,4 @@
-import type { Point } from "../../shared/types";
+import type { Point } from "../../shared/types.js";
 export type P3 = [number, number, number];
 /** The first share k (0–1) of a polyline, by length. */
 export function partialLine(points: P3[], k: number): P3[] {
