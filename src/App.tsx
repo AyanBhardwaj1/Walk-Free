@@ -1602,9 +1602,12 @@ export default function App({
       .get("name")
       ?.trim()
       .slice(0, 80);
-    // Use the link once; reloading shouldn't replace the scene again.
+    // Use the link once; reloading shouldn't replace the scene again. A
+    // guest's demo isn't saved, so it keeps the area or fictional city in
+    // the address and a reload (or a shared copy of it) opens it again.
     const params = new URLSearchParams(window.location.search);
-    for (const key of WALK_LINK_PARAMS) params.delete(key);
+    for (const key of WALK_LINK_PARAMS)
+      if (!(guest && (key === "area" || key === "fiction"))) params.delete(key);
     const rest = params.toString();
     window.history.replaceState(
       null,
@@ -3491,6 +3494,8 @@ export default function App({
                 onShow={(street) => {
                   setHeatPlaceId(`street:${street}`);
                   setComparePlaceId(null);
+                  // Its card opens in the panel; bring it into view.
+                  revealInPanel(".place-card");
                   setFocusOn(
                     world.graph.edges
                       .filter((e) => e.name === street)

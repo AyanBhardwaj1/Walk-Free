@@ -350,10 +350,7 @@ aside .fiction-switch button {
   .arrival {
     display: none;
   }
-  /* One message over the map at a time. */
-  main:has(.toast) .map-nav-tip {
-    display: none;
-  }
+
   /* A message takes the tour button's place until it is dismissed. */
   main:has(.toast) .tour-launch,
   main:has(.walk-banner) .tour-launch {
@@ -490,4 +487,9 @@ aside .fiction-switch button {
   .ambient-leaves i {
     display: none;
   }
+}
+
+/* One message over the map at a time. */
+main:has(.toast) .map-nav-tip {
+  display: none;
 }
