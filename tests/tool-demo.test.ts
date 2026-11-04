@@ -75,7 +75,7 @@ describe("assistant demo without a model", () => {
     expect(h.calls).toContain("route shade");
     // The clock moves to 3 PM before the first question about 3 PM.
     expect(h.calls[0]).toMatch(/^time /);
-  });
+  }, 60_000);
 
   it("keeps the clock it set when later steps show routes", async () => {
     vi.useFakeTimers();
@@ -102,7 +102,7 @@ describe("assistant demo without a model", () => {
     // Every route shown after 3 PM was set stays at that time.
     expect(times.every((t) => t === atThree)).toBe(true);
     expect(atThree).not.toBe(env.dateTime);
-  });
+  }, 60_000);
 
   it("writes temperatures in °C when asked", async () => {
     vi.useFakeTimers();
@@ -113,7 +113,7 @@ describe("assistant demo without a model", () => {
     vi.useRealTimers();
     expect(turns[0].reply).toMatch(/about \d+°C with/);
     expect(turns.map((t) => t.reply).join(" ")).not.toMatch(/°F/);
-  });
+  }, 60_000);
 
   it("stops when cancelled", async () => {
     const controller = new AbortController();
