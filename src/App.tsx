@@ -765,6 +765,21 @@ export default function App({
       setWalkStop({ ...walkStop, reached: true });
   }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
+  // After dark, shade means nothing and light matters: a walk planned for
+  // shade becomes the lit-street walk, and back again at sunrise.
+  const routeDark = sunDirection(routeEnv, world.origin).altitude <= 0;
+  const wasDark = useRef(false);
+  useEffect(() => {
+    if (routeDark === wasDark.current) return;
+    wasDark.current = routeDark;
+    setPref((p) =>
+      routeDark && p === "shade"
+        ? "night"
+        : !routeDark && p === "night"
+          ? "shade"
+          : p,
+    );
+  }, [routeDark]);
   // What Meta's DINOv3 canopy crowns add to this walk's shade.
   const canopyPart = useMemo(
     () =>
@@ -4188,12 +4203,18 @@ export default function App({
                             ).join(", ")})`,
                           }}
                         />
-                        Paths: shaded → full sun
+                        {routeDark
+                          ? "Paths: cooler → warmer tonight"
+                          : "Paths: shaded → full sun"}
                       </span>
                       {currentRoute && (
                         <span>
                           <i className="map-legend-route" />
-                          Your walk: in shade → in sun
+                          {routeDark
+                            ? pref === "night"
+                              ? "Your walk: along lit streets"
+                              : "Your walk"
+                            : "Your walk: in shade → in sun"}
                         </span>
                       )}
                     </div>
