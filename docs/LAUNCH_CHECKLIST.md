@@ -33,6 +33,11 @@ Then redeploy (Vercel → Deployments → Redeploy) and check that `https://walk
 
 Without the site key, guests and signed-in people without their own key still get the offline designer.
 
+## 2c. Prove Muse Image (2 minutes, after step 1)
+1. Signed in, open https://walk-free.vercel.app/demo?area=ut-austin&t=15, go to Design studio and use **Shade trees** on a hot street (or run tour step 6).
+2. In the Heat impact card press **See it as a photo**. After a few seconds the dialog shows the 3D model beside Muse Image's photo of the planted street.
+3. If it fails, the dialog shows Meta's reason. If Meta names a different model id, set `WALK_FREE_IMAGE_MODEL` in Vercel and redeploy.
+
 ## 3. Record the video
 Follow `docs/VIDEO_SCRIPT.md` (2 minutes). Set the Climate tab's date and time to a July afternoon for the strongest heat contrast.
 
