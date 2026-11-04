@@ -66,6 +66,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Walk-Free uses the camera when you take a street photo to check its shade.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Walk-Free opens a photo you choose to check a street's shade.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Walk-Free uses your location to guide your active walk.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

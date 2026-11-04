@@ -1,4 +1,4 @@
-import { Footprints, Thermometer, Trees, X } from "lucide-react";
+import { Footprints, ScanEye, Thermometer, Trees, X } from "lucide-react";
 import {
   HEAT_LEVELS,
   heatRamp,
@@ -114,6 +114,7 @@ function PlaceCard({
   onClose,
   onCompare,
   comparing,
+  onPhotoCheck,
 }: {
   place: PlaceHeat;
   profile: ProfileHour[] | null;
@@ -122,6 +123,7 @@ function PlaceCard({
   onClose: () => void;
   onCompare: () => void;
   comparing: boolean;
+  onPhotoCheck?: (place: PlaceHeat) => void;
 }) {
   const degrees = useDegrees();
   return (
@@ -173,6 +175,11 @@ function PlaceCard({
       <button className="secondary" onClick={onCompare}>
         {comparing ? "Stop comparing" : "Compare with another place"}
       </button>
+      {onPhotoCheck && (
+        <button className="secondary" onClick={() => onPhotoCheck(place)}>
+          <ScanEye size={15} aria-hidden /> Check it with a photo (SAM 3.1)
+        </button>
+      )}
     </div>
   );
 }
@@ -260,7 +267,10 @@ export default function HeatPanel({
   onClose,
   onHour,
   comparing,
+  onPhotoCheck,
 }: {
+  /** Opens the SAM 3.1 photo check for a street. */
+  onPhotoCheck?: (place: PlaceHeat) => void;
   places: PlaceHeat[];
   range: HeatReading | null;
   selected: PlaceHeat | null;
@@ -301,6 +311,7 @@ export default function HeatPanel({
           onClose={onClose}
           onCompare={onCompare}
           comparing={comparing}
+          onPhotoCheck={onPhotoCheck}
         />
       ) : (
         <p className="heat-hint">

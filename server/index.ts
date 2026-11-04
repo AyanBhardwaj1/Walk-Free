@@ -7,7 +7,7 @@ import { findCities } from "./geocode.js";
 import { clientKey, perAccount, rateLimiter } from "./rate-limit.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
-import { agentRouter, guestChat } from "./agent.js";
+import { agentRouter, guestChat, guestSegment } from "./agent.js";
 import { aiConfig, guestLimits } from "./ai.js";
 import { berkeleyJourney } from "./transit.js";
 import { allowedOrigin, authRouter, authenticate } from "./auth.js";
@@ -93,24 +93,22 @@ app.get("/api/canopy", async (q, r, next) => {
 });
 // Guests may try the shared assistant on the demo, within small caps.
 const guestChatAllowed = rateLimiter(20);
-app.post(
-  "/api/guest/chat",
-  (q, r, next) => {
-    if (!allowedOrigin(q.headers.origin)) {
-      r.status(403).json({ error: "Request origin is not allowed." });
-      return;
-    }
-    if (!guestChatAllowed(clientKey(q))) {
-      r.status(429).json({
-        error: "Too many questions at once. Wait a minute and try again.",
-        code: "RATE_LIMITED",
-      });
-      return;
-    }
-    next();
-  },
-  guestChat,
-);
+const guestOnly: express.RequestHandler = (q, r, next) => {
+  if (!allowedOrigin(q.headers.origin)) {
+    r.status(403).json({ error: "Request origin is not allowed." });
+    return;
+  }
+  if (!guestChatAllowed(clientKey(q))) {
+    r.status(429).json({
+      error: "Too many questions at once. Wait a minute and try again.",
+      code: "RATE_LIMITED",
+    });
+    return;
+  }
+  next();
+};
+app.post("/api/guest/chat", guestOnly, guestChat);
+app.post("/api/guest/segment", guestOnly, guestSegment);
 app.use("/api", authenticate);
 // Each build can run several Overpass queries; keep one account from
 // holding every map slot or getting the server blocked upstream.

@@ -7,12 +7,15 @@ import {
   chargeAiCall,
   chargeGuestCall,
   chatCompletion,
+  DEEP_CREDITS,
+  deepConfig,
   imageEdit,
   requireImageProvider,
   requireAi,
   userAiConfig,
   type AiConfig,
 } from "./ai.js";
+import { requireSegmentProvider, segmentStreetPhoto } from "./segment.js";
 import { ASSISTANT_TOOLS, MAX_TOOL_ROUNDS } from "../shared/assistant.js";
 import {
   REALISM,
@@ -262,6 +265,38 @@ agentRouter.post("/visualize", async (q, r, next) => {
   }
 });
 
+/** A street photo for SAM 3.1: a JPEG or PNG up to ~1.5 MB and its size. */
+export const photoCheckSchema = z.object({
+  image: viewImage,
+  width: z.number().int().min(16).max(2048),
+  height: z.number().int().min(16).max(2048),
+});
+/** Reads one street photo with SAM 3.1; `charge` runs once it can be served. */
+async function photoCheck(
+  config: AiConfig,
+  body: unknown,
+  charge: () => Promise<void>,
+) {
+  const input = photoCheckSchema.parse(body);
+  // A check the provider can't serve costs nothing.
+  requireSegmentProvider(config);
+  await charge();
+  return segmentStreetPhoto(config, input.image, input.width, input.height);
+}
+agentRouter.post("/segment", async (q, r, next) => {
+  try {
+    const config = userAiConfig(q.headers) ?? requireAi();
+    r.json(
+      await photoCheck(config, q.body, async () => {
+        requireVerifiedForSharedKey(config, r.locals.account);
+        await chargeAiCall(r.locals.account.id, new Date(), config.own);
+      }),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 const toolCallSchema = z.object({
   id: z.string().max(100),
   type: z.literal("function"),
@@ -298,6 +333,8 @@ export const chatRequestSchema = z.object({
     temperatureUnit: z.enum(["F", "C"]).optional(),
     canBuildAreas: z.boolean(),
   }),
+  /** Ask Muse Wonder, Meta's reasoning model, instead of the usual model. */
+  deep: z.boolean().optional(),
 });
 
 /**
@@ -417,7 +454,9 @@ async function chatTurn(
   body: unknown,
   charge: () => Promise<void>,
 ) {
-  const { messages, context } = chatRequestSchema.parse(body);
+  const { messages, context, deep } = chatRequestSchema.parse(body);
+  // Checked before any charge: a provider without Muse Wonder costs nothing.
+  if (deep) config = deepConfig(config);
   if (messages[0].role !== "user")
     throw new ServiceError("INVALID_CHAT", "Start with a question.", 400);
   checkToolResults(messages);
@@ -430,6 +469,10 @@ async function chatTurn(
     );
   const history = boundedHistory(messages);
   await charge();
+  // A deeper answer costs more; past the cap after the first, it still runs.
+  if (deep)
+    for (let extra = 1; extra < DEEP_CREDITS; extra++)
+      await charge().catch(() => undefined);
   // The browser's description of the scene is data, kept out of the rules
   // so it cannot rewrite them. One system message: some providers accept
   // only one.
@@ -440,8 +483,12 @@ async function chatTurn(
       { role: "system", content: `${SYSTEM_PROMPT}\n\n${situation}` },
       ...history,
     ],
-    // On the last allowed round, force a final answer instead of more tools.
-    { tools: rounds < MAX_TOOL_ROUNDS ? ASSISTANT_TOOLS : undefined },
+    {
+      // On the last allowed round, force a final answer instead of more tools.
+      tools: rounds < MAX_TOOL_ROUNDS ? ASSISTANT_TOOLS : undefined,
+      // Reasoning counts against the output budget, so a deeper answer gets more.
+      ...(deep ? { maxTokens: 8000 } : {}),
+    },
   );
   // The model's name only (never the key), so the app can say who answered.
   return {
@@ -464,6 +511,13 @@ agentRouter.post("/chat", async (q, r, next) => {
     next(e);
   }
 });
+/** A guest told apart by a hash of their address, never the address itself. */
+function guestVisitor(address: string) {
+  return createHash("sha256")
+    .update(`walk-free-guest:${address}`)
+    .digest("hex")
+    .slice(0, 24);
+}
 /**
  * The demo's guests (no account) may ask the shared assistant a few
  * questions a day, so judges and visitors meet Muse Spark itself. Mounted
@@ -474,12 +528,27 @@ export const guestChat: RequestHandler = async (q, r, next) => {
   try {
     const own = userAiConfig(q.headers);
     const config = own ?? requireAi();
-    const visitor = createHash("sha256")
-      .update(`walk-free-guest:${clientKey(q)}`)
-      .digest("hex")
-      .slice(0, 24);
+    const visitor = guestVisitor(clientKey(q));
     r.json(
       await chatTurn(config, q.body, () =>
+        own
+          ? chargeAiCall(`guest:${visitor}`, new Date(), true)
+          : chargeGuestCall(visitor),
+      ),
+    );
+  } catch (e) {
+    next(e);
+  }
+};
+/** Guests on the demo may check a street photo with SAM 3.1, within the guest caps. */
+export const guestSegment: RequestHandler = async (q, r, next) => {
+  r.setHeader("Cache-Control", "no-store");
+  try {
+    const own = userAiConfig(q.headers);
+    const config = own ?? requireAi();
+    const visitor = guestVisitor(clientKey(q));
+    r.json(
+      await photoCheck(config, q.body, () =>
         own
           ? chargeAiCall(`guest:${visitor}`, new Date(), true)
           : chargeGuestCall(visitor),

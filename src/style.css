@@ -3983,3 +3983,62 @@ main:has(.demo-tour) .map-heading {
 .canopy-part .text-button {
   margin-left: auto;
 }
+
+/* SAM 3.1 street photo check */
+.photo-check h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.photo-check .file-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.photo-check .file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.photo-check .file-button.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.photo-check figure {
+  position: relative;
+  margin: 12px 0 0;
+}
+.photo-check canvas {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 1px solid var(--c-line-d9ddcb, #d9ddcb);
+}
+.photo-check figure .render-wait {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  background: color-mix(in srgb, var(--c-bg-efeee5, #efeee5) 70%, transparent);
+}
+.photo-check-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.photo-check-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.deep-think {
+  margin-top: 8px;
+  font-size: 13px;
+}

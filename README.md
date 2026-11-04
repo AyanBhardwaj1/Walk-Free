@@ -99,6 +99,8 @@ npm start
   - Places from Photon, then Nominatim.
   - Routes from OSRM foot, then Valhalla, then a labelled straight-line estimate.
   - Shows the source, links to Google Maps, and can build the walk in 3D.
+- Check a street with a photo: the heat card's **Check it with a photo (SAM 3.1)** sends a photo (downscaled to 1024 px) to Meta's SAM 3.1 on the Model API (`/api/agent/segment`, or `/api/guest/segment` on the demo). SAM segments tree canopy, paved ground and open sky; the server decodes the masks with `@meta-sam/parser` and returns each share with an overlay grid, and the browser splits the paved ground into sun and shade by brightness (SAM finds objects, not cast shadows). Photos are not stored.
+- Think deeper: the Ask tab's **Think deeper with Meta's Muse Wonder** sends the conversation and tools to `muse-wonder-1.0` (two credits per answer). It needs the Meta Model API, on the site key or your own.
 - Ask Walk-Free: plain-English or spoken questions. The model calls tools that run in the browser on the loaded area (find places, plan and show routes, rank heat, check a street through the day, move the time, build an area, draft a design change to preview). Replies can be read aloud.
 
 - Responsive ivory/green architectural interface, 3D buildings, procedural trees and landmark assets, sun-directed shadows, city search and bounded OSM ingestion.

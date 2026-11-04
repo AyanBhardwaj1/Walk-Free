@@ -148,6 +148,34 @@ describe("assistant tools", () => {
     );
   });
 
+  it("starts 'my location' at the walk's current start when there's no fix", async () => {
+    const h = host({ currentStartNodeId: "a" });
+    const result = (await runTool(
+      h,
+      "plan_route",
+      JSON.stringify({ from: "my location", to: "the library" }),
+    )) as { from: string; note?: string };
+    expect(result.note).toMatch(/current start/);
+    expect(h.showRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ start: "a", end: "c" }),
+    );
+    // With a fix, the walker's own position wins, with no note.
+    const fixed = (await runTool(
+      host({ currentStartNodeId: "a", myLocationNodeId: "b" }),
+      "plan_route",
+      JSON.stringify({ from: "my location", to: "the library" }),
+    )) as { note?: string };
+    expect(fixed.note).toBeUndefined();
+    // Neither: ask for a start.
+    expect(
+      await runTool(
+        host(),
+        "plan_route",
+        JSON.stringify({ from: "my location", to: "the library" }),
+      ),
+    ).toHaveProperty("error");
+  });
+
   it("explains missing places and invalid arguments instead of throwing", async () => {
     expect(
       await runTool(

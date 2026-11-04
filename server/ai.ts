@@ -215,6 +215,16 @@ async function chatCompletionOnce(
       }),
     options.timeoutMs ?? CALL_TIMEOUT_MS,
   ).catch((error: unknown) => {
+    if (
+      error instanceof ServiceError &&
+      error.code === "TIMEOUT" &&
+      config.model === DEEP_MODEL()
+    )
+      throw new ServiceError(
+        "AI_DEEP_TIMEOUT",
+        "Muse Wonder needed more time than this request allows. Ask again with Think deeper off.",
+        504,
+      );
     // Turn provider HTTP errors into guidance about the key or model.
     const status = Number(
       (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
@@ -508,6 +518,27 @@ export async function chargeAiCall(
         : "You've reached today's assistant limit. It resets at midnight UTC; routes and heat maps still work.",
       429,
     );
+}
+
+/**
+ * Muse Wonder, Meta's frontier reasoning model, for questions that need more
+ * thought. Only the Meta Model API serves it.
+ */
+export const DEEP_MODEL = () =>
+  process.env.WALK_FREE_DEEP_MODEL || "muse-wonder-1.0";
+/** Model calls a deeper (Muse Wonder) answer is charged as. */
+export const DEEP_CREDITS = 2;
+/** The same provider and key, asking Muse Wonder instead. */
+export function deepConfig(config: AiConfig): AiConfig {
+  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
+    throw new ServiceError(
+      "AI_DEEP_PROVIDER",
+      config.own
+        ? "Thinking deeper uses Meta's Muse Wonder: choose Meta Model API in AI settings."
+        : "Thinking deeper needs the site's Meta Model API key.",
+      400,
+    );
+  return { ...config, model: DEEP_MODEL() };
 }
 
 /** Muse Image, Meta's image model, for edits on the Meta Model API. */

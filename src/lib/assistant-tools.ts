@@ -37,6 +37,8 @@ export interface ToolHost {
   forecast: WeatherForecast | null;
   catalog: Destination[];
   myLocationNodeId: string | null;
+  /** Where the walk on the map starts now; "my location" uses it without a fix. */
+  currentStartNodeId?: string | null;
   /** The current moment, for "hours still ahead" (tests pass a fixed one). */
   now?: () => string;
   /** The person's sun-aversion setting, so tool routes match the map's. */
@@ -197,8 +199,14 @@ export async function runTool(
     }
     case "plan_route": {
       const args = a as unknown as z.infer<typeof schemas.plan_route>;
-      const start = /my (current )?location|here|me$/i.test(args.from)
-        ? host.myLocationNodeId
+      const mine = /my (current )?location|here|me$/i.test(args.from);
+      // Without a location fix, "my location" means the walk's current start.
+      const fromWalk =
+        mine && !host.myLocationNodeId
+          ? (host.currentStartNodeId ?? null)
+          : null;
+      const start = mine
+        ? (host.myLocationNodeId ?? fromWalk)
         : matchDestinations(host.catalog, args.from)[0]?.id;
       const end = matchDestinations(host.catalog, args.to)[0]?.id;
       if (!start)
@@ -232,6 +240,11 @@ export async function runTool(
         host.catalog.find((d) => d.id === id)?.label ?? id;
       return {
         from: name(start),
+        ...(fromWalk
+          ? {
+              note: "Location isn't available, so this starts from the walk's current start on the map; say so.",
+            }
+          : {}),
         to: name(end),
         leaving: clockLabel(env.dateTime, host.world.timezone),
         shown_on_map: preference,
@@ -304,8 +317,14 @@ export async function runTool(
     }
     case "best_time_to_leave": {
       const args = a as unknown as z.infer<typeof schemas.best_time_to_leave>;
-      const start = /my (current )?location|here|me$/i.test(args.from)
-        ? host.myLocationNodeId
+      const mine = /my (current )?location|here|me$/i.test(args.from);
+      // Without a location fix, "my location" means the walk's current start.
+      const fromWalk =
+        mine && !host.myLocationNodeId
+          ? (host.currentStartNodeId ?? null)
+          : null;
+      const start = mine
+        ? (host.myLocationNodeId ?? fromWalk)
         : matchDestinations(host.catalog, args.from)[0]?.id;
       const end = matchDestinations(host.catalog, args.to)[0]?.id;
       if (!start) return { error: `No start matching "${args.from}".` };
@@ -346,6 +365,11 @@ export async function runTool(
       // "Now" only means something during today's walking hours.
       const nowCounts = plan.dayOffset === 0 && hourNow >= 6 && hourNow <= 20;
       return {
+        ...(fromWalk
+          ? {
+              note: "Location isn't available, so this starts from the walk's current start on the map; say so.",
+            }
+          : {}),
         route: r.preference,
         minutes: Math.max(1, Math.round(r.durationMinutes)),
         weather:
