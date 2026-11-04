@@ -2816,3 +2816,7 @@
 .hero-meta svg {
   flex-shrink: 0;
 }
+.landing-faq .faq-sources {
+  font-size: 13px !important;
+  opacity: 0.8;
+}

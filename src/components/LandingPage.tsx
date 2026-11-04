@@ -560,7 +560,25 @@ function ChatDemo() {
   );
 }
 
-const FAQ = [
+const FAQ: { q: string; a: string; sources?: [string, string][] }[] = [
+  {
+    q: "Why does a few degrees of shade matter?",
+    a: "Heat is the leading weather-related killer in the United States, ahead of floods, tornadoes and hurricanes. In summer 2023 more than 2,300 US death certificates named heat, the most in 45 years of records, and emergency rooms saw about 120,000 visits for heat illness that year. Students walk between classes in the hottest hours, and shade is the one thing on that walk they can choose.",
+    sources: [
+      [
+        "National Weather Service: heat safety",
+        "https://www.weather.gov/oax/heatsafety",
+      ],
+      [
+        "CDC Heat & Health Tracker",
+        "https://ephtracking.cdc.gov/Applications/HeatTracker/",
+      ],
+      [
+        "AP analysis of CDC death certificates, 2023",
+        "https://www.wlrn.org/health/2024-06-03/analysis-heat-deaths-us-2023",
+      ],
+    ],
+  },
   {
     q: "How accurate are the temperatures?",
     a: "They are estimates, not thermometer readings. Walk-Free combines live weather and measured sunlight (Open-Meteo, with NWS as backup) with a heat index and models where buildings and trees cast shade at that minute. Awnings and arcades aren't counted, so real shade can be higher.",
@@ -967,6 +985,19 @@ export default function LandingPage({
               <details className="reveal" key={f.q}>
                 <summary>{f.q}</summary>
                 <p>{f.a}</p>
+                {f.sources && (
+                  <p className="faq-sources">
+                    Sources:{" "}
+                    {f.sources.map(([label, href], i) => (
+                      <span key={href}>
+                        {i > 0 && " · "}
+                        <a href={href} target="_blank" rel="noreferrer">
+                          {label}
+                        </a>
+                      </span>
+                    ))}
+                  </p>
+                )}
               </details>
             ))}
           </div>
