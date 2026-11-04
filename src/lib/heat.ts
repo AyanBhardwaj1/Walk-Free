@@ -522,3 +522,35 @@ export function areaHeat(
   }
   return length ? { shade: shade / length, feelsLikeC: feels / length } : null;
 }
+
+/**
+ * A walk's modeled shade with and without the tree crowns found by Meta and
+ * WRI's DINOv3 canopy map, so the canopy's part can be shown. Null when the
+ * area has no canopy crowns.
+ */
+export function canopyShare(
+  w: World,
+  env: Environment,
+  edges: readonly GraphEdge[],
+) {
+  const canopyTrees = w.objects.filter((o) => o.source === "canopy").length;
+  if (!canopyTrees || !edges.length) return null;
+  const shade = (world: World) => {
+    const shadedAt = createShadeTester(world, env);
+    let length = 0,
+      shaded = 0;
+    for (const e of edges) {
+      length += e.distance;
+      shaded += e.distance * edgeShadeFraction(e, shadedAt);
+    }
+    return length ? shaded / length : 0;
+  };
+  return {
+    with: shade(w),
+    without: shade({
+      ...w,
+      objects: w.objects.filter((o) => o.source !== "canopy"),
+    }),
+    canopyTrees,
+  };
+}

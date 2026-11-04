@@ -3969,3 +3969,15 @@ main:has(.demo-tour) .map-heading {
     bottom: 144px;
   }
 }
+.canopy-part {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--c-fg-7c8670, #7c8670);
+}
+.canopy-part .text-button {
+  margin-left: auto;
+}

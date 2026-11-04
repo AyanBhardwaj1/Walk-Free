@@ -99,6 +99,7 @@ import {
   scenarioAt,
   areaHeat,
   clockLabel,
+  canopyShare,
 } from "./lib/heat";
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations, runTool } from "./lib/assistant-tools";
@@ -762,6 +763,24 @@ export default function App({
       setWalkStop({ ...walkStop, reached: true });
   }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
+  // What Meta's DINOv3 canopy crowns add to this walk's shade.
+  const canopyPart = useMemo(
+    () =>
+      currentRoute ? canopyShare(world, routeEnv, currentRoute.edges) : null,
+    [world, routeEnv, currentRoute],
+  );
+  // Hide the canopy crowns on the map to see the walk without them.
+  const [hideCanopy, setHideCanopy] = useState(false);
+  const withoutCanopy = useMemo(
+    () =>
+      hideCanopy
+        ? {
+            ...world,
+            objects: world.objects.filter((o) => o.source !== "canopy"),
+          }
+        : null,
+    [hideCanopy, world],
+  );
   // Best hour to set off: computed when the browser is idle, and only when
   // the walk itself (not just its id) or the day's weather changes.
   const [bestTime, setBestTime] = useState<BestTimePlan | null>(null);
@@ -2998,6 +3017,27 @@ export default function App({
                           shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
                         />
                       )}
+                      {canopyPart &&
+                        canopyPart.with - canopyPart.without >= 0.01 && (
+                          <div className="canopy-part">
+                            <Trees size={15} aria-hidden />
+                            <span>
+                              With Meta&apos;s DINOv3 canopy, this walk is{" "}
+                              <strong>
+                                {Math.round(canopyPart.with * 100)}%
+                              </strong>{" "}
+                              shaded; without it,{" "}
+                              {Math.round(canopyPart.without * 100)}%.
+                            </span>
+                            <button
+                              className="text-button"
+                              aria-pressed={hideCanopy}
+                              onClick={() => setHideCanopy((v) => !v)}
+                            >
+                              {hideCanopy ? "Show its trees" : "Hide its trees"}
+                            </button>
+                          </div>
+                        )}
                       <button
                         className="primary"
                         onClick={navigation}
@@ -3701,7 +3741,11 @@ export default function App({
                 <WorldCanvas
                   key={world.id}
                   world={
-                    proposal ? applyDesignProposal(world, proposal) : world
+                    proposal
+                      ? applyDesignProposal(world, proposal)
+                      : withoutCanopy && canopyPart
+                        ? withoutCanopy
+                        : world
                   }
                   environment={env}
                   selectedId={selected}
