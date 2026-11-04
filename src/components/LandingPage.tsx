@@ -14,6 +14,7 @@ import {
   Trees,
   Languages,
   Boxes,
+  Image as ImageIcon,
   AlertTriangle,
 } from "lucide-react";
 import FictionGallery from "./FictionGallery";
@@ -413,7 +414,12 @@ const META_PARTS = [
   {
     icon: Boxes,
     title: "Open Muse models, any host",
-    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Your key is saved only in your browser and sent just with your own requests.",
+    text: "Bring a key for Muse Spark Open on Fireworks or Together, or Llama 4 on DeepInfra, Baseten or OpenRouter. Your key is saved only in your browser and sent just with your own requests.",
+  },
+  {
+    icon: ImageIcon,
+    title: "Muse Image shows the plan",
+    text: "Plant trees on a hot street and Muse Image turns the 3D view into a photo of the greener street, ready for a proposal to the city.",
   },
   {
     icon: Languages,
@@ -605,6 +611,7 @@ export default function LandingPage({
         <Brand />
         <nav aria-label="Main navigation">
           <a href="#preview">See the heat</a>
+          <a href="#built-with-meta">Meta AI</a>
           <a href="#how-it-works">How it works</a>
           <a href="#campuses">Campuses</a>
           <a href="#fictional-cities">Fictional cities</a>
@@ -646,6 +653,10 @@ export default function LandingPage({
                 See it work <ArrowDown size={16} />
               </a>
             </div>
+            <p className="hero-meta">
+              <Sparkles size={14} aria-hidden /> Built on Meta's Muse Spark,
+              Muse Image and the DINOv3 canopy map
+            </p>
             {ut && (
               <p className="cine-stat">
                 At 3 PM in July, {ut.hottest.name} feels like{" "}
@@ -688,6 +699,61 @@ export default function LandingPage({
             <strong>6</strong>
             <span>ways to choose a route</span>
           </div>
+        </section>
+
+        <section className="landing-how landing-meta" id="built-with-meta">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow" translate="no">
+              BUILT WITH META AI
+            </span>
+            <h2>
+              Meta's models and maps,
+              <br />
+              <em>pointed at the heat.</em>
+            </h2>
+            <p>
+              Muse Spark doesn't just chat: it plans routes, moves the clock,
+              ranks hot streets and plants trees on the live map, in your own
+              language. DINOv3's canopy map finds the trees OpenStreetMap is
+              missing, and Muse Image turns a planted street into a photo.
+            </p>
+            <a
+              className="landing-button meta-demo"
+              href="/demo?area=ut-austin&tab=ask"
+            >
+              Ask Muse Spark on the map, no sign-up <ArrowUpRight size={16} />
+            </a>
+          </div>
+          <ol className="step-cards">
+            {META_PARTS.map((s, i) => (
+              <li
+                className="reveal"
+                key={s.title}
+                style={{ transitionDelay: `${i * 90}ms` }}
+              >
+                <s.icon size={24} aria-hidden />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
+          {campusData?.campuses.some((c) => c.canopy_trees) && (
+            <p className="meta-trees reveal">
+              Across the six campuses:{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.mapped_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              trees mapped in OpenStreetMap, and{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.canopy_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              more tree crowns found by Meta's DINOv3 canopy map.
+            </p>
+          )}
         </section>
 
         <section className="landing-preview reveal" id="preview">
@@ -860,66 +926,12 @@ export default function LandingPage({
               trees, then explains in a sentence or two, out loud if you like.
             </p>
             <p className="ask-key">
-              <KeyRound size={16} /> Bring your own AI key (Meta Model API,
-              OpenAI and others). It stays in your browser.
+              <KeyRound size={16} /> Try a few questions free in the demo, or
+              bring your own key for the Meta Model API or an open Muse host. It
+              stays in your browser.
             </p>
           </div>
           <ChatDemo />
-        </section>
-
-        <section className="landing-how landing-meta" id="built-with-meta">
-          <div className="section-intro reveal">
-            <span className="landing-eyebrow" translate="no">
-              BUILT WITH META AI
-            </span>
-            <h2>
-              Meta's models and maps,
-              <br />
-              <em>pointed at the heat.</em>
-            </h2>
-            <p>
-              <AlertTriangle size={15} aria-hidden /> Live air quality and
-              National Weather Service heat alerts sit on top, so the advice
-              changes when the day turns dangerous.
-            </p>
-            <a
-              className="landing-button meta-demo"
-              href="/demo?area=ut-austin&tab=ask"
-            >
-              Watch the assistant's tools work, no sign-up{" "}
-              <ArrowUpRight size={16} />
-            </a>
-          </div>
-          <ol className="step-cards">
-            {META_PARTS.map((s, i) => (
-              <li
-                className="reveal"
-                key={s.title}
-                style={{ transitionDelay: `${i * 90}ms` }}
-              >
-                <s.icon size={24} aria-hidden />
-                <h3>{s.title}</h3>
-                <p>{s.text}</p>
-              </li>
-            ))}
-          </ol>
-          {campusData?.campuses.some((c) => c.canopy_trees) && (
-            <p className="meta-trees reveal">
-              Across the six campuses:{" "}
-              <strong>
-                {campusData.campuses
-                  .reduce((n, c) => n + (c.mapped_trees ?? 0), 0)
-                  .toLocaleString("en-US")}
-              </strong>{" "}
-              trees mapped in OpenStreetMap, and{" "}
-              <strong>
-                {campusData.campuses
-                  .reduce((n, c) => n + (c.canopy_trees ?? 0), 0)
-                  .toLocaleString("en-US")}
-              </strong>{" "}
-              more tree crowns found by Meta's DINOv3 canopy map.
-            </p>
-          )}
         </section>
 
         <section className="landing-faq" id="faq">

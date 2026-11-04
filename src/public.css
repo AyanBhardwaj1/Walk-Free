@@ -2800,3 +2800,19 @@
     animation: none;
   }
 }
+
+/* Meta AI parts: five cards, as many per row as fit. */
+.landing-v2 .landing-meta .step-cards {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px !important;
+  font-size: 14px !important;
+  color: #f1d27a;
+}
+.hero-meta svg {
+  flex-shrink: 0;
+}
