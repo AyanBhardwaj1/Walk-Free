@@ -192,6 +192,7 @@ import {
   liveConditions,
 } from "./lib/live-weather";
 import { friendlyError } from "./lib/errors";
+import { ServiceError } from "../shared/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import type { MapCamera } from "./components/scene/CameraRig";
@@ -353,8 +354,12 @@ async function api(
   // A crashed host can answer with plain text; never surface a JSON parse error.
   const data = await r.json().catch(() => null);
   if (!r.ok || !data)
-    throw Error(
+    // The server writes its messages for people (a provider's reason
+    // included), so they reach the screen as written.
+    throw new ServiceError(
+      data?.code || "API_ERROR",
       data?.error || "The service is unavailable right now. Please try again.",
+      r.status,
     );
   return data;
 }

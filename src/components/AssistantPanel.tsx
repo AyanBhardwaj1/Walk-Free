@@ -234,6 +234,19 @@ export default function AssistantPanel({
             ) : (
               !ownKey && " You can also add your own AI key below."
             )}
+            {!guest && ownKey && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => onOwnKey(null)}
+                >
+                  Use Walk-Free&apos;s Meta assistant instead
+                </button>
+                , then ask again.
+              </>
+            )}
           </p>
         )}
         <div ref={end} />
