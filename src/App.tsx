@@ -663,6 +663,7 @@ export default function App({
   const [ownKey, setOwnKey] = useState(() => loadOwnKey(account.id));
   // Guests can ask the shared assistant when the site has a model key.
   const [guestAi, setGuestAi] = useState(false);
+  const [chatModel, setChatModel] = useState<string>();
   useEffect(() => {
     if (!guest) return;
     let live = true;
@@ -1377,7 +1378,10 @@ export default function App({
             guest && url === "/api/agent/chat" ? "/api/guest/chat" : url,
             body,
             guest ? {} : ownKeyHeaders(ownKey),
-          ),
+          ).then((answer) => {
+            if (typeof answer?.model === "string") setChatModel(answer.model);
+            return answer;
+          }),
         (name) =>
           setChatStatus(
             {
@@ -3207,6 +3211,7 @@ export default function App({
               (!guest || guestAi) && (
                 <AssistantPanel
                   guest={guest}
+                  model={chatModel}
                   hints={assistantHints}
                   messages={chat}
                   status={chatStatus}

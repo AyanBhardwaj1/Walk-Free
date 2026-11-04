@@ -440,7 +440,12 @@ async function chatTurn(
     // On the last allowed round, force a final answer instead of more tools.
     { tools: rounds < MAX_TOOL_ROUNDS ? ASSISTANT_TOOLS : undefined },
   );
-  return { reply: reply.content, toolCalls: reply.toolCalls };
+  // The model's name only (never the key), so the app can say who answered.
+  return {
+    reply: reply.content,
+    toolCalls: reply.toolCalls,
+    model: config.model,
+  };
 }
 agentRouter.post("/chat", async (q, r, next) => {
   try {

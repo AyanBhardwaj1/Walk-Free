@@ -1529,6 +1529,56 @@ aside.collapsed ~ .viewport .map-heading {
   background: var(--c-bg-efeee5, #efeee5);
   padding: 9px 12px;
 }
+details.chat-tool {
+  display: block;
+}
+details.chat-tool > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+details.chat-tool > summary::-webkit-details-marker {
+  display: none;
+}
+details.chat-tool > summary::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--c-bg-8aa27a, #8aa27a);
+}
+details.chat-tool > summary::after {
+  content: "details";
+  text-decoration: underline;
+  opacity: 0.7;
+}
+details.chat-tool[open] > summary::after {
+  content: "hide";
+}
+details.chat-tool::before {
+  display: none;
+}
+.chat-trace {
+  margin: 4px 0 6px 11px;
+  display: grid;
+  gap: 4px;
+}
+.chat-trace code,
+.chat-trace pre {
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+}
+.model-credit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .chat-tool,
 .chat-status {
   font-size: 10px !important;
