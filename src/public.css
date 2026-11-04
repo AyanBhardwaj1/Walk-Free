@@ -2830,3 +2830,8 @@
   object-fit: cover;
   display: block;
 }
+@media (min-width: 900px) {
+  .landing-v2 .landing-meta .step-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

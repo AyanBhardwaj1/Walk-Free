@@ -1943,7 +1943,7 @@ export default function App({
       title: "Where should the next trees go?",
       dwell: 14000,
       text: "Walk-Free samples typical walks across campus, finds the sunny street most of them share, and plants a row of trees there. Watch the shade and feels-like change, then turn it into a proposal.",
-      action: "Find and plant the best street",
+      action: "Plant the best street",
       run: async () => {
         // Plan for the afternoon peak, whatever hour the day step left.
         // The studio view also ends any day still playing on the Route tab.
@@ -3272,8 +3272,9 @@ export default function App({
                         <span>
                           {(currentRoute.distance / 1000).toFixed(2)} km
                           <br />
-                          {Math.round(currentRoute.shadeFraction * 100)}%
-                          modeled shade
+                          {routeDark
+                            ? "after dark"
+                            : `${Math.round(currentRoute.shadeFraction * 100)}% modeled shade`}
                         </span>
                       </div>
                       {!routeDark && (
@@ -3283,7 +3284,7 @@ export default function App({
                           compareShade={routeChoices.quickest?.shadeFraction}
                         />
                       )}
-                      {edgeHeat && (
+                      {edgeHeat && !routeDark && (
                         <RouteProfile
                           route={currentRoute}
                           shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
@@ -4635,7 +4636,7 @@ export default function App({
                 }`}
               >
                 <div>
-                  <Sun size={18} />
+                  {sunY < -0.02 ? <Moon size={18} /> : <Sun size={18} />}
                   <strong>Time of day</strong>
                   <button
                     className="play-day"

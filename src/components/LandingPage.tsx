@@ -433,7 +433,7 @@ const META_PARTS = [
   {
     icon: ScanSearch,
     title: "SAM 3.1 checks the street",
-    text: "Snap a sunny walk and SAM 3.1 finds the trees and awnings in the photo. A street with none goes straight into the tree plan.",
+    text: "Check any street with a photo: SAM 3.1 marks the tree canopy, the paved ground and the open sky, and the ground is split into sun and shade, next to the model's estimate.",
   },
   {
     icon: Languages,

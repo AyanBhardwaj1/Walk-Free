@@ -169,17 +169,19 @@ function plantedStreets(world: World, plan: TreePlan | null) {
     const points: Point[] = s.edgeIds.flatMap(
       (id) => byId.get(id)?.points ?? [],
     );
-    // Planted rows sit 5 m beside the path; a few of them mean it's planted.
+    // Planted rows sit 5 m beside the path. A neighbour sharing a corner
+    // gets a few of them too, so it takes a good part of a full row.
+    const needed = Math.max(3, Math.round(s.trees * 0.4));
     let near = 0;
     for (const t of trees)
       if (
         points.some(
-          (p) => Math.hypot(p[0] - t.position[0], p[1] - t.position[1]) < 14,
+          (p) => Math.hypot(p[0] - t.position[0], p[1] - t.position[1]) < 8,
         ) &&
-        ++near >= 3
+        ++near >= needed
       )
         break;
-    if (near >= 3) done.add(s.street);
+    if (near >= needed) done.add(s.street);
   }
   return done;
 }
