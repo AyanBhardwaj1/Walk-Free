@@ -344,3 +344,15 @@ Three independent read-only audits (hidden failures, core logic on the real camp
 - **Deploys.** PRs #48, #49 and #50 merged. The production probe passed on d875289, 6fb3630 and d87b546.
 - **Totals.** `npm test` 606 pass; lint and build clean.
 
+
+## Meta models end to end — 2026-11-04
+
+Local checks with a Meta Model API key in the ignored `.env` (guest endpoints; no account service locally):
+
+- Muse Spark (`muse-spark-1.3`): the demo's Spanish question planned the shade route to Gregory Gym through `plan_route` and answered in Spanish. Before this fix, "my location" without a GPS fix made it give up; it now starts from the walk's current start and says so.
+- Muse Wonder (`muse-wonder-1.0`, **Think deeper**): chained `heat_ranking` and `place_heat` and answered in about 8 s per round.
+- SAM 3.1 (`sam-3.1`): two public street photos (Wikimedia Commons) segmented through the browser dialog; tree canopy 20–21%, paved ground 12–46%, sky 1–5%, overlays aligned with the photos. "shadow" and similar phrases return no matches, so ground shade is judged from brightness inside SAM's pavement mask.
+- Muse Image (`muse-image-1.0`): one edit of a 3D view returned a realistic aerial photo in 35 s.
+- `npm test`: 648 tests pass; `npm run build` and `npm run lint` pass. Two existing assistant tests failed once each under heavy CPU load (dev server and browser running) and passed in eight isolated and four full reruns.
+- `npx cap sync ios` passes with the app opening the hosted site. Native compilation and signing on a device have not run here.
+- The live site still reports `aiConfigured: false` until the Vercel project gets the Meta key and `WALK_FREE_DATABASE_URL`.

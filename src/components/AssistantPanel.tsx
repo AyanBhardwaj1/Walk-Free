@@ -23,6 +23,7 @@ export const toolActivity = (name: string) =>
 /** A model id in words: "muse-spark-1.3" -> "Meta's Muse Spark". */
 export function modelLabel(id: string) {
   if (/muse[-_ ]?spark/i.test(id)) return "Meta's Muse Spark";
+  if (/muse[-_ ]?wonder/i.test(id)) return "Meta's Muse Wonder";
   if (/llama/i.test(id)) return `Meta's ${id}`;
   return id;
 }
@@ -86,7 +87,12 @@ export default function AssistantPanel({
   hints,
   guest = false,
   model,
+  deep = false,
+  onDeep,
 }: {
+  /** Ask Muse Wonder, Meta's reasoning model: slower, for harder questions. */
+  deep?: boolean;
+  onDeep?: (on: boolean) => void;
   /** The model that answered last, e.g. "muse-spark-1.3". */
   model?: string;
   /** No account: a few shared questions a day, and no key settings. */
@@ -267,6 +273,20 @@ export default function AssistantPanel({
           <Send size={16} />
         </button>
       </form>
+      {onDeep && (
+        <label
+          className="check deep-think"
+          title="Muse Wonder reasons through harder questions, like planning a whole day of walks. It is slower and counts as two questions."
+        >
+          <input
+            type="checkbox"
+            checked={deep}
+            onChange={(e) => onDeep(e.target.checked)}
+            disabled={!!status}
+          />
+          Think deeper with Meta&apos;s Muse Wonder (slower)
+        </label>
+      )}
       {messages.length > 0 && !status && (
         <button className="text-button" onClick={onReset}>
           Start a new conversation

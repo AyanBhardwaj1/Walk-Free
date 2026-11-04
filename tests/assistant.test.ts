@@ -11,15 +11,8 @@ vi.mock("../server/network.js", async (original) => ({
 }));
 const { chargeAiCall, memoryUsage, setUsageStore, aiConfig } =
   await import("../server/ai");
-const {
-  agentRouter,
-  guestChat,
-  guestShadePhoto,
-  toolRounds,
-  recentTurns,
-  MAX_PROMPT_CHARS,
-} = await import("../server/agent");
-const { parseSamBoxes } = await import("../server/ai");
+const { agentRouter, guestChat, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
+  await import("../server/agent");
 
 afterEach(() => {
   requestJson.mockReset();
@@ -44,7 +37,6 @@ async function post(
   });
   app.use("/api/agent", agentRouter);
   app.post("/api/guest/chat", guestChat);
-  app.post("/api/guest/shade-photo", guestShadePhoto);
   app.use(
     (
       e: unknown,
@@ -768,90 +760,6 @@ describe("guests trying the assistant", () => {
     setUsageStore(memoryUsage());
     const result = await ask();
     expect(result.status).toBe(401);
-    expect(requestJson).not.toHaveBeenCalled();
-  });
-});
-
-describe("shade check: SAM 3.1 finds trees in a street photo", () => {
-  const photo = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
-  const metaKey = {
-    "x-walk-free-ai-key": "meta-user-own-key-123",
-    "x-walk-free-ai-provider": "meta-model",
-    "x-walk-free-ai-model": "muse-spark-1.3",
-  };
-  it("reads SAM's box tokens as fractions of the photo", () => {
-    expect(
-      parseSamBoxes(
-        "<0f>0<|box;x1=251;y1=70;x2=923;y2=853;w=1280;h=854|><|mask;x=0;y=0;data=…|>\n<|box;x1=0;y1=0;x2=640;y2=427;w=1280;h=854|>",
-      ),
-    ).toEqual([
-      { x1: 251 / 1280, y1: 70 / 854, x2: 923 / 1280, y2: 853 / 854 },
-      { x1: 0, y1: 0, x2: 0.5, y2: 0.5 },
-    ]);
-    expect(parseSamBoxes("no objects")).toEqual([]);
-  });
-  it("asks SAM 3.1 for trees and awnings on the Meta Model API", async () => {
-    setUsageStore(memoryUsage());
-    requestJson.mockImplementation(async (_url: string, o: { body: string }) =>
-      JSON.parse(o.body).input[0].content[0].text === "tree"
-        ? { output_text: "<|box;x1=0;y1=0;x2=50;y2=50;w=100;h=100|>" }
-        : { output: [{ content: [{ type: "output_text", text: "" }] }] },
-    );
-    const result = await post(
-      "/api/agent/shade-photo",
-      { image: photo },
-      metaKey,
-    );
-    expect(result.status).toBe(200);
-    expect(result.body.trees).toHaveLength(1);
-    expect(result.body.awnings).toEqual([]);
-    const [url, options] = requestJson.mock.calls[0] as [
-      string,
-      { body: string },
-    ];
-    expect(url).toBe("https://api.meta.ai/v1/responses");
-    const body = JSON.parse(options.body);
-    expect(body.model).toBe("sam-3.1");
-    expect(body.input[0].content[1]).toEqual({
-      type: "input_image",
-      image_url: photo,
-    });
-  });
-  it("charges nothing when the key can't run SAM", async () => {
-    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
-    vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "1");
-    setUsageStore(memoryUsage());
-    const check = await post("/api/agent/shade-photo", { image: photo });
-    expect(check.body.code).toBe("AI_SEGMENT_PROVIDER");
-    expect(requestJson).not.toHaveBeenCalled();
-    requestJson.mockResolvedValue({
-      choices: [{ message: { content: "Speedway." } }],
-    });
-    const chat = await post("/api/agent/chat", {
-      messages: [{ role: "user", content: "Where is it hottest?" }],
-      context,
-    });
-    expect(chat.status).toBe(200);
-  });
-  it("lets guests check a photo within the guest caps", async () => {
-    vi.stubEnv("WALK_FREE_AI_API_KEY", "meta-site-key");
-    vi.stubEnv("WALK_FREE_AI_BASE_URL", "https://api.meta.ai/v1");
-    vi.stubEnv("WALK_FREE_GUEST_AI_PER_VISITOR", "1");
-    setUsageStore(memoryUsage());
-    requestJson.mockResolvedValue({ output_text: "" });
-    expect(
-      (await post("/api/guest/shade-photo", { image: photo })).status,
-    ).toBe(200);
-    const again = await post("/api/guest/shade-photo", { image: photo });
-    expect(again.status).toBe(429);
-  });
-  it("refuses anything but a photo", async () => {
-    const result = await post(
-      "/api/agent/shade-photo",
-      { image: "https://example.com/x.jpg" },
-      metaKey,
-    );
-    expect(result.status).toBe(400);
     expect(requestJson).not.toHaveBeenCalled();
   });
 });

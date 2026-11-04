@@ -49,7 +49,7 @@ Status as of the end of Nov 4: everything that doesn't need the owner's accounts
 | 7 | The "Built with Meta AI" section is 9th of 11 and its intro talks about weather alerts | Meta | Move it under the hero, add it to the nav, put Muse Spark and DINOv3 in the hero | Done |
 | 8 | No moment in the app that shows DINOv3 | Meta | A "Meta canopy" toggle that shows how the route's shade changes without it | Done |
 | 9 | Muse Image unfinished | Meta | Done: "See it as a photo" after planting (`/images/edits`, `muse-image-1.0`) | Done (needs the key) |
-| 10 | SAM 3.1 unused | Meta | Shade check: SAM 3.1 finds trees and awnings in a street photo (`/v1/responses`, `sam-3.1`) | Done (needs the key to verify) |
+| 10 | SAM 3.1 unused | Meta | Street photo check: SAM 3.1 segments canopy, pavement and sky in a photo (`/v1/responses`, `sam-3.1`, decoded with `@meta-sam/parser`) | Done (needs the key to verify) |
 | 11 | No evidence of impact | Impact | Cite heat-illness sources; owner gathers photos and quotes | Sources cited; photos and quotes are the owner's |
 | 12 | The deltas look small | Impact | Express the gain as time in the sun saved over a semester | Done |
 | 13 | The submission reads as a feature list | All | Restructure: problem, Meta AI, evidence, links | Done |

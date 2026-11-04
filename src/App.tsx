@@ -71,6 +71,9 @@ import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteProfile from "./components/RouteProfile";
+import StreetPhotoCheck, {
+  type PhotoCheckResult,
+} from "./components/StreetPhotoCheck";
 import PhotoRenderDialog, {
   type PhotoRender,
 } from "./components/PhotoRenderDialog";
@@ -168,7 +171,6 @@ import HeatStressLine from "./components/HeatStressLine";
 import { heatStress } from "./lib/heat-stress";
 import { recordTimelapse, recordingType } from "./lib/timelapse";
 import RefugeCard from "./components/RefugeCard";
-import ShadeCheck from "./components/ShadeCheck";
 import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
@@ -683,6 +685,8 @@ export default function App({
   // Guests can ask the shared assistant when the site has a model key.
   const [guestAi, setGuestAi] = useState(false);
   const [chatModel, setChatModel] = useState<string>();
+  // Muse Wonder instead of the usual model, for harder questions.
+  const [deepThink, setDeepThink] = useState(false);
   useEffect(() => {
     if (!guest) return;
     let live = true;
@@ -1345,6 +1349,7 @@ export default function App({
     sunAversion,
     catalog: endpointCatalog,
     myLocationNodeId: snappedLocation?.nodeId ?? null,
+    currentStartNodeId: start,
     showRoute({ start: from, end: to, preference, avoidStairs, dateTime }) {
       if (from !== snappedLocation?.nodeId) {
         location.reset();
@@ -1429,7 +1434,9 @@ export default function App({
     setChatError("");
     const history: ChatMessage[] = [...chat, { role: "user", content: text }];
     setChat(history);
-    setChatStatus("Thinking…");
+    setChatStatus(
+      deepThink ? "Muse Wonder is thinking it through…" : "Thinking…",
+    );
     try {
       const { messages, reply } = await converse(
         history,
@@ -1462,7 +1469,7 @@ export default function App({
         (url, body) =>
           api(
             guest && url === "/api/agent/chat" ? "/api/guest/chat" : url,
-            body,
+            deepThink ? { ...(body as object), deep: true } : body,
             guest ? {} : ownKeyHeaders(ownKey),
           ).then((answer) => {
             if (typeof answer?.model === "string") setChatModel(answer.model);
@@ -2413,6 +2420,11 @@ export default function App({
   /** Save the 3D view as a picture, with its sky and a small caption. */
   // The planted street as a photo, rendered by Meta's Muse Image.
   const [photoRender, setPhotoRender] = useState<PhotoRender | null>(null);
+  // A street checked against a real photo by Meta's SAM 3.1.
+  const [photoCheck, setPhotoCheck] = useState<{
+    name: string;
+    shade: number;
+  } | null>(null);
   async function renderPlantedPhoto() {
     const shot = captureRef.current?.();
     if (!shot) return;
@@ -2871,6 +2883,18 @@ export default function App({
             <PhotoRenderDialog
               render={photoRender}
               onClose={() => setPhotoRender(null)}
+            />
+            <StreetPhotoCheck
+              place={photoCheck?.name ?? null}
+              modelShade={photoCheck?.shade ?? null}
+              onCheck={(photo) =>
+                api(
+                  guest ? "/api/guest/segment" : "/api/agent/segment",
+                  photo,
+                  guest ? {} : ownKeyHeaders(ownKey),
+                ) as Promise<PhotoCheckResult>
+              }
+              onClose={() => setPhotoCheck(null)}
             />
             {fiction && !atlas && (
               <nav className="fiction-switch" aria-label="Fictional cities">
@@ -3411,6 +3435,8 @@ export default function App({
                 <AssistantPanel
                   guest={guest}
                   model={chatModel}
+                  deep={deepThink}
+                  onDeep={setDeepThink}
                   hints={assistantHints}
                   messages={chat}
                   status={chatStatus}
@@ -3449,28 +3475,6 @@ export default function App({
               tab === "heat" &&
               sunDirection(heatEnv, world.origin).altitude > 0 && (
                 <HeatStressLine stress={mapStress} />
-              )}
-            {!atlas &&
-              mode === "explore" &&
-              tab === "heat" &&
-              (!guest || guestAi) && (
-                <ShadeCheck
-                  check={(image) =>
-                    api(
-                      guest
-                        ? "/api/guest/shade-photo"
-                        : "/api/agent/shade-photo",
-                      { image },
-                      guest ? {} : ownKeyHeaders(ownKey),
-                    )
-                  }
-                  onPlan={() => {
-                    setMode("studio");
-                    setTab("build");
-                    tourPanel(1);
-                    revealInPanel(".tree-planner");
-                  }}
-                />
               )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <RefugeCard
@@ -3518,6 +3522,9 @@ export default function App({
                   setComparing(false);
                 }}
                 onHour={setLocalHour}
+                onPhotoCheck={(p) =>
+                  setPhotoCheck({ name: p.name, shade: p.shade })
+                }
               />
             )}
             {!atlas && tab === "transit" && (
