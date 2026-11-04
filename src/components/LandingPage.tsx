@@ -14,6 +14,7 @@ import {
   Trees,
   Languages,
   Boxes,
+  Image as ImageIcon,
   AlertTriangle,
 } from "lucide-react";
 import FictionGallery from "./FictionGallery";
@@ -399,6 +400,12 @@ function HeatPreview({ preview }: { preview: Preview | null }) {
 }
 
 /** How Meta's models and data power Walk-Free. */
+/** Walks in a semester: four a weekday for fifteen weeks. */
+export const SEMESTER_WALKS = 4 * 5 * 15;
+/** Minutes of sun saved per walk, as hours over a semester (to the half). */
+export const semesterHours = (minutesPerWalk: number) =>
+  Math.round(((minutesPerWalk * SEMESTER_WALKS) / 60) * 2) / 2;
+
 const META_PARTS = [
   {
     icon: Sparkles,
@@ -413,7 +420,12 @@ const META_PARTS = [
   {
     icon: Boxes,
     title: "Open Muse models, any host",
-    text: "Bring a key for Muse Spark Open or Muse Glimmer on Fireworks, Together, DeepInfra or Baseten. Your key is saved only in your browser and sent just with your own requests.",
+    text: "Bring a key for Muse Spark Open on Fireworks or Together, or Llama 4 on DeepInfra, Baseten or OpenRouter. Your key is saved only in your browser and sent just with your own requests.",
+  },
+  {
+    icon: ImageIcon,
+    title: "Muse Image shows the plan",
+    text: "Plant trees on a hot street and Muse Image turns the 3D view into a photo of the greener street, ready for a proposal to the city.",
   },
   {
     icon: Languages,
@@ -451,24 +463,28 @@ const FEATURES = [
     title: "A heat map you can touch",
     text: "Tap any street to see how it feels in sun and shade, when it peaks, and compare it with another place.",
     tone: "heat",
+    shot: "heat",
   },
   {
     icon: Sparkles,
     title: "Describe any city. Walk it a minute later.",
     text: "A rain-soaked noir metropolis, a desert souk, your hometown in a heatwave. Meta's Muse Spark plans the districts and landmarks, Walk-Free builds every street and drops you in the middle, with weather you control.",
     tone: "generate",
+    shot: "generate",
   },
   {
     icon: Footprints,
     title: "Live a day there, at street level",
     text: "Coffee, class, lunch outside, home: each walk planned in shade at its own hour. Then drop to eye level and walk it under the trees, with people out on the streets around you.",
     tone: "street",
+    shot: "street",
   },
   {
     icon: Route,
     title: "Routes for how you move",
     text: "Step-free never uses mapped stairs or steep slopes. Night routes favour lit, busier streets. Cool stops pass through libraries and unions.",
     tone: "routes",
+    shot: "routes",
   },
   {
     icon: MessageCircle,
@@ -481,6 +497,7 @@ const FEATURES = [
     title: "Plant trees, watch the heat drop",
     text: "Line a street with trees in the design studio and see shade and feels-like change for that street and the whole campus. Then turn it into a one-page proposal for your campus or city, or download every street's heat as a spreadsheet.",
     tone: "trees",
+    shot: "trees",
   },
   {
     icon: AlertTriangle,
@@ -548,14 +565,32 @@ function ChatDemo() {
   );
 }
 
-const FAQ = [
+const FAQ: { q: string; a: string; sources?: [string, string][] }[] = [
+  {
+    q: "Why does a few degrees of shade matter?",
+    a: "Heat is the leading weather-related killer in the United States, ahead of floods, tornadoes and hurricanes. In summer 2023 more than 2,300 US death certificates named heat, the most in 45 years of records, and emergency rooms saw about 120,000 visits for heat illness that year. Students walk between classes in the hottest hours, and shade is the one thing on that walk they can choose.",
+    sources: [
+      [
+        "National Weather Service: heat safety",
+        "https://www.weather.gov/oax/heatsafety",
+      ],
+      [
+        "CDC Heat & Health Tracker",
+        "https://ephtracking.cdc.gov/Applications/HeatTracker/",
+      ],
+      [
+        "AP analysis of CDC death certificates, 2023",
+        "https://www.wlrn.org/health/2024-06-03/analysis-heat-deaths-us-2023",
+      ],
+    ],
+  },
   {
     q: "How accurate are the temperatures?",
     a: "They are estimates, not thermometer readings. Walk-Free combines live weather and measured sunlight (Open-Meteo, with NWS as backup) with a heat index and models where buildings and trees cast shade at that minute. Awnings and arcades aren't counted, so real shade can be higher.",
   },
   {
     q: "Where does the tree shade come from?",
-    a: "Trees mapped in OpenStreetMap, plus Meta and the World Resources Institute's 1-metre global canopy height map, which fills in the many trees nobody has mapped. At UC Berkeley that's 214 mapped trees and about 10,900 more crowns from the canopy map.",
+    a: "Trees mapped in OpenStreetMap, plus Meta and the World Resources Institute's 1-metre global canopy height map, which fills in the many trees nobody has mapped. At UC Berkeley that's 216 mapped trees and about 10,900 more crowns from the canopy map.",
   },
   {
     q: "Which places work?",
@@ -605,6 +640,7 @@ export default function LandingPage({
         <Brand />
         <nav aria-label="Main navigation">
           <a href="#preview">See the heat</a>
+          <a href="#built-with-meta">Meta AI</a>
           <a href="#how-it-works">How it works</a>
           <a href="#campuses">Campuses</a>
           <a href="#fictional-cities">Fictional cities</a>
@@ -646,6 +682,10 @@ export default function LandingPage({
                 See it work <ArrowDown size={16} />
               </a>
             </div>
+            <p className="hero-meta">
+              <Sparkles size={14} aria-hidden /> Built on Meta's Muse Spark,
+              Muse Image and the DINOv3 canopy map
+            </p>
             {ut && (
               <p className="cine-stat">
                 At 3 PM in July, {ut.hottest.name} feels like{" "}
@@ -685,9 +725,72 @@ export default function LandingPage({
             <span>of walkable paths</span>
           </div>
           <div>
-            <strong>6</strong>
-            <span>ways to choose a route</span>
+            <strong>
+              {ut?.shade_route
+                ? `${semesterHours(ut.shade_route.sun_minutes_saved)} h`
+                : "6"}
+            </strong>
+            <span>
+              {ut?.shade_route
+                ? "less in full sun per semester at UT Austin"
+                : "ways to choose a route"}
+            </span>
           </div>
+        </section>
+
+        <section className="landing-how landing-meta" id="built-with-meta">
+          <div className="section-intro reveal">
+            <span className="landing-eyebrow" translate="no">
+              BUILT WITH META AI
+            </span>
+            <h2>
+              Meta's models and maps,
+              <br />
+              <em>pointed at the heat.</em>
+            </h2>
+            <p>
+              Muse Spark doesn't just chat: it plans routes, moves the clock,
+              ranks hot streets and plants trees on the live map, in your own
+              language. DINOv3's canopy map finds the trees OpenStreetMap is
+              missing, and Muse Image turns a planted street into a photo.
+            </p>
+            <a
+              className="landing-button meta-demo"
+              href="/demo?area=ut-austin&tab=ask"
+            >
+              Ask Muse Spark on the map, no sign-up <ArrowUpRight size={16} />
+            </a>
+          </div>
+          <ol className="step-cards">
+            {META_PARTS.map((s, i) => (
+              <li
+                className="reveal"
+                key={s.title}
+                style={{ transitionDelay: `${i * 90}ms` }}
+              >
+                <s.icon size={24} aria-hidden />
+                <h3>{s.title}</h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
+          {campusData?.campuses.some((c) => c.canopy_trees) && (
+            <p className="meta-trees reveal">
+              Across the six campuses:{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.mapped_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              trees mapped in OpenStreetMap, and{" "}
+              <strong>
+                {campusData.campuses
+                  .reduce((n, c) => n + (c.canopy_trees ?? 0), 0)
+                  .toLocaleString("en-US")}
+              </strong>{" "}
+              more tree crowns found by Meta's DINOv3 canopy map.
+            </p>
+          )}
         </section>
 
         <section className="landing-preview reveal" id="preview">
@@ -739,10 +842,22 @@ export default function LandingPage({
               key={f.title}
             >
               <div
-                className={`feature-visual tone-${f.tone}`}
+                className={`feature-visual tone-${f.tone}${"shot" in f ? " has-shot" : ""}`}
                 aria-hidden="true"
               >
-                <FeatureScene tone={f.tone} />
+                {"shot" in f ? (
+                  // A real screenshot of the app doing this.
+                  <img
+                    src={`/landing/shots/${f.shot}.jpg`}
+                    alt=""
+                    width={1280}
+                    height={800}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <FeatureScene tone={f.tone} />
+                )}
               </div>
               <div className="feature-copy">
                 <h3>{f.title}</h3>
@@ -762,7 +877,8 @@ export default function LandingPage({
             </h2>
             {campusData && (
               <p className="fine-note">
-                {campusData.scenario}. Model estimates.
+                {campusData.scenario}. A semester is four walks a weekday for 15
+                weeks. Model estimates.
               </p>
             )}
           </div>
@@ -799,7 +915,11 @@ export default function LandingPage({
                         avoids{" "}
                         <strong>{c.shade_route.sun_avoided_percent}%</strong> of
                         the sun for {c.shade_route.extra_distance_percent}% more
-                        walking
+                        walking: about{" "}
+                        <strong>
+                          {semesterHours(c.shade_route.sun_minutes_saved)} hours
+                        </strong>{" "}
+                        less in full sun over a semester
                       </dd>
                     </div>
                   )}
@@ -860,66 +980,12 @@ export default function LandingPage({
               trees, then explains in a sentence or two, out loud if you like.
             </p>
             <p className="ask-key">
-              <KeyRound size={16} /> Bring your own AI key (Meta Model API,
-              OpenAI and others). It stays in your browser.
+              <KeyRound size={16} /> Try a few questions free in the demo, or
+              bring your own key for the Meta Model API or an open Muse host. It
+              stays in your browser.
             </p>
           </div>
           <ChatDemo />
-        </section>
-
-        <section className="landing-how landing-meta" id="built-with-meta">
-          <div className="section-intro reveal">
-            <span className="landing-eyebrow" translate="no">
-              BUILT WITH META AI
-            </span>
-            <h2>
-              Meta's models and maps,
-              <br />
-              <em>pointed at the heat.</em>
-            </h2>
-            <p>
-              <AlertTriangle size={15} aria-hidden /> Live air quality and
-              National Weather Service heat alerts sit on top, so the advice
-              changes when the day turns dangerous.
-            </p>
-            <a
-              className="landing-button meta-demo"
-              href="/demo?area=ut-austin&tab=ask"
-            >
-              Watch the assistant's tools work, no sign-up{" "}
-              <ArrowUpRight size={16} />
-            </a>
-          </div>
-          <ol className="step-cards">
-            {META_PARTS.map((s, i) => (
-              <li
-                className="reveal"
-                key={s.title}
-                style={{ transitionDelay: `${i * 90}ms` }}
-              >
-                <s.icon size={24} aria-hidden />
-                <h3>{s.title}</h3>
-                <p>{s.text}</p>
-              </li>
-            ))}
-          </ol>
-          {campusData?.campuses.some((c) => c.canopy_trees) && (
-            <p className="meta-trees reveal">
-              Across the six campuses:{" "}
-              <strong>
-                {campusData.campuses
-                  .reduce((n, c) => n + (c.mapped_trees ?? 0), 0)
-                  .toLocaleString("en-US")}
-              </strong>{" "}
-              trees mapped in OpenStreetMap, and{" "}
-              <strong>
-                {campusData.campuses
-                  .reduce((n, c) => n + (c.canopy_trees ?? 0), 0)
-                  .toLocaleString("en-US")}
-              </strong>{" "}
-              more tree crowns found by Meta's DINOv3 canopy map.
-            </p>
-          )}
         </section>
 
         <section className="landing-faq" id="faq">
@@ -936,6 +1002,19 @@ export default function LandingPage({
               <details className="reveal" key={f.q}>
                 <summary>{f.q}</summary>
                 <p>{f.a}</p>
+                {f.sources && (
+                  <p className="faq-sources">
+                    Sources:{" "}
+                    {f.sources.map(([label, href], i) => (
+                      <span key={href}>
+                        {i > 0 && " · "}
+                        <a href={href} target="_blank" rel="noreferrer">
+                          {label}
+                        </a>
+                      </span>
+                    ))}
+                  </p>
+                )}
               </details>
             ))}
           </div>

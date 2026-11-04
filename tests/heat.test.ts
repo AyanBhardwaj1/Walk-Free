@@ -10,6 +10,7 @@ import {
   heatLevel,
   localHour,
   placeHeat,
+  canopyShare,
   readHeat,
   relativeHeatColor,
   routeHeat,
@@ -124,6 +125,26 @@ describe("heat estimates", () => {
     expect(speedway.shade).toBeLessThan(0.2);
     expect(mall.shade).toBeGreaterThan(0.6);
     expect(toF(speedway.feelsLikeC) - toF(mall.feelsLikeC)).toBeGreaterThan(5);
+  });
+
+  it("splits a walk's shade into what the canopy map adds", () => {
+    const w = campus();
+    const mall = w.graph.edges.find((e) => e.id === "mall")!;
+    expect(canopyShare(w, afternoon, [mall])).toBeNull();
+    w.objects = w.objects.map((o) => ({ ...o, source: "canopy" as const }));
+    const share = canopyShare(w, afternoon, [mall])!;
+    expect(share.canopyTrees).toBe(13);
+    expect(share.with).toBeGreaterThan(0.6);
+    expect(share.without).toBe(0);
+  });
+
+  it("leaves streets in the map's outer band out of the ranking", () => {
+    const w = campus();
+    // extent 400: the last 60 m before ±200 has no shade data past it.
+    w.graph.edges.push(edge("rim", "Rim Road", 190));
+    expect(placeHeat(w, afternoon).map((p) => p.name)).not.toContain(
+      "Rim Road",
+    );
   });
 
   it("treats covered edges as fully shaded and skips hypothetical ones", () => {

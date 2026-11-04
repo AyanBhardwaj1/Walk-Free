@@ -600,6 +600,8 @@ aside.collapsed ~ .viewport .map-heading {
 }
 .app > main:has(> aside:not(.collapsed)) .map-legend {
   left: 432px;
+  /* Above the time-of-day card, which starts beside the panel. */
+  bottom: 178px;
 }
 @media (max-width: 1100px) {
   .map-legend {
@@ -1528,6 +1530,56 @@ aside.collapsed ~ .viewport .map-heading {
   max-width: 92%;
   background: var(--c-bg-efeee5, #efeee5);
   padding: 9px 12px;
+}
+details.chat-tool {
+  display: block;
+}
+details.chat-tool > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+details.chat-tool > summary::-webkit-details-marker {
+  display: none;
+}
+details.chat-tool > summary::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--c-bg-8aa27a, #8aa27a);
+}
+details.chat-tool > summary::after {
+  content: "details";
+  text-decoration: underline;
+  opacity: 0.7;
+}
+details.chat-tool[open] > summary::after {
+  content: "hide";
+}
+details.chat-tool::before {
+  display: none;
+}
+.chat-trace {
+  margin: 4px 0 6px 11px;
+  display: grid;
+  gap: 4px;
+}
+.chat-trace code,
+.chat-trace pre {
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+}
+.model-credit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .chat-tool,
 .chat-status {
@@ -2842,6 +2894,54 @@ aside.collapsed ~ .viewport .map-heading {
 .proposal-dialog {
   width: min(640px, calc(100vw - 32px));
 }
+/* The planted street: the model beside Muse Image's photo of it. */
+.render-dialog {
+  width: min(980px, calc(100vw - 32px));
+}
+.render-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.render-pair figure {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.render-pair img,
+.render-wait {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--c-bg-efeee5, #efeee5);
+  border: 1px solid var(--c-line-d9ddcb, #d9ddcb);
+}
+.render-wait {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-fg-313b30, #313b30);
+}
+.render-pair figcaption {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-fg-6e7d5e, #6e7d5e);
+}
+@media (max-width: 650px) {
+  .render-pair {
+    grid-template-columns: 1fr;
+  }
+}
 .proposal-text {
   width: 100%;
   box-sizing: border-box;
@@ -3870,4 +3970,16 @@ main:has(.demo-tour) .map-heading {
     top: auto;
     bottom: 144px;
   }
+}
+.canopy-part {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--c-fg-7c8670, #7c8670);
+}
+.canopy-part .text-button {
+  margin-left: auto;
 }

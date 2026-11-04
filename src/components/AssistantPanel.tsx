@@ -18,6 +18,24 @@ const toolLabels: Record<string, string> = {
 export const toolActivity = (name: string) =>
   toolLabels[name] ?? "Worked on it";
 
+/** A model id in words: "muse-spark-1.3" -> "Meta's Muse Spark". */
+export function modelLabel(id: string) {
+  if (/muse[-_ ]?spark/i.test(id)) return "Meta's Muse Spark";
+  if (/llama/i.test(id)) return `Meta's ${id}`;
+  return id;
+}
+
+/** A tool's arguments or result, short enough to read under the answer. */
+export function traceText(raw: string, limit = 600) {
+  let text = raw;
+  try {
+    text = JSON.stringify(JSON.parse(raw), null, 1);
+  } catch {
+    // Not JSON: show it as sent.
+  }
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
 /**
  * Questions to start with, named for this map when we know its hottest
  * street and a landmark, so they work in any campus or invented city.
@@ -64,7 +82,13 @@ export default function AssistantPanel({
   onOwnKey,
   onTestKey,
   hints,
+  guest = false,
+  model,
 }: {
+  /** The model that answered last, e.g. "muse-spark-1.3". */
+  model?: string;
+  /** No account: a few shared questions a day, and no key settings. */
+  guest?: boolean;
   /** This map's hottest street and a landmark, for the suggestions. */
   hints?: { street?: string; place?: string };
   messages: ChatMessage[];
@@ -112,6 +136,9 @@ export default function AssistantPanel({
     setListening(true);
     r.start();
   }
+  const results = new Map<string, string>();
+  for (const m of messages)
+    if (m.role === "tool") results.set(m.tool_call_id, m.content);
   const shown = messages.flatMap((m, i) => {
     if (m.role === "user")
       return [
@@ -120,10 +147,19 @@ export default function AssistantPanel({
         </p>,
       ];
     if (m.role === "assistant" && m.tool_calls?.length)
+      // Each step the model took, openable to show the call and its result.
       return m.tool_calls.map((c) => (
-        <p key={c.id} className="chat-tool">
-          {toolActivity(c.function.name)}
-        </p>
+        <details key={c.id} className="chat-tool">
+          <summary>{toolActivity(c.function.name)}</summary>
+          <div className="chat-trace">
+            <code>
+              {c.function.name}({traceText(c.function.arguments, 300)})
+            </code>
+            {results.has(c.id) && (
+              <pre>{traceText(results.get(c.id) ?? "")}</pre>
+            )}
+          </div>
+        </details>
       ));
     if (m.role === "assistant" && m.content)
       return [
@@ -180,7 +216,14 @@ export default function AssistantPanel({
         {error && (
           <p className="chat-error" role="alert">
             {error}
-            {!ownKey && " You can also add your own AI key below."}
+            {guest ? (
+              <>
+                {" "}
+                <a href="/signup">Create a free account</a> to keep asking.
+              </>
+            ) : (
+              !ownKey && " You can also add your own AI key below."
+            )}
           </p>
         )}
         <div ref={end} />
@@ -227,15 +270,28 @@ export default function AssistantPanel({
           Start a new conversation
         </button>
       )}
-      <AiSettings
-        value={ownKey}
-        onChange={onOwnKey}
-        onTest={onTestKey}
-        // The shared assistant is unset, paused or out of quota: offer a key.
-        suggest={/isn't configured|usage (database|limits)|limit|AI settings|site owner/i.test(
-          error,
-        )}
-      />
+      {guest ? (
+        <p className="fine guest-note">
+          You're trying the shared assistant as a guest, with a few questions a
+          day. <a href="/signup">Create a free account</a> for more.
+        </p>
+      ) : (
+        <AiSettings
+          value={ownKey}
+          onChange={onOwnKey}
+          onTest={onTestKey}
+          // The shared assistant is unset, paused or out of quota: offer a key.
+          suggest={/isn't configured|usage (database|limits)|limit|AI settings|site owner/i.test(
+            error,
+          )}
+        />
+      )}
+      {model && messages.length > 0 && (
+        <p className="fine model-credit">
+          <Sparkles size={11} aria-hidden /> Answered by {modelLabel(model)}.
+          Open a step above to see the tool it called and what came back.
+        </p>
+      )}
       <p className="fine">
         Answers use this area's map, the weather shown, and modeled shade. Heat
         numbers are estimates, not measurements.

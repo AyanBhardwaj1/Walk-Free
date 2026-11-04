@@ -12,10 +12,14 @@ Production health currently reports `aiConfigured: false` and `aiUsageDatabase: 
 | `WALK_FREE_AI_MODEL` | Leave empty: it defaults to `muse-spark-1.3` |
 | `WALK_FREE_DATABASE_URL` | Your Neon Postgres connection string. Without it the shared assistant refuses to run, because daily and monthly caps need shared counters. |
 
-Then redeploy (Vercel → Deployments → Redeploy) and check that `https://walk-free.vercel.app/api/health` shows `"aiConfigured": true` and `"aiUsageDatabase": true`.
+Then redeploy (Vercel → Deployments → Redeploy) and check that `https://walk-free.vercel.app/api/health` shows `"aiConfigured": true`, `"aiUsageDatabase": true` and `"guestAi": true`.
+
+**Guests can now ask Muse Spark without an account** (judges included): 12 questions a day per visitor and 400 a day for all guests together. Change them with `WALK_FREE_GUEST_AI_PER_VISITOR` and `WALK_FREE_GUEST_AI_DAILY`, or set `WALK_FREE_GUEST_AI=off` to turn it off.
+
+**Set a spend limit** on your Meta developer account as a backstop, since anyone can ask a few questions.
 
 ## 2. Prove Muse Spark works end to end (5 minutes)
-1. Sign in, open https://walk-free.vercel.app/demo?area=ut-austin, then go to the Ask tab.
+1. Signed out, in a private window, open https://walk-free.vercel.app/demo?area=ut-austin&tab=ask. The Ask tab should show the chat (not the sign-up card). Ask one question, then sign in and repeat below.
 2. Ask:
    - "Plan the coolest walk from UT Tower to Gregory Gym at 3 PM." This should call `plan_route` and draw the route.
    - "When should I leave?" This should call `best_time_to_leave`.
@@ -33,11 +37,16 @@ Then redeploy (Vercel → Deployments → Redeploy) and check that `https://walk
 
 Without the site key, guests and signed-in people without their own key still get the offline designer.
 
+## 2c. Prove Muse Image (2 minutes, after step 1)
+1. Signed in, open https://walk-free.vercel.app/demo?area=ut-austin&t=15, go to Design studio and use **Shade trees** on a hot street (or run tour step 6).
+2. In the Heat impact card press **See it as a photo**. After a few seconds the dialog shows the 3D model beside Muse Image's photo of the planted street.
+3. If it fails, the dialog shows Meta's reason. If Meta names a different model id, set `WALK_FREE_IMAGE_MODEL` in Vercel and redeploy.
+
 ## 3. Record the video
-Follow `docs/VIDEO_SCRIPT.md` (2 minutes). Set the Climate tab's date and time to a July afternoon for the strongest heat contrast.
+Follow `docs/VIDEO_SCRIPT.md` (2 minutes). It opens on a Spanish question to Muse Spark, so do step 1 first.
 
 ## 4. Submit
-- Use `docs/HACKATHON.md` as the submission text. It covers the problem, what it does, how it uses Meta AI, impact, a 3-minute demo and honest limits.
+- Use `docs/HACKATHON.md` as the submission text. It runs problem, Meta AI, what it does, evidence, demo, limits.
 - Links:
   - Live: https://walk-free.vercel.app
   - Guest demo: https://walk-free.vercel.app/demo
@@ -46,6 +55,5 @@ Follow `docs/VIDEO_SCRIPT.md` (2 minutes). Set the Climate tab's date and time t
 - Deadline: Nov 4, 9 PM ET.
 
 ## 5. Decisions only you can make (optional)
-- **Let guests use their own AI key without an account.** Today the assistant needs sign-in, even with a personal key. Allowing it would make judging easier, but the server would then relay anonymous requests to AI providers, which could hide abuse of stolen keys. It would need a per-IP limit. Say the word and I'll build it with that limit.
 - **Shade Check (photo → Meta vision estimate of shade).** It is held back until it passes its own bar: at least 8 of 10 real street photos labelled correctly with a Meta key. Send 10 photos and a key, and it can be tested and shipped.
 - **Open-Meteo air quality** is free for non-commercial use. If Walk-Free becomes commercial, it needs their paid plan or another source.

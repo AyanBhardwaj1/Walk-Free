@@ -59,14 +59,18 @@ export default function DemoTour({
     let cancelled = false;
     let timer = 0;
     void (async () => {
-      speak(`${steps[i].title}. ${steps[i].text}`);
+      // Move on once the step has had its time and the voice has finished,
+      // so narration is never cut off mid-sentence.
+      const spoken = speak(`${steps[i].title}. ${steps[i].text}`);
       await runRef.current(i);
       if (cancelled) return;
-      timer = window.setTimeout(() => {
-        if (cancelled) return;
-        if (i < steps.length - 1) setI(i + 1);
-        else setPlaying(false);
-      }, steps[i].dwell ?? DWELL_MS);
+      const dwell = new Promise((r) => {
+        timer = window.setTimeout(r, steps[i].dwell ?? DWELL_MS);
+      });
+      await Promise.all([dwell, spoken]);
+      if (cancelled) return;
+      if (i < steps.length - 1) setI(i + 1);
+      else setPlaying(false);
     })();
     return () => {
       cancelled = true;

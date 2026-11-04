@@ -18,9 +18,12 @@ const TOOL_LABEL: Record<string, string> = {
 export default function AssistantDemo({
   host,
   area,
+  start = 0,
 }: {
   host: () => ToolHost;
   area: string;
+  /** Raised (1, 2, …) to start the demo from outside, as the tour does. */
+  start?: number;
 }) {
   const unit = useUnit();
   const [turns, setTurns] = useState<DemoTurn[]>([]);
@@ -64,6 +67,16 @@ export default function AssistantDemo({
       if (abort.current === controller) setRunning(false);
     }
   };
+  const playRef = useRef(play);
+  playRef.current = play;
+  // Only a raise after mounting starts it, not a value left from before
+  // (the tab can close and reopen).
+  const handled = useRef(start);
+  useEffect(() => {
+    if (start <= handled.current) return;
+    handled.current = start;
+    void playRef.current();
+  }, [start]);
   return (
     <div className="assistant-demo">
       <button

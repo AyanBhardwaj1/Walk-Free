@@ -70,6 +70,9 @@ import { worldSchema } from "../shared/schema";
 import { speak, stopSpeech, nativeNavigation } from "./lib/navigation";
 import JourneyPanel from "./components/JourneyPanel";
 import RouteProfile from "./components/RouteProfile";
+import PhotoRenderDialog, {
+  type PhotoRender,
+} from "./components/PhotoRenderDialog";
 import RouteChoices from "./components/RouteChoices";
 import HeatPanel, { clock } from "./components/HeatPanel";
 import HeatImpact from "./components/HeatImpact";
@@ -96,6 +99,7 @@ import {
   scenarioAt,
   areaHeat,
   clockLabel,
+  canopyShare,
 } from "./lib/heat";
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations, runTool } from "./lib/assistant-tools";
@@ -405,6 +409,8 @@ export default function App({
   const [focusOn, setFocusOn] = useState<Point[] | null>(null);
   // The tour's day plays itself; one planned by hand waits for Play.
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
+  // Raised by the tour to run the scripted assistant demo for guests.
+  const [demoStart, setDemoStart] = useState(0);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -658,6 +664,20 @@ export default function App({
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [ownKey, setOwnKey] = useState(() => loadOwnKey(account.id));
+  // Guests can ask the shared assistant when the site has a model key.
+  const [guestAi, setGuestAi] = useState(false);
+  const [chatModel, setChatModel] = useState<string>();
+  useEffect(() => {
+    if (!guest) return;
+    let live = true;
+    fetch(API_BASE + "/api/health")
+      .then((r) => r.json())
+      .then((h) => live && setGuestAi(h?.guestAi === true))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [guest]);
   const [speakReplies, setSpeakReplies] = useState(false);
   const userPosition = useMemo(
     () =>
@@ -745,6 +765,41 @@ export default function App({
       setWalkStop({ ...walkStop, reached: true });
   }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
+  // After dark, shade means nothing and light matters: a walk planned for
+  // shade becomes the lit-street walk, and back again at sunrise.
+  const routeDark = sunDirection(routeEnv, world.origin).altitude <= 0;
+  const wasDark = useRef(false);
+  useEffect(() => {
+    if (routeDark === wasDark.current) return;
+    wasDark.current = routeDark;
+    setPref((p) =>
+      routeDark && p === "shade"
+        ? "night"
+        : !routeDark && p === "night"
+          ? "shade"
+          : p,
+    );
+  }, [routeDark]);
+  // What Meta's DINOv3 canopy crowns add to this walk's shade.
+  const canopyPart = useMemo(
+    () =>
+      currentRoute ? canopyShare(world, routeEnv, currentRoute.edges) : null,
+    [world, routeEnv, currentRoute],
+  );
+  // Hide the canopy crowns on the map to see the walk without them.
+  const [hideCanopy, setHideCanopy] = useState(false);
+  // A new area starts with its trees shown.
+  useEffect(() => setHideCanopy(false), [world.id]);
+  const withoutCanopy = useMemo(
+    () =>
+      hideCanopy
+        ? {
+            ...world,
+            objects: world.objects.filter((o) => o.source !== "canopy"),
+          }
+        : null,
+    [hideCanopy, world],
+  );
   // Best hour to set off: computed when the browser is idle, and only when
   // the walk itself (not just its id) or the day's weather changes.
   const [bestTime, setBestTime] = useState<BestTimePlan | null>(null);
@@ -1356,7 +1411,15 @@ export default function App({
           };
         },
         () => toolHost.current,
-        (url, body) => api(url, body, ownKeyHeaders(ownKey)),
+        (url, body) =>
+          api(
+            guest && url === "/api/agent/chat" ? "/api/guest/chat" : url,
+            body,
+            guest ? {} : ownKeyHeaders(ownKey),
+          ).then((answer) => {
+            if (typeof answer?.model === "string") setChatModel(answer.model);
+            return answer;
+          }),
         (name) =>
           setChatStatus(
             {
@@ -1785,21 +1848,37 @@ export default function App({
     },
     {
       title: "Ask Walk-Free",
-      text: "The assistant, built for Meta's Muse Spark, uses the same tools: it plans routes, ranks heat, moves the clock and plants trees, in your language. Press Watch what it does to see it work.",
-      action: "Open the assistant",
-      run: () => {
+      dwell: 20000,
+      text: "Meta's Muse Spark uses the same tools you do: it plans routes, ranks heat, moves the clock and plants trees on this map, in your language. Here it is at work.",
+      action: "Ask it",
+      run: async () => {
         setMode("explore");
         setTab("ask");
         tourPanel(1);
+        // A live model answers a real question (in Spanish, to show it
+        // works in your language); without one, the scripted demo runs the
+        // same tools.
+        if (!guest || guestAi)
+          // Waits for the answer, so the next step can't change the map
+          // under a conversation still using it.
+          await sendChat(
+            "¿Cuál es la ruta con más sombra ahora mismo, y a qué hora conviene salir?",
+          );
+        else {
+          // Once the tab (and its demo) is on screen, start it.
+          await new Promise((r) => setTimeout(r, 120));
+          setDemoStart((n) => n + 1);
+        }
       },
     },
     {
       title: "Any city you can imagine",
+      dwell: 12000,
       text: "Describe a city, real or imagined, and walk it a minute later, with weather you control.",
-      action: "Generate a city",
-      run: () => {
+      action: "Build a city",
+      run: async () => {
         setGenPrompt(CITY_IDEAS[0]);
-        setGenOpen(true);
+        await planAndOpenCity(CITY_IDEAS[0], "detailed");
       },
     },
   ];
@@ -2216,7 +2295,7 @@ export default function App({
       if (reportFailure && request === buildRequest.current) {
         if (quiet)
           flash(
-            "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab.",
+            "No live weather here right now; heat uses the Climate tab's values.",
           );
         else setMessage(friendlyError(e));
       }
@@ -2268,6 +2347,67 @@ export default function App({
     }
   }
   /** Save the 3D view as a picture, with its sky and a small caption. */
+  // The planted street as a photo, rendered by Meta's Muse Image.
+  const [photoRender, setPhotoRender] = useState<PhotoRender | null>(null);
+  async function renderPlantedPhoto() {
+    const shot = captureRef.current?.();
+    if (!shot) return;
+    // A JPEG up to 1024 px wide keeps the request small.
+    let before = shot;
+    try {
+      const img = new Image();
+      img.src = shot;
+      await img.decode();
+      const k = Math.min(1, 1024 / img.width);
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        // The scene may be transparent behind a backdrop: give it a sky.
+        ctx.fillStyle = sky?.sky[0] ?? "#e9ecdf";
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        before = c.toDataURL("image/jpeg", 0.85);
+      }
+    } catch {
+      /* Keep the full-size capture. */
+    }
+    const place = world.name.split(" · ")[0];
+    const title = `${planting?.street ?? place}, planted`;
+    if (guest) {
+      setPhotoRender({
+        before,
+        title,
+        note: "Rendering a photo uses Meta's Muse Image. Create a free account to see this street planted.",
+      });
+      return;
+    }
+    setPhotoRender({ before, title, busy: true });
+    try {
+      const data = (await api(
+        "/api/agent/visualize",
+        {
+          image: before,
+          place,
+          ...(planting && planting.street !== "this path"
+            ? { street: planting.street, trees: planting.planted }
+            : {}),
+        },
+        ownKeyHeaders(ownKey),
+      )) as { image: string };
+      setPhotoRender((r) => r && { ...r, busy: false, after: data.image });
+    } catch (e) {
+      setPhotoRender(
+        (r) =>
+          r && {
+            ...r,
+            busy: false,
+            note: friendlyError(e, "Muse Image couldn't render this view."),
+          },
+      );
+    }
+  }
   async function saveImage() {
     const shot = captureRef.current?.();
     if (!shot) return;
@@ -2613,6 +2753,10 @@ export default function App({
                   : "The AI plans the districts, landmarks and street names (Meta's Muse Spark, or your own key from AI settings). If it can't, the offline designer builds it from your words instead."
               }
             />
+            <PhotoRenderDialog
+              render={photoRender}
+              onClose={() => setPhotoRender(null)}
+            />
             {fiction && !atlas && (
               <nav className="fiction-switch" aria-label="Fictional cities">
                 {FICTION_CITIES.map((c) => (
@@ -2908,6 +3052,28 @@ export default function App({
                           shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
                         />
                       )}
+                      {canopyPart &&
+                        (hideCanopy ||
+                          canopyPart.with - canopyPart.without >= 0.01) && (
+                          <div className="canopy-part">
+                            <Trees size={15} aria-hidden />
+                            <span>
+                              With Meta&apos;s DINOv3 canopy, this walk is{" "}
+                              <strong>
+                                {Math.round(canopyPart.with * 100)}%
+                              </strong>{" "}
+                              shaded; without it,{" "}
+                              {Math.round(canopyPart.without * 100)}%.
+                            </span>
+                            <button
+                              className="text-button"
+                              aria-pressed={hideCanopy}
+                              onClick={() => setHideCanopy((v) => !v)}
+                            >
+                              {hideCanopy ? "Show its trees" : "Hide its trees"}
+                            </button>
+                          </div>
+                        )}
                       <button
                         className="primary"
                         onClick={navigation}
@@ -3092,51 +3258,64 @@ export default function App({
                 </p>
               </section>
             )}
-            {!atlas && mode === "explore" && tab === "ask" && guest && (
-              <section className="guest-lock">
-                <div className="section-title">
-                  <Sparkles size={17} /> Ask Walk-Free
-                </div>
-                <p>
-                  Plan routes in plain words, ask why a street is hot, or plant
-                  trees by asking. Create a free account to use the assistant,
-                  or watch what it does on this map first.
-                </p>
-                <a className="primary" href="/signup">
-                  Create free account <ArrowUpRight size={16} />
-                </a>
-                <AssistantDemo host={() => toolHost.current} area={world.id} />
-              </section>
-            )}
-            {!atlas && mode === "explore" && tab === "ask" && !guest && (
-              <AssistantPanel
-                hints={assistantHints}
-                messages={chat}
-                status={chatStatus}
-                error={chatError}
-                speakReplies={speakReplies}
-                onSpeakReplies={setSpeakReplies}
-                onSend={(text) => void sendChat(text)}
-                onReset={() => {
-                  setChat([]);
-                  setChatError("");
-                }}
-                ownKey={ownKey}
-                onTestKey={async (value) => {
-                  const check = await api(
-                    "/api/agent/test-key",
-                    {},
-                    ownKeyHeaders(value),
-                  );
-                  return { model: check.model, latencyMs: check.latencyMs };
-                }}
-                onOwnKey={(value) => {
-                  setOwnKey(value);
-                  saveOwnKey(account.id, value);
-                  setChatError("");
-                }}
-              />
-            )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "ask" &&
+              guest &&
+              !guestAi && (
+                <section className="guest-lock">
+                  <div className="section-title">
+                    <Sparkles size={17} /> Ask Walk-Free
+                  </div>
+                  <p>
+                    Plan routes in plain words, ask why a street is hot, or
+                    plant trees by asking. Create a free account to use the
+                    assistant, or watch what it does on this map first.
+                  </p>
+                  <a className="primary" href="/signup">
+                    Create free account <ArrowUpRight size={16} />
+                  </a>
+                  <AssistantDemo
+                    host={() => toolHost.current}
+                    area={world.id}
+                    start={demoStart}
+                  />
+                </section>
+              )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "ask" &&
+              (!guest || guestAi) && (
+                <AssistantPanel
+                  guest={guest}
+                  model={chatModel}
+                  hints={assistantHints}
+                  messages={chat}
+                  status={chatStatus}
+                  error={chatError}
+                  speakReplies={speakReplies}
+                  onSpeakReplies={setSpeakReplies}
+                  onSend={(text) => void sendChat(text)}
+                  onReset={() => {
+                    setChat([]);
+                    setChatError("");
+                  }}
+                  ownKey={ownKey}
+                  onTestKey={async (value) => {
+                    const check = await api(
+                      "/api/agent/test-key",
+                      {},
+                      ownKeyHeaders(value),
+                    );
+                    return { model: check.model, latencyMs: check.latencyMs };
+                  }}
+                  onOwnKey={(value) => {
+                    setOwnKey(value);
+                    saveOwnKey(account.id, value);
+                    setChatError("");
+                  }}
+                />
+              )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <HeatRiskWeek
                 risk={outlook?.heatRisk}
@@ -3272,6 +3451,7 @@ export default function App({
                     sunUp={sunDirection(heatEnv, world.origin).y > 0}
                     canopy={world.objects.some((o) => o.source === "canopy")}
                     liveWeather={heatEnv.weatherMode === "forecast"}
+                    onRenderPhoto={() => void renderPlantedPhoto()}
                     onReset={() => {
                       setHeatBaseline(null);
                       setPlanting(null);
@@ -3598,7 +3778,11 @@ export default function App({
                 <WorldCanvas
                   key={world.id}
                   world={
-                    proposal ? applyDesignProposal(world, proposal) : world
+                    proposal
+                      ? applyDesignProposal(world, proposal)
+                      : withoutCanopy && canopyPart
+                        ? withoutCanopy
+                        : world
                   }
                   environment={env}
                   selectedId={selected}
@@ -4028,12 +4212,18 @@ export default function App({
                             ).join(", ")})`,
                           }}
                         />
-                        Paths: shaded → full sun
+                        {routeDark
+                          ? "Paths: cooler → warmer tonight"
+                          : "Paths: shaded → full sun"}
                       </span>
                       {currentRoute && (
                         <span>
                           <i className="map-legend-route" />
-                          Your walk: in shade → in sun
+                          {routeDark
+                            ? pref === "night"
+                              ? "Your walk: along lit streets"
+                              : "Your walk"
+                            : "Your walk: in shade → in sun"}
                         </span>
                       )}
                     </div>

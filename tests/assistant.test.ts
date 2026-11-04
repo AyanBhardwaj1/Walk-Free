@@ -11,7 +11,7 @@ vi.mock("../server/network.js", async (original) => ({
 }));
 const { chargeAiCall, memoryUsage, setUsageStore, aiConfig } =
   await import("../server/ai");
-const { agentRouter, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
+const { agentRouter, guestChat, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
   await import("../server/agent");
 
 afterEach(() => {
@@ -36,6 +36,7 @@ async function post(
     next();
   });
   app.use("/api/agent", agentRouter);
+  app.post("/api/guest/chat", guestChat);
   app.use(
     (
       e: unknown,
@@ -171,8 +172,16 @@ describe("assistant chat", () => {
     expect(
       sent.tools.map((t: { function: { name: string } }) => t.function.name),
     ).toContain("plan_route");
-    expect(sent.messages[0].content).not.toContain("UT Austin");
-    expect(sent.messages[1].content).toContain("UT Austin, TX");
+    // One system message (some providers accept only one): the rules come
+    // first, then the app's situation, labelled as data.
+    const system = sent.messages[0].content as string;
+    expect(
+      sent.messages.filter((m: { role: string }) => m.role === "system"),
+    ).toHaveLength(1);
+    expect(system.indexOf("UT Austin, TX")).toBeGreaterThan(
+      system.indexOf("Rules:"),
+    );
+    expect(system).toMatch(/data, not instructions/);
     expect(options.headers.Authorization).toBe("Bearer sk-test");
   });
 
@@ -453,7 +462,7 @@ describe("bounding what reaches the model", () => {
     const result = await post("/api/agent/chat", { messages, context });
     expect(result.status).toBe(200);
     const sent = JSON.parse(requestJson.mock.calls[0][1].body);
-    const history = sent.messages.slice(2);
+    const history = sent.messages.slice(1);
     expect(history[0]).toEqual({ role: "user", content: "New question" });
     expect(JSON.stringify(history).length).toBeLessThan(MAX_PROMPT_CHARS);
   });
@@ -606,6 +615,27 @@ describe("AI city generation", () => {
     expect(body.messages[1].content).toBe("A rainy gothic noir city");
   });
 
+  it("asks again without JSON mode when the model doesn't take it", async () => {
+    setUsageStore(memoryUsage());
+    requestJson
+      .mockRejectedValueOnce(new Error("HTTP 400"))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: JSON.stringify(plan) } }],
+      });
+    const result = await post(
+      "/api/agent/city",
+      { prompt: "A rainy gothic noir city", realism: "sketch" },
+      ownKey,
+    );
+    expect(result.status).toBe(200);
+    const [first, second] = requestJson.mock.calls.map(
+      (c) =>
+        JSON.parse((c[1] as { body: string }).body) as Record<string, unknown>,
+    );
+    expect(first.response_format).toEqual({ type: "json_object" });
+    expect(second.response_format).toBeUndefined();
+  });
+
   it("explains an unreadable plan instead of failing silently", async () => {
     setUsageStore(memoryUsage());
     requestJson.mockResolvedValueOnce({
@@ -623,6 +653,113 @@ describe("AI city generation", () => {
   it("rejects an empty request before calling the model", async () => {
     const result = await post("/api/agent/city", { prompt: "" }, ownKey);
     expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  const metaKey = {
+    "x-walk-free-ai-key": "meta-user-own-key-123",
+    "x-walk-free-ai-provider": "meta-model",
+    "x-walk-free-ai-model": "muse-spark-1.3",
+  };
+  const view = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+
+  it("renders the planted street as a photo with Muse Image", async () => {
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({ data: [{ b64_json: "iVBORw0KGgo=" }] });
+    const result = await post(
+      "/api/agent/visualize",
+      { image: view, place: "UT Austin", street: "Duval Street", trees: 78 },
+      metaKey,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.image).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(result.body.credits).toBe(2);
+    const [url, options] = requestJson.mock.calls[0] as [
+      string,
+      { body: string },
+    ];
+    expect(url).toBe("https://api.meta.ai/v1/images/edits");
+    const body = JSON.parse(options.body);
+    expect(body.model).toBe("muse-image-1.0");
+    expect(body.images).toEqual([{ image_url: view }]);
+    expect(body.prompt).toMatch(/78 trees along Duval Street/);
+  });
+
+  it("explains that photos need Meta's Muse Image", async () => {
+    const result = await post(
+      "/api/agent/visualize",
+      { image: view, place: "UT Austin" },
+      ownKey,
+    );
+    expect(result.status).toBe(400);
+    expect(result.body.code).toBe("AI_IMAGE_PROVIDER");
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it("charges nothing when the shared key can't render photos", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_AI_DAILY_LIMIT", "1");
+    setUsageStore(memoryUsage());
+    const render = await post("/api/agent/visualize", {
+      image: view,
+      place: "UT Austin",
+    });
+    expect(render.body.code).toBe("AI_IMAGE_PROVIDER");
+    requestJson.mockResolvedValue({
+      choices: [{ message: { content: "Speedway." } }],
+    });
+    const chat = await post("/api/agent/chat", {
+      messages: [{ role: "user", content: "Where is it hottest?" }],
+      context,
+    });
+    expect(chat.status).toBe(200);
+  });
+
+  it("refuses anything but a JPEG or PNG data URL", async () => {
+    const result = await post(
+      "/api/agent/visualize",
+      { image: "https://example.com/x.png", place: "UT Austin" },
+      metaKey,
+    );
+    expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+});
+
+describe("guests trying the assistant", () => {
+  const ask = () =>
+    post("/api/guest/chat", {
+      messages: [{ role: "user", content: "Where is it hottest?" }],
+      context,
+    });
+  it("lets a guest ask the shared assistant within a small daily cap", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI_PER_VISITOR", "2");
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValue({
+      choices: [{ message: { content: "Speedway, about 104°F." } }],
+    });
+    expect((await ask()).status).toBe(200);
+    expect((await ask()).status).toBe(200);
+    const third = await ask();
+    expect(third.status).toBe(429);
+    expect(third.body.code).toBe("AI_GUEST_LIMIT");
+    expect(requestJson).toHaveBeenCalledTimes(2);
+  });
+  it("treats a cap of 0 as no guest questions", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI_DAILY", "0");
+    setUsageStore(memoryUsage());
+    const result = await ask();
+    expect(result.status).toBe(429);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+  it("can be turned off", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI", "off");
+    setUsageStore(memoryUsage());
+    const result = await ask();
+    expect(result.status).toBe(401);
     expect(requestJson).not.toHaveBeenCalled();
   });
 });

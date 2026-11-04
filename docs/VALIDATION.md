@@ -178,7 +178,7 @@ Three independent read-only audits (hidden failures, core logic on the real camp
   - The city search matcher and the sky-contrast helper are unit-tested.
 - **3D:**
   - Soft shadows, fog, warm low sun, moonlight and emissive windows, plus a horizon ground.
-  - Rendered UT Austin at 3 PM, 6:30 PM and 9 PM, and all five fictional cities, with no errors.
+  - Rendered UT Austin at 3 PM, 6:30 PM and 9 PM, and all the fictional cities then shipped (five), with no errors.
 - **Motion:**
   - Landing hero choreography, count-ups, and drawn feature-tour scenes that play on scroll.
   - Product UI entrances and presses.
