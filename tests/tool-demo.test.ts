@@ -61,6 +61,7 @@ describe("assistant demo without a model", () => {
       "place_heat",
       "plan_route",
       "best_time_to_leave",
+      "plan_tree_planting",
     ]);
     expect(turns[0].reply).toMatch(/is the hottest walk here, about \d+°F/);
     expect(turns[1].reply).toMatch(

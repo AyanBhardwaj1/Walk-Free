@@ -174,4 +174,28 @@ export async function runToolDemo(
         : (r4.error ?? "I couldn't work out a time for that walk."),
     });
   }
+
+  const trees = await step(
+    "Where should the campus plant trees to help the most walkers?",
+    "plan_tree_planting",
+    { count: 3 },
+  );
+  const r5 = trees.result as Failed & {
+    walks_sampled?: number;
+    streets?: {
+      street: string;
+      share_of_walks_percent: number;
+      shaded_percent_now: number;
+      shaded_percent_with_trees: number;
+      trees: number;
+      sun_minutes_saved_per_100_walks: number;
+    }[];
+  };
+  const top = r5.streets?.[0];
+  onTurn({
+    ...trees,
+    reply: top
+      ? `${top.street}: it's on ${top.share_of_walks_percent}% of ${r5.walks_sampled} typical walks and ${top.shaded_percent_now}% shaded. A row of ${top.trees} trees would take it to ${top.shaded_percent_with_trees}% and save about ${top.sun_minutes_saved_per_100_walks} minutes in full sun per 100 walks. It's highlighted on the map.`
+      : (r5.error ?? "No sunny, well-walked street to plant here."),
+  });
 }
