@@ -345,12 +345,14 @@ aside .fiction-switch button {
   max-width: 40ch;
 }
 @media (max-width: 650px) {
-  /* Between the tool row and the time-of-day card. */
+  /* The map strip is too short for it, and the sheet already names the
+     area right below. */
   .arrival {
-    top: 20%;
+    display: none;
   }
-  .arrival strong {
-    font-size: 30px;
+  /* One message over the map at a time. */
+  main:has(.toast) .map-nav-tip {
+    display: none;
   }
   /* A message takes the tour button's place until it is dismissed. */
   main:has(.toast) .tour-launch,

@@ -2287,7 +2287,7 @@ export default function App({
       if (reportFailure && request === buildRequest.current) {
         if (quiet)
           flash(
-            "Live weather isn't available for this area right now, so heat uses the scenario values on the Climate tab.",
+            "No live weather here right now; heat uses the Climate tab's values.",
           );
         else setMessage(friendlyError(e));
       }
