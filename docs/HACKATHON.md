@@ -1,64 +1,50 @@
 # Walk-Free: Meta Global AI Developer Hackathon submission
 
-**Track:** Indie · **Live:** https://walk-free.vercel.app · **Guest demo:** https://walk-free.vercel.app/demo
+**Track:** Indie · **Live:** https://walk-free.vercel.app · **Guest demo, no sign-up:** https://walk-free.vercel.app/demo?area=ut-austin&tab=ask
 
-## One line
-Walk-Free shows how hot every street on campus will feel at the hour you walk it. It finds the shadiest way there, and Meta's Muse Spark plans the walk for you in your own language.
+## In one line
+Walk-Free shows how hot every street on campus will feel at the hour you walk it and finds the shadiest way there. Meta's Muse Spark plans the walk on the live map in your language, DINOv3's canopy map finds the trees nobody mapped, and Muse Image shows what a greener street would look like.
 
-## The problem
-Extreme heat is the deadliest weather in the US. Students and city walkers have no way to see which streets are shaded and when. Maps optimise for minutes, not for shade: on UT Austin's Speedway at 3 PM in July, Walk-Free's model puts the sunny side about 11 °F hotter than the shade (`public/landing/speedway.json`).
+## 1. The problem
+Heat is the leading weather-related killer in the United States ([NWS](https://www.weather.gov/oax/heatsafety)). In summer 2023 more than 2,300 US death certificates named heat, the most in 45 years of records ([AP analysis of CDC data](https://www.wlrn.org/health/2024-06-03/analysis-heat-deaths-us-2023)), and emergency rooms saw about 120,000 visits for heat illness that year ([CDC Heat & Health Tracker](https://ephtracking.cdc.gov/Applications/HeatTracker/)).
 
-## What it does
-- **Heat you can see.** Every path is coloured by modeled feels-like temperature for the chosen hour. The model uses live weather and sunlight (Open-Meteo, NWS fallback) and real shade, ray-traced against OpenStreetMap buildings and tree crowns.
-- **Six route types.** Quickest, more shade, scenic, cool stops (through air-conditioned buildings), step-free and lit at night. A **sun-aversion** setting decides how hard the shade route avoids the sun.
-- **Best time to go.** Shows how each hour of the day would feel for your walk, with the coolest one called out. **Play the day** animates the sun.
-- **Safety signals that change the advice.**
-  - Live US AQI.
-  - National Weather Service heat and air-quality alerts.
-  - The NWS **HeatRisk** 7-day outlook.
-- **Plant trees, watch the heat drop.** A design tool lines a street with trees and shows shade and feels-like before and after. **Write a proposal** turns the result into a one-page letter for a campus planner or city council, and **Download street heat** exports every street's numbers as CSV.
-- **Compare walks:** how much of the sun the shade route avoids on this campus. On a July afternoon across the six campuses, it's 13–25% of the sun for 4–7% more walking.
-- **A 2D walking view** that follows you, with the next turn, the next block's heat, and how far it is to the next shade (spoken too).
-- **Heat brief:** a one-page summary of an area's hottest and coolest walks, its trees and how much shade routing helps, for planners.
-- **Works for everyone:** replies in your language (and read aloud in a matching voice), °F or °C, keyboard shortcuts, WCAG AA contrast, and installable as an app that opens offline.
-- **Four interface styles,** including a high-contrast Sunlight mode for outdoor glare.
-- **Generate any city and walk it.** Describe a city: real, fictional or imagined ("a rain-soaked noir city from a 90s cartoon", "a desert souk in a heatwave"). Meta's Muse Spark plans its districts, landmarks, street names, climate and sky as a compact plan, and Walk-Free builds every street, building and tree and drops you in the middle. Then you change the weather, plan routes and live a simulated day there. Realism levels trade size and detail for AI credits; without AI, an offline designer builds it from your words. You can also just ask the assistant ("generate a gothic harbour city and drop me in").
-- **Walk it at street level, with people around you.** The camera drops to eye height and walks the shade route under the trees, while simulated walkers fill the streets and drift toward shade in the heat.
-- **A day in the life.** Six everyday walks (coffee, work, lunch outside, an errand, home), each planned in shade at its own hour. On UT Austin: Jester → Union → Tower → South Mall → PCL → Jester.
-- **Weather you control.** One-tap presets from heatwave to cool day, plus "July afternoon", with feels-like in sun and shade shown live.
-- **A quick walk in any city.** OSM walking routers with honest fallbacks, before you build the 3D area.
-- **Seven fictional cities to explore,** each in its own weather: rain-dark Noir Harbor, sunlit Skyline Prime, breezy Velocity Bay, golden Aurora Realm under the aurora, Neon District at night, and a heat lesson in two cities. In sun-scorched **Dune Reach** at 3 PM the quickest route runs down a treeless boulevard in full sun (0% shade), while the shade route threads the old quarter's narrow lanes (68% shade). In **Verdant Canopy** 87% of walking is in shade. They are generated, fully walkable, and show how street shape changes shade.
-- **Midtown Manhattan** as a ready-made city district (from Times Square to the Chrysler Building), lit window by window after dark.
-- **A home dashboard** for signed-in people, with campuses, saved walks and tools in one place.
-- **Share links** that reopen the exact walk, saved walks, and keyboard shortcuts.
+Students walk between classes in the hottest hours, and maps optimise for minutes, not shade. On UT Austin's Speedway at 3 PM in July, Walk-Free's model puts full sun about 11 °F hotter than the shade (`public/landing/speedway.json`).
 
-## How it uses Meta AI
-| Meta technology | Where it is used |
+## 2. How it uses Meta AI
+| Meta technology | What it does in Walk-Free |
 |---|---|
-| **Muse Spark (Meta Model API, `api.meta.ai/v1`)** | The assistant's intended model: the first and default option for people's own keys, and the default model when the site's key is a Meta Model API key. The assistant uses tool calling: `find_places`, `plan_route`, `best_time_to_leave`, `compare_walks`, `set_time`, `heat_ranking`, `place_heat`, `plant_shade_trees`, `build_area` and `propose_design`. The model acts on the live map, then answers in 1–3 sentences that can be read aloud. Set `WALK_FREE_AI_BASE_URL=https://api.meta.ai/v1`; the model defaults to `muse-spark-1.3`. |
-| **DINOv3 (Meta + WRI High Resolution Canopy Height Maps v2)** | 1 m canopy height, read server-side straight from the public Cloud-Optimized GeoTIFFs. It adds the trees nobody mapped: across the six pre-built campuses, 4,375 trees are mapped in OpenStreetMap and the canopy map adds 62,748 more crowns (at UC Berkeley alone, 216 mapped plus about 10,900 inferred; counts in `public/landing/campuses.json`). |
-| **Muse Image (Meta Model API)** | After planting trees in the design studio, "See it as a photo" sends the 3D view of the planted street to Muse Image (`POST /v1/images/edits`, model `muse-image-1.0`) and shows the model beside a photo-like rendering of the street with the new shade trees, ready to download for a proposal to a council or campus. It uses the same key and caps as the assistant. |
-| **Open Muse models** | Bring-your-own-key presets for Muse Spark Open (Fireworks, Baseten, Together) and Muse Glimmer 30B (DeepInfra). The legacy Llama API is still supported. |
-| **City planning (Muse Spark)** | `/api/agent/city` asks the model for a structured city plan (districts, landmarks with signature shapes, street names, climate, sky), validated by a tolerant schema. A procedural builder turns it into a walkable world in under 200 ms. The `generate_city` tool lets the assistant do it from chat. |
-| **Multilingual** | The assistant replies in the language the person writes in. |
+| **Muse Spark** (Meta Model API, `api.meta.ai/v1`, `muse-spark-1.3`) | The assistant acts on the map instead of chatting. It has eleven tools: `find_places`, `plan_route`, `best_time_to_leave`, `compare_walks`, `set_time`, `heat_ranking`, `place_heat`, `plant_shade_trees`, `build_area`, `generate_city` and `propose_design`. It runs them in the browser against the live 3D map, then answers in one to three sentences that can be read aloud, in the language you wrote in. Each step it took opens under the answer to show the call and its result. Guests on `/demo` can ask it a few questions a day without an account. |
+| **DINOv3** (Meta and WRI's 1 m Canopy Height Maps v2) | Read server-side straight from the public Cloud-Optimized GeoTIFFs. Across the six pre-built campuses, OpenStreetMap has 4,375 trees and the canopy map adds 62,748 crowns (UC Berkeley alone: 216 mapped plus about 10,900 inferred; `public/landing/campuses.json`). The Route tab shows how much of a walk's shade comes from these crowns, with a toggle to hide them; on the default UT walk it is about half. |
+| **Muse Image** (`/v1/images/edits`, `muse-image-1.0`) | After planting trees, "See it as a photo" sends the 3D view of the street to Muse Image and shows it beside a photo-like rendering with the new trees, ready for a proposal. |
+| **Muse Spark city planning** | `/api/agent/city` asks the model for a structured city plan (districts, landmarks, street names, climate, sky), and a procedural builder turns it into a walkable world in under 200 ms. |
+| **Open-weights models** | Bring-your-own-key presets for Muse Spark Open on Fireworks and Together, and Llama 4 Maverick on DeepInfra, Baseten and OpenRouter. Keys stay in the browser. |
 
-## Why it matters
-Heat illness is preventable when people know where and when the heat is. Walk-Free turns open data into a decision: leave at 7:30 instead of 3, and take Speedway, not 24th Street. It also gives campus planners a tool to show where a row of trees would help most.
+## 3. What it does
+- **Heat you can see.** Every path is coloured by modeled feels-like temperature for the chosen hour. The model uses live weather and sunlight (Open-Meteo, with NWS as backup) and shade ray-traced against OpenStreetMap buildings and tree crowns.
+- **Six ways to choose a route:** quickest, more shade, scenic, cool stops through air-conditioned buildings, step-free, and lit at night (chosen by itself after dark). A sun-aversion setting decides how hard the shade route avoids the sun.
+- **Best time to go,** the hottest streets ranked, live AQI, NWS heat alerts and the 7-day HeatRisk outlook.
+- **From a walk to civic action.** Plant a row of trees on a hot street, see shade and feels-like before and after, see it as a photo (Muse Image), and write a one-page proposal for the campus or city council.
+- **Walk it at street level** among simulated walkers, or live a simulated day of six walks, each planned in shade at its own hour.
+- **Generate any city and walk it,** or explore seven fictional cities, each with its own weather. In sun-scorched Dune Reach at 3 PM the quickest route has 0% shade while the shade route through the old quarter has 68%.
+- **Works for everyone:** replies in your language and read aloud, °F or °C, keyboard shortcuts, WCAG AA contrast, four interface styles including high-contrast Sunlight, and an installable app that opens offline.
 
-## How to demo (3 minutes)
-0. Fastest path: https://walk-free.vercel.app/demo?area=ut-austin&tour=1 opens UT Austin with a 1-minute guided tour that does each step for you. For a hands-free run, https://walk-free.vercel.app/demo?area=ut-austin&tour=auto plays every step on its own and reads it aloud (press Play all if the browser held back the voice).
-1. Open https://walk-free.vercel.app/demo?area=ut-austin. Tap the weather chip, then **July afternoon**, and watch the streets turn red.
-2. Compare **Quickest** with **More shade**. Push the **sun aversion** slider and watch the shade route change.
-3. Open **Best time to go** and tap the coolest hour.
-4. In Design studio, plant a row of trees on a hot street and read the before/after feels-like.
-5. Open https://walk-free.vercel.app/demo?area=ut-austin&tab=ask and press **Watch what it does** to see the assistant's tools act on the map (no sign-up). Then sign in (or add a Meta Model API key in AI settings) and ask: *"Plan me the coolest walk from UT Tower to Gregory Gym at 2 PM"*, or the same in Spanish.
-6. Open **Data & Sources** to see every layer: OSM, Meta/WRI canopy, Open-Meteo weather and AQI, NWS alerts and HeatRisk.
+## 4. Evidence
+- **Shade routing helps on every campus.** On a July afternoon across the six campuses, the shade route avoids 13–25% of the sun for 4–7% more walking. At UT Austin that is about 9 hours less in full sun over a semester, at four walks a weekday for 15 weeks.
+- **Hours follow the day.** The landing page's Speedway preview runs from 81 °F at 6 AM to 117 °F in full sun at 3 PM, from the same daily temperature cycle the app uses.
+- **The canopy map matters.** OpenStreetMap alone misses most trees: 62,748 of the 67,123 tree crowns on the six campuses come from Meta's DINOv3 map.
+- **Tested.** 630 automated tests (routing, heat model, assistant tools and guest caps, canopy reads, landing data), a production probe workflow for every live data source, and browser checks on desktop and phone.
 
-## Video
+## 5. How to demo (3 minutes)
+1. **Ask Muse Spark.** Open https://walk-free.vercel.app/demo?area=ut-austin&tab=ask&t=15 and ask *"¿Cuál es la ruta con más sombra a Gregory Gym ahora mismo?"*. Open a step under the answer to see the tool call. If the site key isn't set, press **Watch what it does** for a scripted run of the same tools.
+2. **See the canopy.** In the Route tab, read the canopy line under the walk and press **Hide its trees**.
+3. **Compare routes.** Compare Quickest with More shade and push the sun-aversion slider. Open **Best time to go**.
+4. **Plant and propose.** In the Design studio, plant a hot street, press **See it as a photo**, then **Write a proposal**.
+5. **Hands-free:** https://walk-free.vercel.app/demo?area=ut-austin&tour=auto plays a one-minute tour that reads each step aloud.
+
 A 2-minute recording script is in [docs/VIDEO_SCRIPT.md](VIDEO_SCRIPT.md).
 
 ## Built with
-React 19, Vite, three.js / React Three Fiber, MapLibre, Express 5 on Vercel, Neon Postgres (usage caps), and Neon Auth.
+React 19, Vite, three.js / React Three Fiber, MapLibre, Express 5 on Vercel, Neon Postgres (usage caps) and Neon Auth.
 Data: OpenStreetMap, Meta/WRI canopy (CC BY 4.0), Open-Meteo (CC BY 4.0), the National Weather Service (alerts, HeatRisk, forecasts) and GTFS.
 
 ## Honest limits
@@ -66,3 +52,4 @@ Data: OpenStreetMap, Meta/WRI canopy (CC BY 4.0), Open-Meteo (CC BY 4.0), the Na
 - HeatRisk is an experimental NWS product.
 - Cool-stop opening hours are not verified.
 - Native GPS walking is untested on devices.
+- SAM 3.1 isn't used: there was no documented Model API endpoint for it to build against.

@@ -1,20 +1,25 @@
 # Walk-Free: 2-minute demo video script
 
-Record at 1440×900 in Chrome, Editorial style. Every link opens without an account.
+Record at 1440×900 in Chrome, Editorial style. Every link opens without an account. The first 30 seconds carry the pitch: Meta's Muse Spark acting on the map, in Spanish.
+
+Before recording, set the site key (see docs/LAUNCH_CHECKLIST.md) so the guest demo's Ask tab answers live. If the key isn't set, the Ask tab runs a scripted demo of the same tools instead; say so on screen and don't present it as the model.
 
 | Time | Screen | Say |
 |---|---|---|
-| 0:00–0:12 | Landing page hero (https://walk-free.vercel.app), slow scroll to the campus cards | "Extreme heat is the deadliest weather in the US, and maps still send you down the sunniest street. Walk-Free shows how hot every path will feel at the hour you walk it." |
-| 0:12–0:30 | https://walk-free.vercel.app/demo?area=ut-austin, drag the time slider from 9 AM to 3 PM | "This is UT Austin, from OpenStreetMap plus Meta and WRI's DINOv3 canopy map, which fills in about ten thousand trees nobody mapped at Berkeley. Watch the streets turn red as the sun climbs." |
-| 0:30–0:50 | Route tab: compare Quickest and More shade, then move the sun-aversion slider | "Quickest or shadiest, step-free, lit at night, or through an air-conditioned library. You decide how much you hate the sun." |
-| 0:50–1:02 | Best time to go: tap the coolest hour | "It tells you when to leave, too: the same walk at 8 AM instead of 3 PM." |
-| 1:02–1:15 | Weather card AQI and HeatRisk badges; Heat tab: HeatRisk week | "Live air quality, National Weather Service heat alerts and the week's HeatRisk change the advice when the day turns dangerous." |
-| 1:15–1:35 | https://walk-free.vercel.app/demo?area=ut-austin&tab=ask, press Watch what it does (or, signed in with a Meta key, ask a question) | "The assistant is built for Meta's Muse Spark. It doesn't just chat: it ranks hot streets, explains why one is hot and plans the shade route on the map, in your language." |
-| 1:35–1:52 | Design studio → Shade trees: plant a hot street, then Write a proposal | "Plant a row of trees and see the street cool down, then turn it into a one-page proposal for your campus." |
-| (optional, +10 s) | https://walk-free.vercel.app/demo?fiction=noir-harbor, then the panel's city switcher to Aurora Realm; press Play the day | "And for fun: seven fictional cities, each in its own weather. Rain on Noir Harbor's towers, the aurora over a golden citadel, and the lights coming on at dusk." |
-| 1:52–2:00 | Data & Sources → Compare walks | "Open data, Meta AI, and a cooler way across campus. Walk-Free." |
+| 0:00–0:08 | https://walk-free.vercel.app/demo?area=ut-austin&t=15, Ask tab already open | "Heat is the deadliest weather in the US, and maps still send students down the sunniest street." |
+| 0:08–0:30 | Type, or say with the mic: "¿Cuál es la ruta con más sombra a Gregory Gym ahora mismo?" Muse Spark draws the route; open one step under the answer to show the tool call | "This is Meta's Muse Spark. It doesn't just chat: it calls Walk-Free's own tools, plans the shade route on the live map and answers in your language. Every step it took is right here." |
+| 0:30–0:45 | Route tab: the canopy line under the route, press Hide its trees, then Show its trees | "Half that shade comes from trees nobody ever mapped. Meta and WRI's DINOv3 canopy map adds about 63,000 tree crowns across our six campuses; without it, this walk looks twice as sunny." |
+| 0:45–1:00 | Drag the time slider from 9 AM to 3 PM; Route tab: Quickest vs More shade | "Shade moves through the day, so the best walk does too. The shade route avoids about a fifth of the sun for a few percent more walking: about nine hours less in full sun over a semester." |
+| 1:00–1:12 | Best time to go: tap the coolest hour; Heat tab: the hottest streets | "It tells you when to leave, and which streets bake at 3 PM." |
+| 1:12–1:35 | Ask: "Plant trees along the hottest street." Then See it as a photo | "Then from a walk to civic action: Muse Spark plants a row of trees, the model shows the street cooling, and Meta's Muse Image turns the 3D view into a photo of the greener street." |
+| 1:35–1:48 | Write a proposal | "One click turns it into a proposal for the campus or the city council." |
+| 1:48–2:00 | Landing page, Built with Meta AI section | "Muse Spark, Muse Image, DINOv3 and open data, pointed at the heat. Walk-Free: a cooler way across campus." |
+
+Optional, if there is time:
+- Press Take the 1-minute tour, then Play all: it runs every step on its own and reads it aloud, ending by building a fictional city.
+- https://walk-free.vercel.app/demo?fiction=noir-harbor: seven fictional cities, each in its own weather.
 
 Tips:
-- Set the clock to a July afternoon in the Climate tab for the strongest contrast; November evenings have no sun to avoid.
-- If you have a Meta Model API key, record the real assistant answering in Spanish: "¿Cuál es el camino más fresco a Gregory Gym a las 3?"
-- The camera button on the map saves a captioned still of any view, which is handy for thumbnails.
+- July afternoons give the strongest contrast; the demo opens at 3 PM with `&t=15`.
+- Muse Image needs the site key; if the photo doesn't come, cut that shot rather than show the error.
+- The camera button on the map saves a captioned still of any view, handy for the thumbnail.
