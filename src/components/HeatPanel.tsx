@@ -299,7 +299,7 @@ export default function HeatPanel({
           checked={showMap}
           onChange={(e) => onShowMap(e.target.checked)}
         />
-        Colour walking paths by heat (cool = shaded, red = full sun)
+        Colour walking paths by heat (cool colours = shaded, warm = full sun)
       </label>
       <HeatLegend range={range} />
       {selected ? (

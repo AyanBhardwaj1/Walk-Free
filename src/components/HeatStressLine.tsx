@@ -39,6 +39,10 @@ export default function HeatStressLine({
           <strong>
             {formatTemp(stress.sunC, unit)} {label(stress.sunC)}
           </strong>
+          <small className="heat-stress-note">
+            The standard outdoor heat-stress index: unlike feels-like below, it
+            also weighs the sun&apos;s radiant heat and the wind.
+          </small>
         </span>
       </p>
     );

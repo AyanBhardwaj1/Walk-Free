@@ -52,7 +52,9 @@ export function suggestionsFor(hints?: { street?: string; place?: string }) {
     hints?.street
       ? `When is ${hints.street} coolest today?`
       : "When is the coolest time to walk today?",
-    "Plant a row of oaks along the hottest street",
+    "Where should we plant trees to help the most walkers?",
+    "Where can I cool down near here, and what's too far from shade?",
+    "¿Cuál es la ruta con más sombra ahora mismo?",
   ];
 }
 

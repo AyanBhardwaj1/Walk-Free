@@ -101,7 +101,10 @@ export default function StreetPhotoCheck({
   modelShade,
   onCheck,
   onClose,
+  onPlanTrees,
 }: {
+  /** Opens "Where should the next trees go?" in the Design studio. */
+  onPlanTrees?: () => void;
   /** The street or park being checked; null closes the dialog. */
   place: string | null;
   /** The model's shaded share of it at the hour shown, 0 to 1. */
@@ -324,6 +327,11 @@ export default function StreetPhotoCheck({
         only and aren&apos;t stored by Walk-Free.
       </p>
       <div className="proposal-actions">
+        {result && onPlanTrees && share("tree") <= 0.2 && (
+          <button className="secondary" onClick={onPlanTrees}>
+            See where trees would help most
+          </button>
+        )}
         <button className="primary" onClick={onClose}>
           Close
         </button>

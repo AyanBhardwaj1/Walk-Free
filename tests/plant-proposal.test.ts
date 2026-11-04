@@ -63,6 +63,15 @@ describe("plant-here proposal", () => {
     );
   });
 
+  it("links to the planted street in 3D when a link is given", () => {
+    const link =
+      "https://walk-free.vercel.app/demo?area=ut-austin&t=15&plant=Speedway";
+    expect(plantingProposal({ ...input, link }).text).toContain(
+      `See it planted, in 3D (no account needed): ${link}`,
+    );
+    expect(p.text).not.toMatch(/See it planted/);
+  });
+
   it("credits its data sources", () => {
     expect(p.text).toMatch(/OpenStreetMap/);
     expect(p.text).toMatch(/DINOv3/);

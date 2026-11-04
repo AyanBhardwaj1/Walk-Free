@@ -4159,3 +4159,15 @@ main:has(.demo-tour) .map-heading {
   margin-top: 8px;
   font-size: 13px;
 }
+.heat-stress-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--c-fg-7c8670, #7c8670);
+}
+@media (pointer: coarse) {
+  .check input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+}

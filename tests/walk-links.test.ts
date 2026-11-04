@@ -105,3 +105,23 @@ describe("tab in a link", () => {
     expect(parseWalkLink("?area=ut-austin&tab=admin").tab).toBeUndefined();
   });
 });
+
+describe("planting links", () => {
+  it("carries the planted streets and reads them back, cleaned", () => {
+    const url = walkLinkUrl("https://walk-free.vercel.app", {
+      area: "ut-austin",
+      hour: 15,
+      plant: ["Speedway", "Robert Dedman Drive"],
+    });
+    expect(url).toBe(
+      "https://walk-free.vercel.app/demo?area=ut-austin&t=15&plant=Speedway&plant=Robert+Dedman+Drive",
+    );
+    expect(parseWalkLink(new URL(url).search).plant).toEqual([
+      "Speedway",
+      "Robert Dedman Drive",
+    ]);
+    expect(
+      parseWalkLink("?plant=%3Cscript%3E&plant=Speedway&plant=Speedway").plant,
+    ).toEqual(["Speedway"]);
+  });
+});
