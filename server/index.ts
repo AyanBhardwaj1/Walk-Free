@@ -7,7 +7,12 @@ import { findCities } from "./geocode.js";
 import { clientKey, perAccount, rateLimiter } from "./rate-limit.js";
 import { coordinates, boundedRadius, cleanName } from "./validators.js";
 import { ServiceError } from "./network.js";
-import { agentRouter, guestChat, guestSegment } from "./agent.js";
+import {
+  agentRouter,
+  guestChat,
+  guestSegment,
+  transcribeQuestion,
+} from "./agent.js";
 import { aiConfig, guestLimits } from "./ai.js";
 import { berkeleyJourney } from "./transit.js";
 import { allowedOrigin, authRouter, authenticate } from "./auth.js";
@@ -109,6 +114,18 @@ const guestOnly: express.RequestHandler = (q, r, next) => {
 };
 app.post("/api/guest/chat", guestOnly, guestChat);
 app.post("/api/guest/segment", guestOnly, guestSegment);
+// Voice questions: a few a minute per visitor, signed in or not.
+const voiceAllowed = rateLimiter(6);
+app.post("/api/voice/transcribe", guestOnly, (q, r, next) => {
+  if (!voiceAllowed(clientKey(q))) {
+    r.status(429).json({
+      error: "Too many voice questions at once. Wait a minute and try again.",
+      code: "RATE_LIMITED",
+    });
+    return;
+  }
+  transcribeQuestion(q, r, next);
+});
 app.use("/api", authenticate);
 // Each build can run several Overpass queries; keep one account from
 // holding every map slot or getting the server blocked upstream.

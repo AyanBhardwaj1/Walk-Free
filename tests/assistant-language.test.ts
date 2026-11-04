@@ -11,7 +11,7 @@ const messages = [{ role: "user", content: "¿Cuál es la ruta más fresca?" }];
 
 describe("assistant language and outlook context", () => {
   it("asks the model to reply in the person's language", () => {
-    expect(SYSTEM_PROMPT).toMatch(/same language the person writes in/);
+    expect(SYSTEM_PROMPT).toMatch(/same language the person writes or speaks in/);
   });
 
   it("asks the model to mention official alerts and unhealthy air", () => {

@@ -3,6 +3,24 @@ import { Mic, MicOff, Send, Sparkles, Volume2, VolumeX } from "lucide-react";
 import type { ChatMessage } from "../lib/assistant-client";
 import type { OwnAiKey } from "../lib/ai-key";
 import AiSettings, { type KeyCheck } from "./AiSettings";
+import Select from "./Select";
+import {
+  VOICE_LANGUAGES,
+  type VoiceLanguage,
+} from "../../shared/voice-languages";
+import { canRecord, recordQuestion, wavDataUrl } from "../lib/voice-recorder";
+
+const VOICE_LANGUAGE_KEY = "walk-free:voice-language";
+function loadVoiceLanguage(): VoiceLanguage | "auto" {
+  try {
+    const saved = localStorage.getItem(VOICE_LANGUAGE_KEY);
+    return VOICE_LANGUAGES.some((l) => l.code === saved)
+      ? (saved as VoiceLanguage)
+      : "auto";
+  } catch {
+    return "auto";
+  }
+}
 
 const toolLabels: Record<string, string> = {
   find_places: "Searched the map",
@@ -91,7 +109,13 @@ export default function AssistantPanel({
   model,
   deep = false,
   onDeep,
+  onTranscribe,
 }: {
+  /**
+   * Transcribes a recorded question (a WAV data URL) with Meta's Muse Voice
+   * Transcribe; `language` is a hint, omitted to let it detect the language.
+   */
+  onTranscribe?: (audio: string, language?: VoiceLanguage) => Promise<string>;
   /** Ask Muse Wonder, Meta's reasoning model: slower, for harder questions. */
   deep?: boolean;
   onDeep?: (on: boolean) => void;
@@ -114,27 +138,97 @@ export default function AssistantPanel({
 }) {
   const [draft, setDraft] = useState("");
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const [voiceLanguage, setVoiceLanguage] = useState(loadVoiceLanguage);
   const recognition = useRef<Recognition | null>(null);
+  const recording = useRef<{ stop: () => void; cancel: () => void } | null>(
+    null,
+  );
   const end = useRef<HTMLDivElement>(null);
   const Speech = speechRecognition();
   useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest" });
   }, [messages.length, status]);
-  useEffect(() => () => recognition.current?.stop(), []);
+  useEffect(
+    () => () => {
+      recognition.current?.stop();
+      recording.current?.cancel();
+    },
+    [],
+  );
+  const metaVoice = Boolean(onTranscribe) && canRecord();
   function send(text = draft) {
     const clean = text.trim();
     if (!clean || status) return;
     onSend(clean);
     setDraft("");
   }
-  function listen() {
-    if (!Speech) return;
+  function chooseVoiceLanguage(next: VoiceLanguage | "auto") {
+    setVoiceLanguage(next);
+    try {
+      localStorage.setItem(VOICE_LANGUAGE_KEY, next);
+    } catch {
+      // Private mode: the choice lasts for this visit.
+    }
+  }
+  async function listen() {
+    setVoiceError("");
     if (listening) {
+      recording.current?.stop();
       recognition.current?.stop();
       return;
     }
+    if (metaVoice && onTranscribe) {
+      let take;
+      try {
+        take = await recordQuestion();
+      } catch {
+        setVoiceError(
+          "Walk-Free can't use the microphone. Allow it in the browser's site settings, or type your question.",
+        );
+        return;
+      }
+      recording.current = take;
+      setListening(true);
+      const wav = await take.done;
+      recording.current = null;
+      setListening(false);
+      if (!wav) {
+        setVoiceError("I didn't hear anything. Tap the microphone and speak.");
+        return;
+      }
+      setTranscribing(true);
+      try {
+        const heard = await onTranscribe(
+          wavDataUrl(wav),
+          voiceLanguage === "auto" ? undefined : voiceLanguage,
+        );
+        if (heard) send(heard);
+        else setVoiceError("I couldn't make out any words. Please try again.");
+      } catch (e) {
+        // Without the site's Meta key, the browser's own recognition is next.
+        if (Speech && /Meta Model API|isn't configured/i.test(String(e)))
+          browserListen();
+        else
+          setVoiceError(
+            e instanceof Error ? e.message : "Voice didn't work. Try again.",
+          );
+      } finally {
+        setTranscribing(false);
+      }
+      return;
+    }
+    browserListen();
+  }
+  function browserListen() {
+    if (!Speech) return;
     const r = new Speech();
-    r.lang = "en-US";
+    // Never fixed to English: the chosen language, else the browser's own.
+    r.lang =
+      VOICE_LANGUAGES.find((l) => l.code === voiceLanguage)?.tag ??
+      navigator.language ??
+      "en-US";
     r.interimResults = false;
     r.onresult = (e) => {
       const heard = e.results[0]?.[0]?.transcript ?? "";
@@ -261,21 +355,25 @@ export default function AssistantPanel({
         <input
           aria-label="Ask the assistant"
           placeholder={
-            listening ? "Listening…" : "Ask about routes, heat or design…"
+            listening
+              ? "Listening… pause when you're done"
+              : transcribing
+                ? "Transcribing with Meta's Muse Voice…"
+                : "Ask about routes, heat or design…"
           }
           value={draft}
           maxLength={500}
           onChange={(e) => setDraft(e.target.value)}
           disabled={!!status}
         />
-        {Speech && (
+        {(metaVoice || Speech) && (
           <button
             type="button"
             className={listening ? "listening" : ""}
             aria-label={listening ? "Stop listening" : "Ask by voice"}
             aria-pressed={listening}
-            onClick={listen}
-            disabled={!!status}
+            onClick={() => void listen()}
+            disabled={!!status || transcribing}
           >
             {listening ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
@@ -288,6 +386,37 @@ export default function AssistantPanel({
           <Send size={16} />
         </button>
       </form>
+      {(metaVoice || Speech) && (
+        <div className="voice-language">
+          <Select
+            label="Voice language"
+            value={voiceLanguage}
+            options={[
+              {
+                value: "auto" as const,
+                label: "Detect my language",
+                detail: "Any of 25, even mixed",
+              },
+              ...VOICE_LANGUAGES.map((l) => ({
+                value: l.code,
+                label: l.label,
+              })),
+            ]}
+            onChange={chooseVoiceLanguage}
+            disabled={listening || transcribing}
+          />
+          {metaVoice && (
+            <span className="fine">
+              Speech is transcribed by Meta&apos;s Muse Voice.
+            </span>
+          )}
+        </div>
+      )}
+      {voiceError && (
+        <p className="chat-error" role="alert">
+          {voiceError}
+        </p>
+      )}
       {onDeep && (
         <label
           className="check deep-think"

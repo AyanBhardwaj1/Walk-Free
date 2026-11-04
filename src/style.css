@@ -4171,3 +4171,14 @@ main:has(.demo-tour) .map-heading {
     height: 20px;
   }
 }
+.voice-language {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+}
+.voice-language > :first-child {
+  flex: 0 1 210px;
+  min-width: 0;
+}

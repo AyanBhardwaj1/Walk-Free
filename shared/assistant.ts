@@ -9,10 +9,16 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: "find_places",
       description:
-        "Search the loaded area for buildings, streets, paths and parks by name. Use before plan_route when a name is ambiguous.",
+        "Search the loaded area for buildings, streets, paths and parks by name. Use before plan_route when a name is ambiguous. Map names are in the area's own language (English in the US): search 'library', not 'biblioteca'.",
       parameters: {
         type: "object",
-        properties: { query: { type: "string" } },
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "A map name or English place words, e.g. 'Gregory Gym' or 'library'.",
+          },
+        },
         required: ["query"],
       },
     },
@@ -28,9 +34,14 @@ export const ASSISTANT_TOOLS = [
         properties: {
           from: {
             type: "string",
-            description: "Start place name, or 'my location'.",
+            description:
+              "Start place name as the map writes it (in English for US areas), or 'my location'.",
           },
-          to: { type: "string", description: "Destination place name." },
+          to: {
+            type: "string",
+            description:
+              "Destination place name as the map writes it (in English for US areas).",
+          },
           preference: {
             type: "string",
             enum: [
@@ -93,9 +104,14 @@ export const ASSISTANT_TOOLS = [
         properties: {
           from: {
             type: "string",
-            description: "Start place name, or 'my location'.",
+            description:
+              "Start place name as the map writes it (in English for US areas), or 'my location'.",
           },
-          to: { type: "string", description: "Destination place name." },
+          to: {
+            type: "string",
+            description:
+              "Destination place name as the map writes it (in English for US areas).",
+          },
           preference: {
             type: "string",
             enum: [

@@ -356,3 +356,13 @@ Local checks with a Meta Model API key in the ignored `.env` (guest endpoints; n
 - `npm test`: 648 tests pass; `npm run build` and `npm run lint` pass. Two existing assistant tests failed once each under heavy CPU load (dev server and browser running) and passed in eight isolated and four full reruns.
 - `npx cap sync ios` passes with the app opening the hosted site. Native compilation and signing on a device have not run here.
 - The live site still reports `aiConfigured: false` until the Vercel project gets the Meta key and `WALK_FREE_DATABASE_URL`.
+
+## Voice questions in any language — 2026-11-04 (evening)
+
+The live Ask tab misheard speech: recognition was fixed to US English, so a Spanish question came out as "Beyonce baby", and place words in other languages ("biblioteca", "पुस्तकालय") found nothing on the English-named map ("bibliothèque" matched a mosque).
+
+- Meta's `muse-voice-transcribe-1.0` at `POST /v1/asr/transcribe` (multipart `request` JSON with `audioEncoding: "WAV"` and an optional `language`, plus an `audio` WAV part) transcribed Spanish, Hindi and French clips correctly with no language given; with `language: "es"` it also got "Gregory Gym" right.
+- Through the local server, `/api/voice/transcribe` returned the same transcripts.
+- Muse Spark, with the new prompt rule, called `find_places("library")` for Spanish and Hindi questions and `plan_route(to: "Gregory Gym")` for a French one, replying in each language. "Beyonce baby" after a Spanish turn now gets "did I get that right?" with no tool call.
+- In Chrome with a fake microphone playing a spoken Spanish question: Listening → Transcribing → the question appeared as typed, then Muse Spark planned the shade route to Perry-Castañeda Library (15 min, 83% shade) and answered in Spanish. No page errors.
+- `npm test`: 680 pass; `npm run build` and `npm run lint` pass. iOS gets `NSMicrophoneUsageDescription` and Android `RECORD_AUDIO`; neither has run on a device.

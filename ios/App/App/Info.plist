@@ -66,6 +66,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Walk-Free uses the microphone when you ask the assistant a question by voice.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Walk-Free uses the camera when you take a street photo to check its shade.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

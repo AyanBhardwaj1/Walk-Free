@@ -3550,6 +3550,14 @@ export default function App({
                   speakReplies={speakReplies}
                   onSpeakReplies={setSpeakReplies}
                   onSend={(text) => void sendChat(text)}
+                  onTranscribe={async (audio, language) => {
+                    const heard = await api(
+                      "/api/voice/transcribe",
+                      { audio, language },
+                      guest ? {} : ownKeyHeaders(ownKey),
+                    );
+                    return String(heard.text ?? "");
+                  }}
                   onReset={() => {
                     setChat([]);
                     setChatError("");

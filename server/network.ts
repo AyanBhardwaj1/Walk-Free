@@ -8,7 +8,7 @@ const dispatcher = new EnvHttpProxyAgent();
 export interface RequestOptions {
   method?: "GET" | "POST";
   headers?: Record<string, string>;
-  body?: string;
+  body?: string | import("undici").FormData;
   timeoutMs?: number;
   maxBytes?: number;
   /** Read the provider's short error reason into ServiceError.details. */
