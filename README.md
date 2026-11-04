@@ -85,7 +85,7 @@ npm start
   - You can open it from the panel, from search, from the assistant's `generate_city` tool, or with `/app?generate=…`. Cities you've made are kept in the browser (`/app?generated=…`).
 - Walk it at street level: the camera walks the chosen route at a walker's eye height, under the trees and between the buildings. Any drag stops it.
 - People on the streets: walkers wander the network, thin out at night and prefer shade in the heat. They are on by default in fictional and generated cities; the people button on the map toggles them.
-- A 1-minute guided tour (`?tour=1`, or the button on prebuilt areas) explains each feature and does it. Guests opening `/demo` start on UT Austin; after dark there, the demo opens at 3 PM and says so.
+- A 1-minute guided tour (`?tour=1`, or the button on prebuilt areas) explains each feature and does it; "Play all" (or `?tour=auto`) runs every step on its own and reads it aloud. Guests opening `/demo` start on UT Austin; after dark there, the demo opens at 3 PM and says so.
 - Landmarks are named on the 3D map from each prebuilt area's `labels` list in `shared/areas.ts`. A test checks every name exists in the shipped data.
 - Step-free routes never use steps. When the chosen points only connect by steps, the route starts or ends at the nearest step-free point within 80 m, and the card and the assistant say how far away it is.
 - After dark, route cards drop shade and sun minutes and show the lit share instead.

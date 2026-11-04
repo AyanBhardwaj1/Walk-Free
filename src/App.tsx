@@ -90,6 +90,8 @@ import {
   placeHeat,
   relativeHeatColor,
   heatRamp,
+  HEAT_LEVELS,
+  heatLevel,
   weatherAt,
   scenarioAt,
   areaHeat,
@@ -394,6 +396,8 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // ?tour=auto plays every step on its own, for judges and recordings.
+  const [autoTour, setAutoTour] = useState(false);
   // The on-screen map controls drive the 3D camera through this.
   const cameraApi = useRef<MapCamera | null>(null);
   const [bearing, setBearing] = useState(0);
@@ -1493,7 +1497,10 @@ export default function App({
       openGenerated(stored.spec, stored.realism, stored.via, stored.prompt);
       return;
     }
-    if (params0.has("tour")) openTour();
+    if (params0.has("tour")) {
+      setAutoTour(params0.get("tour") === "auto");
+      openTour();
+    }
     if (params0.has("generate")) {
       setGenPrompt((params0.get("generate") ?? "").slice(0, 600));
       setGenOpen(true);
@@ -1696,6 +1703,7 @@ export default function App({
     },
     {
       title: "Walk it at street level",
+      dwell: 16000,
       text: "Drop to street level and walk the shade route between the buildings, then come back up whenever you like.",
       action: "Walk it",
       run: () => {
@@ -1721,6 +1729,7 @@ export default function App({
     },
     {
       title: "A day in the life",
+      dwell: 18000,
       text: "Coffee, class, lunch outside, an errand, home: each walk planned in shade at its own hour, played one after another.",
       action: "Plan and play my day",
       run: () => {
@@ -3682,6 +3691,7 @@ export default function App({
                   steps={tourSteps}
                   waiting={!!busy}
                   low={walking}
+                  autoPlay={autoTour}
                   left={mapInsets.left}
                   onClose={() => setTourOpen(false)}
                 />
@@ -4133,6 +4143,30 @@ export default function App({
                     setLocalHour(+e.target.value);
                   }}
                 />
+                {bestTime && bestTime.dayOffset === 0 && (
+                  <div
+                    className="timeline-heat"
+                    title="How this walk feels at each hour; the mark is the coolest time still ahead"
+                    aria-hidden
+                  >
+                    {bestTime.hours.map((h) => (
+                      <i
+                        key={h.hour}
+                        style={{
+                          left: `${(h.hour / 23.75) * 100}%`,
+                          width: `${100 / 23.75}%`,
+                          background:
+                            HEAT_LEVELS[heatLevel(h.feelsLikeC)].color,
+                        }}
+                      />
+                    ))}
+                    <b
+                      style={{
+                        left: `${((bestTime.best.hour + 0.5) / 23.75) * 100}%`,
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="timeline-labels">
                   {[0, 6, 12, 18, 23.75].map((h) => (
                     <span key={h}>{h === 12 ? "Noon" : clock(h)}</span>
