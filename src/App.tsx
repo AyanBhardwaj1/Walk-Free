@@ -163,6 +163,8 @@ import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
 import TreePlanner from "./components/TreePlanner";
+import HeatStressLine from "./components/HeatStressLine";
+import { heatStress } from "./lib/heat-stress";
 import RefugeCard from "./components/RefugeCard";
 import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
@@ -796,6 +798,11 @@ export default function App({
       currentRoute ? canopyShare(world, routeEnv, currentRoute.edges) : null,
     [world, routeEnv, currentRoute],
   );
+  // UTCI in sun and shade at the walk's hour, and at the map's hour.
+  const routeStress = useMemo(
+    () => heatStress(routeEnv, world.origin),
+    [routeEnv, world.origin],
+  );
   // Hide the canopy crowns on the map to see the walk without them.
   const [hideCanopy, setHideCanopy] = useState(false);
   // A new area starts with its trees shown.
@@ -847,6 +854,10 @@ export default function App({
   }, [routeKey, bestTimeDay, world, forecast, mode, tab, atlas]);
   // Heat follows the slider a frame behind so dragging stays smooth.
   const heatEnv = useDeferredValue(env);
+  const mapStress = useMemo(
+    () => heatStress(heatEnv, world.origin),
+    [heatEnv, world.origin],
+  );
   const heatActive = !atlas && (heatMap || tab === "heat");
   const edgeHeat = useMemo(
     () => (heatActive ? edgeHeatMap(world, heatEnv) : null),
@@ -3088,6 +3099,13 @@ export default function App({
                           modeled shade
                         </span>
                       </div>
+                      {!routeDark && (
+                        <HeatStressLine
+                          stress={routeStress}
+                          shadeFraction={currentRoute.shadeFraction}
+                          compareShade={routeChoices.quickest?.shadeFraction}
+                        />
+                      )}
                       {edgeHeat && (
                         <RouteProfile
                           route={currentRoute}
@@ -3364,6 +3382,12 @@ export default function App({
                 timeZone={world.timezone}
               />
             )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "heat" &&
+              sunDirection(heatEnv, world.origin).altitude > 0 && (
+                <HeatStressLine stress={mapStress} />
+              )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <RefugeCard
                 coverage={refuges}

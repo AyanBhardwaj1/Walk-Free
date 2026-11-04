@@ -4082,3 +4082,21 @@ main:has(.demo-tour) .map-heading {
   align-items: center;
   gap: 4px;
 }
+
+/* Heat stress (UTCI) */
+.heat-stress {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.heat-stress svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.heat-stress.band-3 strong,
+.heat-stress.band-4 strong {
+  color: var(--c-fg-8f3427, #8f3427);
+}

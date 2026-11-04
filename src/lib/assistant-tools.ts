@@ -12,6 +12,7 @@ import { openCoolStops } from "./cool-stops.js";
 import { bestTimeToLeave } from "./best-time.js";
 import { coolWalkability } from "./cool-walkability.js";
 import { treePriorities } from "./tree-priority.js";
+import { heatStress, UTCI_BANDS, utciBand, walkUtci } from "./heat-stress.js";
 import { findRefuges, refugeCoverage } from "./refuges.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
@@ -236,6 +237,7 @@ export async function runTool(
       });
       const name = (id: string) =>
         host.catalog.find((d) => d.id === id)?.label ?? id;
+      const stress = heatStress(env, host.world.origin);
       return {
         from: name(start),
         to: name(end),
@@ -266,6 +268,13 @@ export async function runTool(
                   }
                 : {}),
               feels_like_f: deg(heat.feelsLikeC),
+              ...(stress
+                ? {
+                    heat_stress_utci:
+                      UTCI_BANDS[utciBand(walkUtci(stress, r.shadeFraction))]
+                        .label,
+                  }
+                : {}),
             },
           ];
         }),
