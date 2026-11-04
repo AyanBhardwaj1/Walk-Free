@@ -44,7 +44,7 @@ export const AI_PROVIDERS: {
   {
     value: "deepinfra",
     label: "DeepInfra",
-    model: "meta-models/Muse-Glimmer-30B",
+    model: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
     keysUrl: "https://deepinfra.com/dash/api_keys",
   },
   {
@@ -56,7 +56,7 @@ export const AI_PROVIDERS: {
   {
     value: "baseten",
     label: "Baseten",
-    model: "meta-models/muse-spark-open",
+    model: "meta-llama/Llama-4-Maverick-17B-128E-Instruct",
     keysUrl: "https://app.baseten.co/settings/api_keys",
   },
   {
