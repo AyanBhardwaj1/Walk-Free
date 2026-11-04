@@ -22,6 +22,7 @@ import {
   Undo2,
   Download,
   Camera,
+  Video,
   FileText,
   Upload,
   Trash2,
@@ -165,6 +166,7 @@ import AssistantDemo from "./components/AssistantDemo";
 import TreePlanner from "./components/TreePlanner";
 import HeatStressLine from "./components/HeatStressLine";
 import { heatStress } from "./lib/heat-stress";
+import { recordTimelapse, recordingType } from "./lib/timelapse";
 import RefugeCard from "./components/RefugeCard";
 import ShadeCheck from "./components/ShadeCheck";
 import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
@@ -418,12 +420,9 @@ export default function App({
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
   // Raised by the tour to run the scripted assistant demo for guests.
   const [demoStart, setDemoStart] = useState(0);
-  // The tour's tree plan, shown in the studio's planner.
-  const [treePlanPreset, setTreePlanPreset] = useState<{
-    plan: TreePlan;
-    planted: string[];
-  } | null>(null);
-  useEffect(() => setTreePlanPreset(null), [world.id]);
+  // The studio's tree plan, kept here so it survives switching tabs.
+  const [treePlan, setTreePlan] = useState<TreePlan | null>(null);
+  useEffect(() => setTreePlan(null), [world.id]);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -467,6 +466,10 @@ export default function App({
   const captureRef = useRef<(() => string) | null>(null);
   const setCapture = useCallback((capture: (() => string) | null) => {
     captureRef.current = capture;
+  }, []);
+  const frameRef = useRef<(() => HTMLCanvasElement) | null>(null);
+  const setFrame = useCallback((frame: (() => HTMLCanvasElement) | null) => {
+    frameRef.current = frame;
   }, []);
   /** The open fictional city, if any; it brings its own sky and weather. */
   const fiction = useMemo(
@@ -1024,9 +1027,9 @@ export default function App({
   const refuges = useMemo(
     () =>
       mode === "explore" && tab === "heat"
-        ? refugeCoverage(world, findRefuges(world, heatEnv))
+        ? refugeCoverage(world, findRefuges(world, heatEnv, places))
         : null,
-    [mode, tab, world, heatEnv],
+    [mode, tab, world, heatEnv, places],
   );
   const showRefuges = refugeMap && !!refuges && tab === "heat";
   const heatOverlay = useMemo(() => {
@@ -1871,29 +1874,36 @@ export default function App({
         // Let the assistant tools see the new hour before planting.
         await new Promise((r) => setTimeout(r, 60));
         const plan = await treePriorities(world, afternoon).catch(() => null);
+        const top = plan?.streets[0];
+        if (plan && top) {
+          // Plant exactly the street the plan names, and keep its list on
+          // screen beside the result.
+          setTreePlan(plan);
+          if (plantShade(top.edgeIds[0]) > 0) {
+            setMode("studio");
+            tourPanel(1);
+            revealInPanel(".heat-impact");
+          }
+          return;
+        }
         // Without a plan, fall back to the hottest street with a street name.
         const streets = placeHeat(world, afternoon).filter(
           (p) => p.kind === "street",
         );
         const hottest =
-          plan?.streets[0] ??
           streets.find((p) =>
             /street|avenue|drive|road|lane|way|boulevard|speedway|mall/i.test(
               p.name,
             ),
-          ) ??
-          streets[0];
+          ) ?? streets[0];
         if (!hottest) return;
-        const name = "street" in hottest ? hottest.street : hottest.name;
         const result = (await runTool(
           toolHost.current,
           "plant_shade_trees",
-          JSON.stringify({ street: name }),
+          JSON.stringify({ street: hottest.name }),
         )) as { error?: string };
         if (result?.error) flash(result.error);
         else {
-          // The plan's list stays on screen beside the result.
-          if (plan) setTreePlanPreset({ plan, planted: [name] });
           setMode("studio");
           tourPanel(1);
           revealInPanel(".heat-impact");
@@ -2460,6 +2470,57 @@ export default function App({
             note: friendlyError(e, "Muse Image couldn't render this view."),
           },
       );
+    }
+  }
+  // Recording a time-lapse of the day: the sun sweeps, the video records.
+  const [recording, setRecording] = useState(false);
+  const playingRef = useRef(false);
+  playingRef.current = playing;
+  const captionRef = useRef("");
+  captionRef.current = (() => {
+    try {
+      return `${world.name.split(" · ")[0]} · ${new Date(
+        env.dateTime,
+      ).toLocaleString("en-US", {
+        timeZone: world.timezone || undefined,
+        hour: "numeric",
+        minute: "2-digit",
+      })}`;
+    } catch {
+      return world.name;
+    }
+  })();
+  async function recordDay() {
+    const frame = frameRef.current;
+    if (recording || !frame) return;
+    if (!recordingType()) {
+      setMessage(
+        "This browser can't record video. Try Chrome, Edge or Firefox.",
+      );
+      return;
+    }
+    setRecording(true);
+    setLocalHour(DAY_START_HOUR);
+    setPlaying(true);
+    // Let the first step of the day render before recording starts.
+    await new Promise((r) => setTimeout(r, 150));
+    try {
+      const { blob, type } = await recordTimelapse({
+        frame,
+        caption: () => captionRef.current,
+        done: () => !playingRef.current,
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `walk-free-${world.id.replace(/[^a-z0-9-]+/gi, "-")}-day.${type.includes("mp4") ? "mp4" : "webm"}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      flash("Saved a time-lapse of the day.");
+    } catch {
+      setMessage("The time-lapse couldn't be recorded. Try again.");
+    } finally {
+      setPlaying(false);
+      setRecording(false);
     }
   }
   async function saveImage() {
@@ -3567,7 +3628,8 @@ export default function App({
                   <TreePlanner
                     world={world}
                     env={heatEnv}
-                    preset={treePlanPreset}
+                    plan={treePlan}
+                    onPlan={setTreePlan}
                     onPlant={(edgeId) => plantShade(edgeId)}
                     onShow={(street) => {
                       setHeatMap(true);
@@ -3940,6 +4002,7 @@ export default function App({
                       : null
                   }
                   onCaptureReady={setCapture}
+                  onFrameReady={setFrame}
                   onHeatSelect={
                     mode === "explore" || tool === "shaderow"
                       ? selectHeatEdge
@@ -4300,6 +4363,22 @@ export default function App({
                       onClick={() => void saveImage()}
                     >
                       <Camera size={19} />
+                    </button>
+                  )}
+                  {!(view === "2d" && mode === "explore") && (
+                    <button
+                      className="desktop-only"
+                      title={
+                        recording
+                          ? "Recording the day…"
+                          : "Record the day as a time-lapse video"
+                      }
+                      aria-label="Record the day as a time-lapse video"
+                      aria-pressed={recording}
+                      disabled={recording}
+                      onClick={() => void recordDay()}
+                    >
+                      <Video size={19} />
                     </button>
                   )}
                   <button

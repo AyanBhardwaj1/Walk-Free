@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Footprints, MapPin, Sprout, TreePine } from "lucide-react";
-import type { Environment, World } from "../../shared/types";
+import type { Environment, Point, World } from "../../shared/types";
 import { treePriorities, type TreePlan } from "../lib/tree-priority";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -13,35 +13,36 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 export default function TreePlanner({
   world,
   env,
+  plan,
+  onPlan,
   onPlant,
   onShow,
-  preset = null,
 }: {
   world: World;
   env: Environment;
+  /** The plan, kept by the app so it survives switching tabs. */
+  plan: TreePlan | null;
+  onPlan: (plan: TreePlan | null) => void;
   /** Plants a row along the street with this path; returns trees planted. */
   onPlant: (edgeId: string, street: string) => number;
   onShow: (street: string) => void;
-  /** A plan made elsewhere (the tour), with the streets it already planted. */
-  preset?: { plan: TreePlan; planted: string[] } | null;
 }) {
-  const [plan, setPlan] = useState<TreePlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
-  const [planted, setPlanted] = useState<Set<string>>(() => new Set());
   const abort = useRef<AbortController | null>(null);
   // Live inputs, read when a plan starts.
   const inputs = useRef({ world, env });
   inputs.current = { world, env };
-  // A new area needs a new plan; edits to this one (planting) keep it.
+  // A new area: any plan still running is for the old one.
   useEffect(() => {
     abort.current?.abort();
-    setPlan(null);
-    setPlanted(new Set());
     setNote("");
     setBusy(false);
   }, [world.id]);
   useEffect(() => () => abort.current?.abort(), []);
+  // A street counts as planted while trees planted here line it, so Undo
+  // makes it plantable again.
+  const planted = useMemo(() => plantedStreets(world, plan), [world, plan]);
   const run = async () => {
     abort.current?.abort();
     const controller = new AbortController();
@@ -52,8 +53,7 @@ export default function TreePlanner({
       const { world: w, env: e } = inputs.current;
       const result = await treePriorities(w, e, { signal: controller.signal });
       if (controller.signal.aborted) return;
-      setPlan(result);
-      setPlanted(new Set());
+      onPlan(result);
       if (!result?.streets.length)
         setNote(
           "No sunny, well-walked street here to plant: try an afternoon hour or a bigger area.",
@@ -66,16 +66,8 @@ export default function TreePlanner({
       if (abort.current === controller) setBusy(false);
     }
   };
-  useEffect(() => {
-    if (!preset) return;
-    abort.current?.abort();
-    setBusy(false);
-    setNote("");
-    setPlan(preset.plan);
-    setPlanted(new Set(preset.planted));
-  }, [preset]);
   const plant = (street: string, edgeId: string) => {
-    if (onPlant(edgeId, street) > 0) setPlanted((s) => new Set(s).add(street));
+    onPlant(edgeId, street);
   };
   return (
     <section className="tree-planner" aria-labelledby="tree-planner-title">
@@ -162,4 +154,32 @@ export default function TreePlanner({
       )}
     </section>
   );
+}
+
+/** Streets of the plan lined with trees planted in this session. */
+function plantedStreets(world: World, plan: TreePlan | null) {
+  const done = new Set<string>();
+  if (!plan) return done;
+  const trees = world.objects.filter(
+    (o) => o.kind === "tree" && o.source === "user",
+  );
+  if (!trees.length) return done;
+  const byId = new Map(world.graph.edges.map((e) => [e.id, e]));
+  for (const s of plan.streets) {
+    const points: Point[] = s.edgeIds.flatMap(
+      (id) => byId.get(id)?.points ?? [],
+    );
+    // Planted rows sit 5 m beside the path; a few of them mean it's planted.
+    let near = 0;
+    for (const t of trees)
+      if (
+        points.some(
+          (p) => Math.hypot(p[0] - t.position[0], p[1] - t.position[1]) < 14,
+        ) &&
+        ++near >= 3
+      )
+        break;
+    if (near >= 3) done.add(s.street);
+  }
+  return done;
 }

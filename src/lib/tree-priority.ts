@@ -8,6 +8,9 @@ import { baseEdgeId } from "./walk-location.js";
 
 /** Walking speed used for minutes, as in route cards (m/min). */
 const WALK_M_PER_MIN = 78;
+/** As in the heat ranking: the map's rim, and streets shorter than this. */
+const EDGE_BAND_M = 60;
+const MIN_STREET_M = 60;
 /** Unnamed paths can't be named in a proposal, so they aren't ranked. */
 const GENERIC = new Set(["Footpath", "Street", "Path", "Green space"]);
 /** Roads people don't walk along, even when a route crosses them. */
@@ -56,6 +59,17 @@ export async function treePriorities(
   };
   const shadedAt = createShadeTester(w, env);
   const byId = new Map(w.graph.edges.map((e) => [e.id, e]));
+  // The same streets the heat ranking names: past the map's edge nothing
+  // casts shade, and short stubs aren't streets.
+  const reach = w.extent / 2 - EDGE_BAND_M;
+  const inArea = (e: GraphEdge) => {
+    const p = e.points[Math.floor(e.points.length / 2)];
+    return reach <= 0 || (Math.abs(p[0]) <= reach && Math.abs(p[1]) <= reach);
+  };
+  const streetLength = new Map<string, number>();
+  for (const e of w.graph.edges)
+    if (plantable(e) && inArea(e))
+      streetLength.set(e.name, (streetLength.get(e.name) ?? 0) + e.distance);
   // Metres walked on each path, and by how many walks, per street.
   const streets = new Map<
     string,
@@ -81,7 +95,12 @@ export async function treePriorities(
     const seen = new Set<string>();
     for (const part of quick.edges) {
       const edge = byId.get(baseEdgeId(part.id)) ?? part;
-      if (!plantable(edge)) continue;
+      if (
+        !plantable(edge) ||
+        !inArea(edge) ||
+        (streetLength.get(edge.name) ?? 0) < MIN_STREET_M
+      )
+        continue;
       const s = streets.get(edge.name) ?? { walked: new Map(), walks: 0 };
       s.walked.set(edge.id, (s.walked.get(edge.id) ?? 0) + part.distance);
       if (!seen.has(edge.name)) s.walks++;

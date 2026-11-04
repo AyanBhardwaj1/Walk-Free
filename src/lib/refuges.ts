@@ -1,4 +1,5 @@
 import type { Environment, Point, World } from "../../shared/types.js";
+import type { PlaceHeat } from "./heat.js";
 import { openCoolStops } from "./cool-stops.js";
 import { placeHeat } from "./heat.js";
 import { nearestWalkNode } from "./routing.js";
@@ -26,7 +27,12 @@ export interface Refuge {
  * campus, during their usual hours), mapped shade shelters, and parks that
  * are mostly shaded at this hour, each with the path point nearest it.
  */
-export function findRefuges(world: World, env: Environment): Refuge[] {
+export function findRefuges(
+  world: World,
+  env: Environment,
+  /** The area's ranked places, when already worked out for this hour. */
+  places: PlaceHeat[] = placeHeat(world, env),
+): Refuge[] {
   const point = new Map(world.graph.nodes.map((n) => [n.id, n.point]));
   const refuges: Refuge[] = openCoolStops(world, env).map((s) => ({
     name: s.name,
@@ -45,7 +51,7 @@ export function findRefuges(world: World, env: Environment): Refuge[] {
         point: node.point,
       });
   }
-  for (const p of placeHeat(world, env)) {
+  for (const p of places) {
     if (p.kind !== "park" || p.shade < SHADED_PARK) continue;
     const node = nearestWalkNode(world, p.center, ENTRANCE_M);
     if (node)

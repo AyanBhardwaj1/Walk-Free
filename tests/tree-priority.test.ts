@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { worldSchema } from "../shared/schema.js";
 import type { Environment } from "../shared/types.js";
 import { treePriorities } from "../src/lib/tree-priority.js";
+import { placeHeat } from "../src/lib/heat.js";
 import { runTool, type ToolHost } from "../src/lib/assistant-tools.js";
 
 // 3 PM CDT on a clear July afternoon.
@@ -33,6 +34,16 @@ describe("where the next trees should go", () => {
       expect(s.trees).toBeGreaterThan(0);
       expect(s.street).not.toMatch(/interstate|^Footpath$/i);
     }
+  }, 60000);
+
+  it("names only streets the heat ranking knows, so planting by name matches", async () => {
+    const plan = (await treePriorities(ut, env, { pairs: 40, top: 5 }))!;
+    const ranked = new Set(
+      placeHeat(ut, env)
+        .filter((p) => p.kind === "street")
+        .map((p) => p.name),
+    );
+    for (const s of plan.streets) expect(ranked.has(s.street)).toBe(true);
   }, 60000);
 
   it("has nothing to plant after dark", async () => {
