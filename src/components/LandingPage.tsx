@@ -491,7 +491,6 @@ const FEATURES = [
     title: "Ask it anything about the walk",
     text: "“Shadiest way from Andrews Hall to GDC at 3?” The assistant plans it on the map, explains the trade-off and can answer out loud.",
     tone: "ask",
-    shot: "ask",
   },
   {
     icon: Trees,
