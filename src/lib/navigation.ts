@@ -66,10 +66,14 @@ export async function startTracking(
   );
   return () => navigator.geolocation.clearWatch(id);
 }
-/** Speaks text; `lang` (a BCP 47 tag) picks a matching voice when known. */
-export function speak(text: string, lang?: string | null) {
+/**
+ * Speaks text; `lang` (a BCP 47 tag) picks a matching voice when known.
+ * Resolves when the voice finishes (or at once when there is none), and
+ * never rejects.
+ */
+export function speak(text: string, lang?: string | null): Promise<void> {
   if (nativeNavigation)
-    void TextToSpeech.speak({
+    return TextToSpeech.speak({
       text,
       lang: lang ?? "en-US",
       rate: 1,
@@ -83,12 +87,18 @@ export function speak(text: string, lang?: string | null) {
           )
         : undefined,
     );
-  else if ("speechSynthesis" in window) {
-    speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (lang) utterance.lang = lang;
+  if (!("speechSynthesis" in window)) return Promise.resolve();
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  if (lang) utterance.lang = lang;
+  return new Promise((resolve) => {
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    // Some browsers never fire end without a voice: about 13 words a second
+    // is a safe upper bound on reading time.
+    setTimeout(resolve, 2000 + text.split(/\s+/).length * 450);
     speechSynthesis.speak(utterance);
-  }
+  });
 }
 export function stopSpeech() {
   if (nativeNavigation) void TextToSpeech.stop();

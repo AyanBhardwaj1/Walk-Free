@@ -409,6 +409,8 @@ export default function App({
   const [focusOn, setFocusOn] = useState<Point[] | null>(null);
   // The tour's day plays itself; one planned by hand waits for Play.
   const [dayAutoPlay, setDayAutoPlay] = useState(false);
+  // Raised by the tour to run the scripted assistant demo for guests.
+  const [demoStart, setDemoStart] = useState(0);
   // The route being walked at street level: a copy taken when the walk
   // starts, so recomputed routes (time slider, play the day) don't restart it.
   const [walk3d, setWalk3d] = useState<Point[] | null>(null);
@@ -1829,21 +1831,31 @@ export default function App({
     },
     {
       title: "Ask Walk-Free",
-      text: "The assistant, built for Meta's Muse Spark, uses the same tools: it plans routes, ranks heat, moves the clock and plants trees, in your language. Press Watch what it does to see it work.",
-      action: "Open the assistant",
+      dwell: 20000,
+      text: "Meta's Muse Spark uses the same tools you do: it plans routes, ranks heat, moves the clock and plants trees on this map, in your language. Here it is at work.",
+      action: "Ask it",
       run: () => {
         setMode("explore");
         setTab("ask");
         tourPanel(1);
+        // A live model answers a real question (in Spanish, to show it
+        // works in your language); without one, the scripted demo runs the
+        // same tools.
+        if (!guest || guestAi)
+          void sendChat(
+            "¿Cuál es la ruta con más sombra ahora mismo, y a qué hora conviene salir?",
+          );
+        else setDemoStart((n) => n + 1);
       },
     },
     {
       title: "Any city you can imagine",
+      dwell: 12000,
       text: "Describe a city, real or imagined, and walk it a minute later, with weather you control.",
-      action: "Generate a city",
-      run: () => {
+      action: "Build a city",
+      run: async () => {
         setGenPrompt(CITY_IDEAS[0]);
-        setGenOpen(true);
+        await planAndOpenCity(CITY_IDEAS[0], "detailed");
       },
     },
   ];
@@ -3242,6 +3254,7 @@ export default function App({
                   <AssistantDemo
                     host={() => toolHost.current}
                     area={world.id}
+                    start={demoStart}
                   />
                 </section>
               )}
