@@ -12,6 +12,7 @@ import { openCoolStops } from "./cool-stops.js";
 import { bestTimeToLeave } from "./best-time.js";
 import { coolWalkability } from "./cool-walkability.js";
 import { treePriorities } from "./tree-priority.js";
+import { findRefuges, refugeCoverage } from "./refuges.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -90,6 +91,7 @@ const schemas = {
       .optional(),
   }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
+  cool_refuges: z.object({}),
   plan_tree_planting: z.object({
     count: z.number().int().min(1).max(5).optional(),
   }),
@@ -479,6 +481,31 @@ export async function runTool(
           sun_minutes_saved_per_100_walks: Math.round(s.sunMinutesSavedPer100),
         })),
         note: "The top street is highlighted on the map.",
+      };
+    }
+    case "cool_refuges": {
+      const coverage = refugeCoverage(
+        host.world,
+        findRefuges(host.world, host.env),
+      );
+      if (!coverage)
+        return {
+          error:
+            "No cool refuges known here at this hour (cool stops are listed for the six campuses in the daytime).",
+        };
+      return {
+        at: clockLabel(host.env.dateTime, host.world.timezone),
+        refuges: coverage.refuges.map((r) => ({
+          name: r.name,
+          kind: r.kind,
+        })),
+        paths_within_5_min_percent: Math.round(coverage.within[0] * 100),
+        paths_within_10_min_percent: Math.round(coverage.within[1] * 100),
+        farthest_streets: coverage.gaps.map((g) => ({
+          street: g.street,
+          walk_minutes: Math.round(g.minutes),
+        })),
+        note: "Cool-stop opening hours are not verified.",
       };
     }
     case "propose_design":

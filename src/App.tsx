@@ -163,6 +163,8 @@ import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
 import TreePlanner from "./components/TreePlanner";
+import RefugeCard from "./components/RefugeCard";
+import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
 import { heatBrief } from "./lib/heat-brief";
@@ -1005,7 +1007,22 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [heatPlace?.id, world, profileDay, profileWeather],
   );
+  // Cool refuges within reach, worked out while the Heat tab is open.
+  const [refugeMap, setRefugeMap] = useState(false);
+  const refuges = useMemo(
+    () =>
+      mode === "explore" && tab === "heat"
+        ? refugeCoverage(world, findRefuges(world, heatEnv))
+        : null,
+    [mode, tab, world, heatEnv],
+  );
+  const showRefuges = refugeMap && !!refuges && tab === "heat";
   const heatOverlay = useMemo(() => {
+    if (showRefuges && refuges) {
+      const colors = new Map<string, string>();
+      for (const [id, m] of refuges.minutes) colors.set(id, refugeColor(m));
+      return { colors, highlight: new Set(heatPlace?.edgeIds ?? []) };
+    }
     if (!edgeHeat || !heatMap) return null;
     const colors = new Map<string, string>();
     for (const [id, reading] of edgeHeat)
@@ -1016,7 +1033,14 @@ export default function App({
     ]);
     return { colors, highlight };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edgeHeat, heatMap, heatPlace?.id, comparePlace?.id]);
+  }, [
+    edgeHeat,
+    heatMap,
+    heatPlace?.id,
+    comparePlace?.id,
+    showRefuges,
+    refuges,
+  ]);
   const currentHour = localHour(env.dateTime, world.timezone);
   /** Shade at each point of the route (as RouteResult.points), by edge. */
   const routeShade = useMemo(() => {
@@ -3341,6 +3365,22 @@ export default function App({
               />
             )}
             {!atlas && mode === "explore" && tab === "heat" && (
+              <RefugeCard
+                coverage={refuges}
+                shown={refugeMap}
+                onToggle={setRefugeMap}
+                onShow={(street) => {
+                  setHeatPlaceId(`street:${street}`);
+                  setComparePlaceId(null);
+                  setFocusOn(
+                    world.graph.edges
+                      .filter((e) => e.name === street)
+                      .flatMap((e) => e.points),
+                  );
+                }}
+              />
+            )}
+            {!atlas && mode === "explore" && tab === "heat" && (
               <HeatPanel
                 places={places}
                 range={edgeHeat?.values().next().value ?? null}
@@ -4238,20 +4278,31 @@ export default function App({
                   !tourOpen &&
                   edgeHeat && (
                     <div className="map-legend" aria-hidden>
-                      <span>
-                        <i
-                          style={{
-                            background: `linear-gradient(90deg, ${heatRamp(
-                              edgeHeat.values().next().value ?? {
-                                sunFeelsC: 40,
-                              },
-                            ).join(", ")})`,
-                          }}
-                        />
-                        {routeDark
-                          ? "Paths: cooler → warmer tonight"
-                          : "Paths: shaded → full sun"}
-                      </span>
+                      {showRefuges ? (
+                        <span>
+                          <i
+                            style={{
+                              background: `linear-gradient(90deg, ${refugeColor(0)} 33%, ${refugeColor(7)} 33% 66%, ${refugeColor(20)} 66%)`,
+                            }}
+                          />
+                          Walk to a refuge: 5 · 10 · more min
+                        </span>
+                      ) : (
+                        <span>
+                          <i
+                            style={{
+                              background: `linear-gradient(90deg, ${heatRamp(
+                                edgeHeat.values().next().value ?? {
+                                  sunFeelsC: 40,
+                                },
+                              ).join(", ")})`,
+                            }}
+                          />
+                          {routeDark
+                            ? "Paths: cooler → warmer tonight"
+                            : "Paths: shaded → full sun"}
+                        </span>
+                      )}
                       {currentRoute && (
                         <span>
                           <i className="map-legend-route" />
