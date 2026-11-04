@@ -661,6 +661,19 @@ export default function App({
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [ownKey, setOwnKey] = useState(() => loadOwnKey(account.id));
+  // Guests can ask the shared assistant when the site has a model key.
+  const [guestAi, setGuestAi] = useState(false);
+  useEffect(() => {
+    if (!guest) return;
+    let live = true;
+    fetch(API_BASE + "/api/health")
+      .then((r) => r.json())
+      .then((h) => live && setGuestAi(h?.guestAi === true))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [guest]);
   const [speakReplies, setSpeakReplies] = useState(false);
   const userPosition = useMemo(
     () =>
@@ -1359,7 +1372,12 @@ export default function App({
           };
         },
         () => toolHost.current,
-        (url, body) => api(url, body, ownKeyHeaders(ownKey)),
+        (url, body) =>
+          api(
+            guest && url === "/api/agent/chat" ? "/api/guest/chat" : url,
+            body,
+            guest ? {} : ownKeyHeaders(ownKey),
+          ),
         (name) =>
           setChatStatus(
             {
@@ -3160,51 +3178,62 @@ export default function App({
                 </p>
               </section>
             )}
-            {!atlas && mode === "explore" && tab === "ask" && guest && (
-              <section className="guest-lock">
-                <div className="section-title">
-                  <Sparkles size={17} /> Ask Walk-Free
-                </div>
-                <p>
-                  Plan routes in plain words, ask why a street is hot, or plant
-                  trees by asking. Create a free account to use the assistant,
-                  or watch what it does on this map first.
-                </p>
-                <a className="primary" href="/signup">
-                  Create free account <ArrowUpRight size={16} />
-                </a>
-                <AssistantDemo host={() => toolHost.current} area={world.id} />
-              </section>
-            )}
-            {!atlas && mode === "explore" && tab === "ask" && !guest && (
-              <AssistantPanel
-                hints={assistantHints}
-                messages={chat}
-                status={chatStatus}
-                error={chatError}
-                speakReplies={speakReplies}
-                onSpeakReplies={setSpeakReplies}
-                onSend={(text) => void sendChat(text)}
-                onReset={() => {
-                  setChat([]);
-                  setChatError("");
-                }}
-                ownKey={ownKey}
-                onTestKey={async (value) => {
-                  const check = await api(
-                    "/api/agent/test-key",
-                    {},
-                    ownKeyHeaders(value),
-                  );
-                  return { model: check.model, latencyMs: check.latencyMs };
-                }}
-                onOwnKey={(value) => {
-                  setOwnKey(value);
-                  saveOwnKey(account.id, value);
-                  setChatError("");
-                }}
-              />
-            )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "ask" &&
+              guest &&
+              !guestAi && (
+                <section className="guest-lock">
+                  <div className="section-title">
+                    <Sparkles size={17} /> Ask Walk-Free
+                  </div>
+                  <p>
+                    Plan routes in plain words, ask why a street is hot, or
+                    plant trees by asking. Create a free account to use the
+                    assistant, or watch what it does on this map first.
+                  </p>
+                  <a className="primary" href="/signup">
+                    Create free account <ArrowUpRight size={16} />
+                  </a>
+                  <AssistantDemo
+                    host={() => toolHost.current}
+                    area={world.id}
+                  />
+                </section>
+              )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "ask" &&
+              (!guest || guestAi) && (
+                <AssistantPanel
+                  guest={guest}
+                  hints={assistantHints}
+                  messages={chat}
+                  status={chatStatus}
+                  error={chatError}
+                  speakReplies={speakReplies}
+                  onSpeakReplies={setSpeakReplies}
+                  onSend={(text) => void sendChat(text)}
+                  onReset={() => {
+                    setChat([]);
+                    setChatError("");
+                  }}
+                  ownKey={ownKey}
+                  onTestKey={async (value) => {
+                    const check = await api(
+                      "/api/agent/test-key",
+                      {},
+                      ownKeyHeaders(value),
+                    );
+                    return { model: check.model, latencyMs: check.latencyMs };
+                  }}
+                  onOwnKey={(value) => {
+                    setOwnKey(value);
+                    saveOwnKey(account.id, value);
+                    setChatError("");
+                  }}
+                />
+              )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <HeatRiskWeek
                 risk={outlook?.heatRisk}

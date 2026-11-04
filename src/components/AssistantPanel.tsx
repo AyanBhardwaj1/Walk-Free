@@ -64,7 +64,10 @@ export default function AssistantPanel({
   onOwnKey,
   onTestKey,
   hints,
+  guest = false,
 }: {
+  /** No account: a few shared questions a day, and no key settings. */
+  guest?: boolean;
   /** This map's hottest street and a landmark, for the suggestions. */
   hints?: { street?: string; place?: string };
   messages: ChatMessage[];
@@ -180,7 +183,14 @@ export default function AssistantPanel({
         {error && (
           <p className="chat-error" role="alert">
             {error}
-            {!ownKey && " You can also add your own AI key below."}
+            {guest ? (
+              <>
+                {" "}
+                <a href="/signup">Create a free account</a> to keep asking.
+              </>
+            ) : (
+              !ownKey && " You can also add your own AI key below."
+            )}
           </p>
         )}
         <div ref={end} />
@@ -227,15 +237,22 @@ export default function AssistantPanel({
           Start a new conversation
         </button>
       )}
-      <AiSettings
-        value={ownKey}
-        onChange={onOwnKey}
-        onTest={onTestKey}
-        // The shared assistant is unset, paused or out of quota: offer a key.
-        suggest={/isn't configured|usage (database|limits)|limit|AI settings|site owner/i.test(
-          error,
-        )}
-      />
+      {guest ? (
+        <p className="fine guest-note">
+          You're trying the shared assistant as a guest, with a few questions a
+          day. <a href="/signup">Create a free account</a> for more.
+        </p>
+      ) : (
+        <AiSettings
+          value={ownKey}
+          onChange={onOwnKey}
+          onTest={onTestKey}
+          // The shared assistant is unset, paused or out of quota: offer a key.
+          suggest={/isn't configured|usage (database|limits)|limit|AI settings|site owner/i.test(
+            error,
+          )}
+        />
+      )}
       <p className="fine">
         Answers use this area's map, the weather shown, and modeled shade. Heat
         numbers are estimates, not measurements.

@@ -11,7 +11,7 @@ vi.mock("../server/network.js", async (original) => ({
 }));
 const { chargeAiCall, memoryUsage, setUsageStore, aiConfig } =
   await import("../server/ai");
-const { agentRouter, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
+const { agentRouter, guestChat, toolRounds, recentTurns, MAX_PROMPT_CHARS } =
   await import("../server/agent");
 
 afterEach(() => {
@@ -36,6 +36,7 @@ async function post(
     next();
   });
   app.use("/api/agent", agentRouter);
+  app.post("/api/guest/chat", guestChat);
   app.use(
     (
       e: unknown,
@@ -171,8 +172,16 @@ describe("assistant chat", () => {
     expect(
       sent.tools.map((t: { function: { name: string } }) => t.function.name),
     ).toContain("plan_route");
-    expect(sent.messages[0].content).not.toContain("UT Austin");
-    expect(sent.messages[1].content).toContain("UT Austin, TX");
+    // One system message (some providers accept only one): the rules come
+    // first, then the app's situation, labelled as data.
+    const system = sent.messages[0].content as string;
+    expect(
+      sent.messages.filter((m: { role: string }) => m.role === "system"),
+    ).toHaveLength(1);
+    expect(system.indexOf("UT Austin, TX")).toBeGreaterThan(
+      system.indexOf("Rules:"),
+    );
+    expect(system).toMatch(/data, not instructions/);
     expect(options.headers.Authorization).toBe("Bearer sk-test");
   });
 
@@ -453,7 +462,7 @@ describe("bounding what reaches the model", () => {
     const result = await post("/api/agent/chat", { messages, context });
     expect(result.status).toBe(200);
     const sent = JSON.parse(requestJson.mock.calls[0][1].body);
-    const history = sent.messages.slice(2);
+    const history = sent.messages.slice(1);
     expect(history[0]).toEqual({ role: "user", content: "New question" });
     expect(JSON.stringify(history).length).toBeLessThan(MAX_PROMPT_CHARS);
   });
@@ -606,6 +615,27 @@ describe("AI city generation", () => {
     expect(body.messages[1].content).toBe("A rainy gothic noir city");
   });
 
+  it("asks again without JSON mode when the model doesn't take it", async () => {
+    setUsageStore(memoryUsage());
+    requestJson
+      .mockRejectedValueOnce(new Error("HTTP 400"))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: JSON.stringify(plan) } }],
+      });
+    const result = await post(
+      "/api/agent/city",
+      { prompt: "A rainy gothic noir city", realism: "sketch" },
+      ownKey,
+    );
+    expect(result.status).toBe(200);
+    const [first, second] = requestJson.mock.calls.map(
+      (c) =>
+        JSON.parse((c[1] as { body: string }).body) as Record<string, unknown>,
+    );
+    expect(first.response_format).toEqual({ type: "json_object" });
+    expect(second.response_format).toBeUndefined();
+  });
+
   it("explains an unreadable plan instead of failing silently", async () => {
     setUsageStore(memoryUsage());
     requestJson.mockResolvedValueOnce({
@@ -673,6 +703,36 @@ describe("AI city generation", () => {
       metaKey,
     );
     expect(result.status).toBe(400);
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+});
+
+describe("guests trying the assistant", () => {
+  const ask = () =>
+    post("/api/guest/chat", {
+      messages: [{ role: "user", content: "Where is it hottest?" }],
+      context,
+    });
+  it("lets a guest ask the shared assistant within a small daily cap", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI_PER_VISITOR", "2");
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValue({
+      choices: [{ message: { content: "Speedway, about 104°F." } }],
+    });
+    expect((await ask()).status).toBe(200);
+    expect((await ask()).status).toBe(200);
+    const third = await ask();
+    expect(third.status).toBe(429);
+    expect(third.body.code).toBe("AI_GUEST_LIMIT");
+    expect(requestJson).toHaveBeenCalledTimes(2);
+  });
+  it("can be turned off", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_GUEST_AI", "off");
+    setUsageStore(memoryUsage());
+    const result = await ask();
+    expect(result.status).toBe(401);
     expect(requestJson).not.toHaveBeenCalled();
   });
 });

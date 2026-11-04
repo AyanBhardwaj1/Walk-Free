@@ -150,15 +150,31 @@ async function withRetry<T>(
   }
 }
 
+type ChatOptions = {
+  tools?: ToolSpec[];
+  json?: boolean;
+  maxTokens?: number;
+  timeoutMs?: number;
+};
 export async function chatCompletion(
   config: AiConfig,
   messages: ChatMessage[],
-  options: {
-    tools?: ToolSpec[];
-    json?: boolean;
-    maxTokens?: number;
-    timeoutMs?: number;
-  } = {},
+  options: ChatOptions = {},
+) {
+  try {
+    return await chatCompletionOnce(config, messages, options);
+  } catch (error) {
+    // Not every model takes JSON mode; the callers parse JSON out of plain
+    // text too, so ask once more without it.
+    if (options.json && (error as ServiceError)?.code === "AI_MODEL")
+      return chatCompletionOnce(config, messages, { ...options, json: false });
+    throw error;
+  }
+}
+async function chatCompletionOnce(
+  config: AiConfig,
+  messages: ChatMessage[],
+  options: ChatOptions,
 ) {
   const openAi = config.baseUrl.includes("api.openai.com");
   const result = await withRetry(
@@ -261,6 +277,8 @@ export interface UsageLimits {
   ownKeyDaily: number;
 }
 const OWN_PREFIX = "own:";
+/** Counters that only meter (per-visitor caps), never the site's month. */
+const METER_PREFIX = "meter:";
 export function usageLimits(): UsageLimits {
   const read = (name: string, fallback: number) => {
     const value = Number(process.env[name]);
@@ -273,6 +291,75 @@ export function usageLimits(): UsageLimits {
     // Own-key calls cost the site only server time, so allow many more.
     ownKeyDaily: read("WALK_FREE_AI_OWN_KEY_DAILY_LIMIT", 500),
   };
+}
+/**
+ * Guests (no account) may try the shared assistant on the demo: a few model
+ * calls per visitor a day, and a small daily pool for all guests together,
+ * inside the site's monthly cap. WALK_FREE_GUEST_AI=off turns it off.
+ */
+export function guestLimits() {
+  const read = (name: string, fallback: number) => {
+    const value = Number(process.env[name]);
+    return Number.isInteger(value) && value >= 0 ? value : fallback;
+  };
+  return {
+    enabled: (process.env.WALK_FREE_GUEST_AI ?? "on") !== "off",
+    perVisitor: read("WALK_FREE_GUEST_AI_PER_VISITOR", 12),
+    perDay: read("WALK_FREE_GUEST_AI_DAILY", 400),
+  };
+}
+/** Counts one guest model call against the visitor's and the guests' caps. */
+export async function chargeGuestCall(visitor: string, now = new Date()) {
+  const guest = guestLimits();
+  if (!guest.enabled)
+    throw new ServiceError(
+      "LOGIN_REQUIRED",
+      "Create a free account to ask the assistant.",
+      401,
+    );
+  const day = now.toISOString().slice(0, 10);
+  const limits = usageLimits();
+  let mine: UsageResult, all: UsageResult;
+  try {
+    mine = await usageStore(false).record(
+      `${METER_PREFIX}guest:${visitor}`,
+      day,
+      {
+        ...limits,
+        dailyPerUser: guest.perVisitor,
+        monthlyTotal: Number.MAX_SAFE_INTEGER,
+      },
+    );
+    if (mine === "daily")
+      throw new ServiceError(
+        "AI_GUEST_LIMIT",
+        "That's today's free questions. Create a free account to keep asking.",
+        429,
+      );
+    all = await usageStore(false).record("guest", day, {
+      ...limits,
+      dailyPerUser: guest.perDay,
+    });
+  } catch (error) {
+    if (error instanceof ServiceError) throw error;
+    throw new ServiceError(
+      "AI_LIMITS_UNAVAILABLE",
+      "The assistant is paused because its usage limits could not be checked. Please try again later.",
+      503,
+    );
+  }
+  if (all === "monthly")
+    throw new ServiceError(
+      "AI_MONTHLY_LIMIT",
+      "The assistant has reached this month's limit. Please try again next month.",
+      429,
+    );
+  if (all === "daily")
+    throw new ServiceError(
+      "AI_GUEST_LIMIT",
+      "Today's free guest questions are used up. Create a free account to keep asking.",
+      429,
+    );
 }
 
 export type UsageResult = "ok" | "daily" | "monthly";
@@ -305,7 +392,7 @@ export function postgresUsage(url: string): UsageStore {
         });
       await ready;
       const [total] = (await sql.query(
-        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date) and user_id not like 'own:%'",
+        "select coalesce(sum(calls), 0)::int as calls from walk_free_ai_usage where day >= date_trunc('month', $1::date) and user_id not like 'own:%' and user_id not like 'meter:%'",
         [day],
       )) as { calls: number }[];
       if (total.calls >= limits.monthlyTotal) return "monthly";
@@ -328,6 +415,7 @@ export function memoryUsage(): UsageStore {
       for (const [k, v] of counts)
         if (
           !k.startsWith(OWN_PREFIX) &&
+          !k.startsWith(METER_PREFIX) &&
           k.slice(k.lastIndexOf(":") + 1, k.lastIndexOf(":") + 8) ===
             day.slice(0, 7)
         )
