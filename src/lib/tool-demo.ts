@@ -180,7 +180,7 @@ export async function runToolDemo(
     "plan_tree_planting",
     { count: 3 },
   );
-  const r5 = trees.result as Failed & {
+  const r5 = (trees.result ?? {}) as Failed & {
     walks_sampled?: number;
     streets?: {
       street: string;
