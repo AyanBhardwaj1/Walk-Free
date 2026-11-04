@@ -2895,6 +2895,13 @@ export default function App({
                 ) as Promise<PhotoCheckResult>
               }
               onClose={() => setPhotoCheck(null)}
+              onPlanTrees={() => {
+                setPhotoCheck(null);
+                setMode("studio");
+                setTab("build");
+                tourPanel(1);
+                revealInPanel(".tree-planner");
+              }}
             />
             {fiction && !atlas && (
               <nav className="fiction-switch" aria-label="Fictional cities">
@@ -3873,6 +3880,20 @@ export default function App({
                         places: placeHeat(world, heatEnv),
                         trees: { mapped: trees.length - canopy, canopy },
                         walks: walkComparison ?? undefined,
+                        refuges: (() => {
+                          const c = refugeCoverage(
+                            world,
+                            findRefuges(world, heatEnv, places),
+                          );
+                          return c
+                            ? {
+                                within: c.within,
+                                count: c.refuges.length,
+                                gaps: c.gaps,
+                              }
+                            : null;
+                        })(),
+                        treePlan: treePlan,
                         unit,
                       }),
                     );

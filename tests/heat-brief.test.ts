@@ -79,4 +79,36 @@ describe("heat brief without canopy", () => {
     expect(b.text).toContain("Trees: 120 trees mapped in OpenStreetMap.");
     expect(b.text).not.toMatch(/0 more crowns/);
   });
+
+  it("adds cool refuges and the tree plan when known", () => {
+    const { text } = heatBrief({
+      area: "UT Austin",
+      at: "Wed 3:00 PM",
+      places: [],
+      refuges: {
+        within: [0.28, 0.64],
+        count: 8,
+        gaps: [{ street: "Comal Street", minutes: 17.4 }],
+      },
+      treePlan: {
+        walks: 59,
+        streets: [
+          {
+            street: "Speedway",
+            walkShare: 0.22,
+            shadeNow: 0.11,
+            shadeAfter: 0.47,
+            trees: 150,
+            sunMinutesSavedPer100: 11.8,
+          },
+        ],
+      },
+      unit: "F",
+    });
+    expect(text).toMatch(/28% of paths are within a 5-minute walk/);
+    expect(text).toMatch(/Comal Street \(17 min\)/);
+    expect(text).toMatch(
+      /1\. Speedway: on 22% of walks; shade 11% to 47% with 150 trees/,
+    );
+  });
 });

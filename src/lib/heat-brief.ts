@@ -18,6 +18,24 @@ export interface BriefInput {
     extraDistance: number;
     walks: number;
   };
+  /** How far paths are from a cool refuge, if worked out. */
+  refuges?: {
+    within: [number, number];
+    count: number;
+    gaps: { street: string; minutes: number }[];
+  } | null;
+  /** The tree plan, if one was made: streets where trees help most. */
+  treePlan?: {
+    walks: number;
+    streets: {
+      street: string;
+      walkShare: number;
+      shadeNow: number;
+      shadeAfter: number;
+      trees: number;
+      sunMinutesSavedPer100: number;
+    }[];
+  } | null;
   unit: TempUnit;
 }
 
@@ -53,6 +71,29 @@ export function heatBrief(b: BriefInput) {
       ? [
           "",
           `Shade routing: the shade route avoids ${b.walks.score}% of the sun on ${b.walks.walks} sample walks (about ${b.walks.sunMinutesSaved.toFixed(1)} minutes less in the sun) for ${Math.max(0, Math.round(b.walks.extraDistance * 100))}% more walking.`,
+        ]
+      : []),
+    ...(b.refuges
+      ? [
+          "",
+          `Cool refuges: ${Math.round(b.refuges.within[0] * 100)}% of paths are within a 5-minute walk and ${Math.round(b.refuges.within[1] * 100)}% within 10 minutes of one of ${b.refuges.count} refuges (air-conditioned buildings, shade shelters, shaded parks).`,
+          ...(b.refuges.gaps.length
+            ? [
+                `Farthest from any refuge: ${b.refuges.gaps
+                  .map((g) => `${g.street} (${Math.round(g.minutes)} min)`)
+                  .join(", ")}.`,
+              ]
+            : []),
+        ]
+      : []),
+    ...(b.treePlan?.streets.length
+      ? [
+          "",
+          `Where new trees would help the most walkers (from ${b.treePlan.walks} typical walks):`,
+          ...b.treePlan.streets.map(
+            (s, i) =>
+              `${i + 1}. ${s.street}: on ${Math.round(s.walkShare * 100)}% of walks; shade ${Math.round(s.shadeNow * 100)}% to ${Math.round(s.shadeAfter * 100)}% with ${s.trees} trees; ${Math.round(s.sunMinutesSavedPer100)} fewer minutes in full sun per 100 walks.`,
+          ),
         ]
       : []),
     "",
