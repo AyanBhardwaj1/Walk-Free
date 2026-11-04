@@ -4100,3 +4100,35 @@ main:has(.demo-tour) .map-heading {
 .heat-stress.band-4 strong {
   color: var(--c-fg-8f3427, #8f3427);
 }
+
+/* Shade check: SAM 3.1 finds trees and awnings in a photo */
+.shade-check {
+  margin-bottom: 18px;
+}
+.shade-photo {
+  position: relative;
+  margin: 10px 0 0;
+  line-height: 0;
+}
+.shade-photo img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.shade-box {
+  position: absolute;
+  border: 2px solid;
+  pointer-events: none;
+}
+.shade-box.tree {
+  border-color: var(--c-line-6fbf73, #6fbf73);
+  background: rgb(111 191 115 / 15%);
+}
+.shade-box.awning {
+  border-color: var(--c-line-5aa9c8, #5aa9c8);
+  background: rgb(90 169 200 / 15%);
+}
+.shade-result p {
+  font-size: 12px;
+  margin: 8px 0 4px;
+}

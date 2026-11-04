@@ -10,6 +10,8 @@ import {
   imageEdit,
   requireImageProvider,
   requireAi,
+  segmentPhoto,
+  USER_AI_PROVIDERS,
   userAiConfig,
   type AiConfig,
 } from "./ai.js";
@@ -484,6 +486,56 @@ export const guestChat: RequestHandler = async (q, r, next) => {
           ? chargeAiCall(`guest:${visitor}`, new Date(), true)
           : chargeGuestCall(visitor),
       ),
+    );
+  } catch (e) {
+    next(e);
+  }
+};
+
+const photoInput = z.object({ image: viewImage });
+/**
+ * Shade check: SAM 3.1 finds the trees and awnings in a street photo. One
+ * credit covers both searches; a key that can't run SAM is never charged.
+ */
+async function shadePhoto(
+  config: AiConfig,
+  body: unknown,
+  charge: () => Promise<unknown>,
+) {
+  const { image } = photoInput.parse(body);
+  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
+    // segmentPhoto explains which key is needed.
+    await segmentPhoto(config, "tree", image);
+  await charge();
+  const [trees, awnings] = await Promise.all([
+    segmentPhoto(config, "tree", image),
+    segmentPhoto(config, "awning", image),
+  ]);
+  return { trees, awnings, model: "SAM 3.1" };
+}
+agentRouter.post("/shade-photo", async (q, r, next) => {
+  try {
+    const config = userAiConfig(q.headers) ?? requireAi();
+    requireVerifiedForSharedKey(config, r.locals.account);
+    r.json(
+      await shadePhoto(config, q.body, () =>
+        chargeAiCall(r.locals.account.id, new Date(), config.own),
+      ),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+/** The same check for guests on the demo, within the guest caps. */
+export const guestShadePhoto: RequestHandler = async (q, r, next) => {
+  r.setHeader("Cache-Control", "no-store");
+  try {
+    const visitor = createHash("sha256")
+      .update(`walk-free-guest:${clientKey(q)}`)
+      .digest("hex")
+      .slice(0, 24);
+    r.json(
+      await shadePhoto(requireAi(), q.body, () => chargeGuestCall(visitor)),
     );
   } catch (e) {
     next(e);

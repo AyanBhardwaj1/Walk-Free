@@ -615,3 +615,118 @@ export function requireAi(): AiConfig {
     );
   return config;
 }
+
+/** Meta's SAM 3.1, for finding trees and awnings in a street photo. */
+export const SEGMENT_MODEL = () =>
+  process.env.WALK_FREE_SEGMENT_MODEL || "sam-3.1";
+export interface FoundBox {
+  /** Corners as fractions of the photo, 0-1. */
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+/**
+ * Boxes from SAM 3.1's output text, one `<|box;x1=…;y1=…;x2=…;y2=…;w=…;h=…|>`
+ * token per object found (masks follow each box and aren't needed here).
+ */
+export function parseSamBoxes(text: string): FoundBox[] {
+  const boxes: FoundBox[] = [];
+  for (const m of text.matchAll(/<\|box;([^|]*)\|>/g)) {
+    const f = Object.fromEntries(
+      m[1].split(";").map((kv) => {
+        const [k, v] = kv.split("=");
+        return [k, Number(v)];
+      }),
+    ) as Record<string, number>;
+    const { x1, y1, x2, y2, w, h } = f;
+    if (![x1, y1, x2, y2, w, h].every(Number.isFinite) || !w || !h) continue;
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    boxes.push({
+      x1: clamp(x1 / w),
+      y1: clamp(y1 / h),
+      x2: clamp(x2 / w),
+      y2: clamp(y2 / h),
+    });
+    if (boxes.length >= 50) break;
+  }
+  return boxes;
+}
+/**
+ * Finds every object matching a short noun phrase ("tree") in an image with
+ * SAM 3.1 on the Meta Model API (POST /responses, a text part and an image
+ * part, as in Meta's examples). Returns the boxes found.
+ */
+export async function segmentPhoto(
+  config: AiConfig,
+  phrase: string,
+  imageDataUrl: string,
+): Promise<FoundBox[]> {
+  if (config.baseUrl !== USER_AI_PROVIDERS["meta-model"])
+    throw new ServiceError(
+      "AI_SEGMENT_PROVIDER",
+      config.own
+        ? "Photo checks use Meta's SAM 3.1: choose Meta Model API in AI settings."
+        : "Photo checks need the site's Meta Model API key.",
+      400,
+    );
+  const result = await requestJson<{
+    output_text?: string;
+    output?: { content?: { type?: string; text?: string }[] }[];
+  }>(`${config.baseUrl}/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.key}`,
+      "Content-Type": "application/json",
+    },
+    timeoutMs: 40_000,
+    maxBytes: 4_000_000,
+    errorReason: config.own,
+    body: JSON.stringify({
+      model: SEGMENT_MODEL(),
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: phrase },
+            { type: "input_image", image_url: imageDataUrl },
+          ],
+        },
+      ],
+      // Smaller masks: only the boxes are used.
+      metadata: { mask_encoding: "one_bit" },
+    }),
+  }).catch((error: unknown) => {
+    const status = Number(
+      (error instanceof Error ? error.message : "").match(/HTTP (\d{3})/)?.[1],
+    );
+    const reason =
+      config.own && error instanceof ServiceError && error.providerReason
+        ? ` The provider said: “${error.providerReason}”`
+        : "";
+    if (status === 401 || status === 403)
+      throw new ServiceError(
+        "AI_KEY_REJECTED",
+        config.own
+          ? `Meta rejected your key for SAM 3.1. Check it in AI settings.${reason}`
+          : "The site's AI key was rejected for SAM 3.1. Please tell the site owner.",
+        400,
+      );
+    if (status)
+      throw new ServiceError(
+        "AI_SEGMENT_FAILED",
+        `SAM 3.1 couldn't check this photo (HTTP ${status}).${reason}`,
+        502,
+      );
+    throw error;
+  });
+  const text =
+    result.output_text ??
+    (result.output ?? [])
+      .flatMap((o) => o.content ?? [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text ?? "")
+      .join("\n");
+  return parseSamBoxes(text);
+}

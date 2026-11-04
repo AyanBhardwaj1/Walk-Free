@@ -166,6 +166,7 @@ import TreePlanner from "./components/TreePlanner";
 import HeatStressLine from "./components/HeatStressLine";
 import { heatStress } from "./lib/heat-stress";
 import RefugeCard from "./components/RefugeCard";
+import ShadeCheck from "./components/ShadeCheck";
 import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
@@ -3387,6 +3388,28 @@ export default function App({
               tab === "heat" &&
               sunDirection(heatEnv, world.origin).altitude > 0 && (
                 <HeatStressLine stress={mapStress} />
+              )}
+            {!atlas &&
+              mode === "explore" &&
+              tab === "heat" &&
+              (!guest || guestAi) && (
+                <ShadeCheck
+                  check={(image) =>
+                    api(
+                      guest
+                        ? "/api/guest/shade-photo"
+                        : "/api/agent/shade-photo",
+                      { image },
+                      guest ? {} : ownKeyHeaders(ownKey),
+                    )
+                  }
+                  onPlan={() => {
+                    setMode("studio");
+                    setTab("build");
+                    tourPanel(1);
+                    revealInPanel(".tree-planner");
+                  }}
+                />
               )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <RefugeCard
