@@ -408,6 +408,8 @@ export default function App({
   });
   const [world, setWorld] = useState<World>(createStudyWorld);
   const [arrivalFrom, setArrivalFrom] = useState<string | null>(null);
+  // The area whose Meta canopy trees are still on their way, if any.
+  const [canopyPending, setCanopyPending] = useState<string | null>(null);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -2145,15 +2147,18 @@ export default function App({
       });
       // Meta's canopy arrives after the map: add it in place (not as an
       // undoable edit) if the same area is still open.
-      void canopy?.then((cells) => {
-        const add = (current: World) =>
-          current.id === w.id && !hasCanopy(current)
-            ? addCanopy(current, cells)
-            : current;
-        setWorld(add);
-        // Planting compares against this; give it the same trees.
-        setHeatBaseline((before) => before && add(before));
-      });
+      if (canopy && !hasCanopy(w)) setCanopyPending(w.id);
+      void canopy
+        ?.then((cells) => {
+          const add = (current: World) =>
+            current.id === w.id && !hasCanopy(current)
+              ? addCanopy(current, cells)
+              : current;
+          setWorld(add);
+          // Planting compares against this; give it the same trees.
+          setHeatBaseline((before) => before && add(before));
+        })
+        .finally(() => setCanopyPending((id) => (id === w.id ? null : id)));
       setAtlas(null);
       setSelected(null);
       let [from, to] = defaultEndpoints(w, {
@@ -3207,6 +3212,15 @@ export default function App({
                           route={currentRoute}
                           shadeOf={(id) => edgeHeat.get(baseEdgeId(id))?.shade}
                         />
+                      )}
+                      {canopyPending === world.id && (
+                        <div className="canopy-part" role="status">
+                          <span className="spinner small" aria-hidden />
+                          <span>
+                            Adding the trees OpenStreetMap is missing, from
+                            Meta&apos;s DINOv3 canopy map…
+                          </span>
+                        </div>
                       )}
                       {canopyPart &&
                         (hideCanopy ||
