@@ -567,7 +567,7 @@ const FAQ = [
   },
   {
     q: "Where does the tree shade come from?",
-    a: "Trees mapped in OpenStreetMap, plus Meta and the World Resources Institute's 1-metre global canopy height map, which fills in the many trees nobody has mapped. At UC Berkeley that's 214 mapped trees and about 10,900 more crowns from the canopy map.",
+    a: "Trees mapped in OpenStreetMap, plus Meta and the World Resources Institute's 1-metre global canopy height map, which fills in the many trees nobody has mapped. At UC Berkeley that's 216 mapped trees and about 10,900 more crowns from the canopy map.",
   },
   {
     q: "Which places work?",

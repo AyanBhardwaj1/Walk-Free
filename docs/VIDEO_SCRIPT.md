@@ -11,7 +11,7 @@ Record at 1440×900 in Chrome, Editorial style. Every link opens without an acco
 | 1:02–1:15 | Weather card AQI and HeatRisk badges; Heat tab: HeatRisk week | "Live air quality, National Weather Service heat alerts and the week's HeatRisk change the advice when the day turns dangerous." |
 | 1:15–1:35 | https://walk-free.vercel.app/demo?area=ut-austin&tab=ask, press Watch what it does (or, signed in with a Meta key, ask a question) | "The assistant is built for Meta's Muse Spark. It doesn't just chat: it ranks hot streets, explains why one is hot and plans the shade route on the map, in your language." |
 | 1:35–1:52 | Design studio → Shade trees: plant a hot street, then Write a proposal | "Plant a row of trees and see the street cool down, then turn it into a one-page proposal for your campus." |
-| (optional, +10 s) | https://walk-free.vercel.app/demo?fiction=noir-harbor, then the panel's city switcher to Aurora Realm; press Play the day | "And for fun: five fictional cities, each in its own weather. Rain on Noir Harbor's towers, the aurora over a golden citadel, and the lights coming on at dusk." |
+| (optional, +10 s) | https://walk-free.vercel.app/demo?fiction=noir-harbor, then the panel's city switcher to Aurora Realm; press Play the day | "And for fun: seven fictional cities, each in its own weather. Rain on Noir Harbor's towers, the aurora over a golden citadel, and the lights coming on at dusk." |
 | 1:52–2:00 | Data & Sources → Compare walks | "Open data, Meta AI, and a cooler way across campus. Walk-Free." |
 
 Tips:
