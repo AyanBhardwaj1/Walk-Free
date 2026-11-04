@@ -42,6 +42,10 @@ Without the site key, guests and signed-in people without their own key still ge
 2. In the Heat impact card press **See it as a photo**. After a few seconds the dialog shows the 3D model beside Muse Image's photo of the planted street.
 3. If it fails, the dialog shows Meta's reason. If Meta names a different model id, set `WALK_FREE_IMAGE_MODEL` in Vercel and redeploy.
 
+## 2d. Prove SAM 3.1's shade check (1 minute, after step 1)
+1. Open https://walk-free.vercel.app/demo?area=ut-austin&tab=heat, press **Take or choose a photo** and pick a street photo with trees.
+2. Green boxes should appear over the trees. If it fails, the card shows Meta's reason. If Meta names a different model id, set `WALK_FREE_SEGMENT_MODEL` in Vercel and redeploy.
+
 ## 3. Record the video
 Follow `docs/VIDEO_SCRIPT.md` (2 minutes). It opens on a Spanish question to Muse Spark, so do step 1 first.
 
