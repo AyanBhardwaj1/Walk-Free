@@ -177,7 +177,7 @@ import { streetHeatCsv } from "./lib/heat-csv";
 import { heatBrief } from "./lib/heat-brief";
 import ProposalDialog from "./components/ProposalDialog";
 import type { CoolWalkability } from "./lib/cool-walkability";
-import { speechLang } from "./lib/speech-lang";
+import { speakReply, stopReply, warmUpNaturalVoice } from "./lib/reply-voice";
 import {
   formatTemp,
   inUnit,
@@ -1510,8 +1510,11 @@ export default function App({
       return ask(request);
     },
   };
-  async function sendChat(text: string) {
+  /** `spoken`: asked by voice, so the answer is read aloud too. */
+  async function sendChat(text: string, spoken = false) {
     cityThisTurn.current = false;
+    stopReply();
+    if (spoken) setSpeakReplies(true);
     setChatError("");
     const history: ChatMessage[] = [...chat, { role: "user", content: text }];
     setChat(history);
@@ -1573,7 +1576,7 @@ export default function App({
           ),
       );
       setChat(messages);
-      if (speakReplies) speak(reply, speechLang(reply));
+      if (speakReplies || spoken) void speakReply(reply);
     } catch (e) {
       if (e instanceof PartialChatError) {
         // Tools already changed the map; keep that in the conversation.
@@ -3548,8 +3551,12 @@ export default function App({
                   status={chatStatus}
                   error={chatError}
                   speakReplies={speakReplies}
-                  onSpeakReplies={setSpeakReplies}
-                  onSend={(text) => void sendChat(text)}
+                  onSpeakReplies={(on) => {
+                    setSpeakReplies(on);
+                    if (on) warmUpNaturalVoice();
+                    else stopReply();
+                  }}
+                  onSend={(text, spoken) => void sendChat(text, spoken)}
                   onTranscribe={async (audio, language) => {
                     const heard = await api(
                       "/api/voice/transcribe",

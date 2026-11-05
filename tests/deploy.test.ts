@@ -35,7 +35,11 @@ describe("security headers", () => {
     const all = config.headers.find((h) => h.source === "/(.*)")!.headers;
     const csp = all.find((h) => h.key === "Content-Security-Policy")!.value;
     expect(csp).toContain("script-src 'self'");
-    expect(csp).not.toMatch(/script-src[^;]*unsafe/);
+    // WebAssembly (the in-browser voice) may compile; scripts never run
+    // from strings or inline.
+    const scripts = csp.match(/script-src[^;]*/)![0];
+    expect(scripts).not.toMatch(/'unsafe-(inline|eval|hashes)'/);
+    expect(scripts.replace("'wasm-unsafe-eval'", "")).not.toMatch(/unsafe/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
   });

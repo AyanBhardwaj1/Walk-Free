@@ -1,8 +1,63 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const packageDir = (name: string) =>
+  join(dirname(fileURLToPath(import.meta.url)), "node_modules", name);
+/**
+ * The open-source voice (Piper) runs in the browser on WebAssembly. Its
+ * runtime files are served from this site under /tts/ rather than from a
+ * CDN, so the Content-Security-Policy can stay 'self'.
+ */
+const VOICE_FILES: Record<string, string> = {
+  "ort-wasm-simd.wasm": join(
+    packageDir("onnxruntime-web"),
+    "dist/ort-wasm-simd.wasm",
+  ),
+  "ort-wasm.wasm": join(packageDir("onnxruntime-web"), "dist/ort-wasm.wasm"),
+  "piper_phonemize.wasm": join(
+    packageDir("@diffusionstudio/piper-wasm"),
+    "build/piper_phonemize.wasm",
+  ),
+  "piper_phonemize.data": join(
+    packageDir("@diffusionstudio/piper-wasm"),
+    "build/piper_phonemize.data",
+  ),
+};
+function voiceFiles(): Plugin {
+  return {
+    name: "walk-free-voice-files",
+    configureServer(server) {
+      server.middlewares.use((q, r, next) => {
+        const name = q.url?.match(/^\/tts\/([\w.]+)$/)?.[1];
+        const file = name && VOICE_FILES[name];
+        if (!file) return next();
+        r.setHeader(
+          "Content-Type",
+          name.endsWith(".wasm")
+            ? "application/wasm"
+            : "application/octet-stream",
+        );
+        r.end(readFileSync(file));
+      });
+    },
+    generateBundle() {
+      for (const [name, file] of Object.entries(VOICE_FILES))
+        this.emitFile({
+          type: "asset",
+          fileName: `tts/${name}`,
+          source: readFileSync(file),
+        });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), voiceFiles()],
+  // The voice worker loads its runtime with dynamic imports.
+  worker: { format: "es" },
   server: { port: 5173, proxy: { "/api": "http://127.0.0.1:8787" } },
   // The 3D workspace (three.js) loads only after sign-in.
   build: {

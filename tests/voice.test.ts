@@ -235,3 +235,48 @@ describe("questions in other languages", () => {
     expect(SYSTEM_PROMPT).toMatch(/misheard/);
   });
 });
+
+describe("spoken replies", () => {
+  it("has a Piper voice for each language it promises, all in the package's catalogue", async () => {
+    const { NATURAL_VOICES } = await import("../src/lib/reply-voice");
+    const { PATH_MAP } = await import("@mintplex-labs/piper-tts-web");
+    for (const voice of Object.values(NATURAL_VOICES))
+      expect(PATH_MAP).toHaveProperty([voice]);
+    expect(Object.keys(NATURAL_VOICES)).toEqual(
+      expect.arrayContaining(["en", "es", "fr", "zh"]),
+    );
+  });
+
+  it("reads temperatures as words in the reply's language", async () => {
+    const { speakable } = await import("../src/lib/reply-voice");
+    expect(speakable("Feels like **81°F** in the sun.", "en")).toBe(
+      "Feels like 81 degrees Fahrenheit in the sun.",
+    );
+    expect(speakable("Unos 27 °C a la sombra.", "es")).toBe(
+      "Unos 27 grados Celsius a la sombra.",
+    );
+    expect(speakable("约 81°F", "zh")).toBe("约 81°F");
+  });
+
+  it("picks the most natural installed voice for the language", async () => {
+    const { bestVoice } = await import("../src/lib/navigation");
+    const voices = [
+      { name: "Fred", lang: "en-US", localService: true },
+      { name: "Monica", lang: "es-ES", localService: true },
+      { name: "Paulina (Enhanced)", lang: "es-MX", localService: true },
+      { name: "Google español", lang: "es-ES", localService: false },
+      {
+        name: "Microsoft Dalia Online (Natural)",
+        lang: "es_MX",
+        localService: false,
+      },
+    ];
+    expect(bestVoice(voices, "es-MX")?.name).toBe(
+      "Microsoft Dalia Online (Natural)",
+    );
+    expect(bestVoice(voices.slice(0, 3), "es-ES")?.name).toBe(
+      "Paulina (Enhanced)",
+    );
+    expect(bestVoice(voices, "hi-IN")).toBeUndefined();
+  });
+});

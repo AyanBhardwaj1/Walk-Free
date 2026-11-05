@@ -9,6 +9,13 @@ import {
   type VoiceLanguage,
 } from "../../shared/voice-languages";
 import { canRecord, recordQuestion, wavDataUrl } from "../lib/voice-recorder";
+import {
+  naturalVoiceSupported,
+  onVoiceStatus,
+  stopReply,
+  unlockAudio,
+  type VoiceStatus,
+} from "../lib/reply-voice";
 
 const VOICE_LANGUAGE_KEY = "walk-free:voice-language";
 function loadVoiceLanguage(): VoiceLanguage | "auto" {
@@ -130,7 +137,8 @@ export default function AssistantPanel({
   error: string;
   speakReplies: boolean;
   onSpeakReplies: (on: boolean) => void;
-  onSend: (text: string) => void;
+  /** `spoken`: the question was asked by voice, so the reply is read aloud. */
+  onSend: (text: string, spoken?: boolean) => void;
   onReset: () => void;
   ownKey: OwnAiKey | null;
   onOwnKey: (value: OwnAiKey | null) => void;
@@ -158,10 +166,15 @@ export default function AssistantPanel({
     [],
   );
   const metaVoice = Boolean(onTranscribe) && canRecord();
-  function send(text = draft) {
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({
+    state: "idle",
+  });
+  useEffect(() => onVoiceStatus(setVoiceStatus), []);
+  function send(text = draft, spoken = false) {
     const clean = text.trim();
     if (!clean || status) return;
-    onSend(clean);
+    if (speakReplies || spoken) unlockAudio();
+    onSend(clean, spoken);
     setDraft("");
   }
   function chooseVoiceLanguage(next: VoiceLanguage | "auto") {
@@ -174,6 +187,10 @@ export default function AssistantPanel({
   }
   async function listen() {
     setVoiceError("");
+    // The tap is the gesture phones need before a spoken reply can play,
+    // and talking over a reply stops it.
+    unlockAudio();
+    stopReply();
     if (listening) {
       recording.current?.stop();
       recognition.current?.stop();
@@ -204,7 +221,7 @@ export default function AssistantPanel({
           wavDataUrl(wav),
           voiceLanguage === "auto" ? undefined : voiceLanguage,
         );
-        if (heard) send(heard);
+        if (heard) send(heard, true);
         else setVoiceError("I couldn't make out any words. Please try again.");
       } catch (e) {
         // Without the site's Meta key, the browser's own recognition is next.
@@ -232,7 +249,7 @@ export default function AssistantPanel({
     r.interimResults = false;
     r.onresult = (e) => {
       const heard = e.results[0]?.[0]?.transcript ?? "";
-      if (heard) send(heard);
+      if (heard) send(heard, true);
     };
     r.onend = () => setListening(false);
     r.onerror = () => setListening(false);
@@ -284,7 +301,10 @@ export default function AssistantPanel({
           }
           aria-pressed={speakReplies}
           title={speakReplies ? "Replies are read aloud" : "Replies are silent"}
-          onClick={() => onSpeakReplies(!speakReplies)}
+          onClick={() => {
+            if (!speakReplies) unlockAudio();
+            onSpeakReplies(!speakReplies);
+          }}
         >
           {speakReplies ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
@@ -411,6 +431,17 @@ export default function AssistantPanel({
             </span>
           )}
         </div>
+      )}
+      {speakReplies && naturalVoiceSupported() && (
+        <p className="fine voice-status" aria-live="polite">
+          {voiceStatus.state === "downloading"
+            ? `Downloading a natural ${voiceStatus.language} voice (${voiceStatus.percent}%), once. Until then, replies use this device's voice.`
+            : voiceStatus.state === "ready"
+              ? "Replies are read in Piper, an open-source natural voice that runs on this device."
+              : voiceStatus.state === "unavailable"
+                ? "Replies are read in this device's voice."
+                : "Replies are read aloud. A natural open-source voice (Piper) downloads with the first one."}
+        </p>
       )}
       {voiceError && (
         <p className="chat-error" role="alert">

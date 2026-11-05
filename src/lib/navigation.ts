@@ -90,7 +90,11 @@ export function speak(text: string, lang?: string | null): Promise<void> {
   if (!("speechSynthesis" in window)) return Promise.resolve();
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  if (lang) utterance.lang = lang;
+  if (lang) {
+    utterance.lang = lang;
+    const voice = bestVoice(speechSynthesis.getVoices(), lang);
+    if (voice) utterance.voice = voice;
+  }
   return new Promise((resolve) => {
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
@@ -99,6 +103,38 @@ export function speak(text: string, lang?: string | null): Promise<void> {
     setTimeout(resolve, 2000 + text.split(/\s+/).length * 450);
     speechSynthesis.speak(utterance);
   });
+}
+/**
+ * The most natural-sounding installed voice for a language: the browser
+ * otherwise often picks a robotic default. Neural and online voices
+ * (Edge's "Natural", Chrome's "Google", Apple's "Premium"/"Enhanced")
+ * win; an exact region match breaks ties.
+ */
+export function bestVoice(
+  voices: Pick<SpeechSynthesisVoice, "lang" | "name" | "localService">[],
+  lang: string,
+) {
+  const want = lang.toLowerCase().replace("_", "-");
+  const base = want.split("-")[0];
+  let best: (typeof voices)[number] | undefined;
+  let bestScore = -1;
+  for (const v of voices) {
+    const tag = v.lang.toLowerCase().replace("_", "-");
+    if (tag.split("-")[0] !== base) continue;
+    const score =
+      (/natural|neural|premium|enhanced|siri/i.test(v.name) ? 4 : 0) +
+      (/google/i.test(v.name) ? 3 : 0) +
+      (v.localService ? 0 : 1) +
+      (tag === want ? 2 : 0) -
+      (/compact|eloquence|novelty|bells|whisper|zarvox|bad news/i.test(v.name)
+        ? 5
+        : 0);
+    if (score > bestScore) {
+      best = v;
+      bestScore = score;
+    }
+  }
+  return best as SpeechSynthesisVoice | undefined;
 }
 export function stopSpeech() {
   if (nativeNavigation) void TextToSpeech.stop();

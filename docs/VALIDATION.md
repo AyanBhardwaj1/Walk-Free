@@ -366,3 +366,12 @@ The live Ask tab misheard speech: recognition was fixed to US English, so a Span
 - Muse Spark, with the new prompt rule, called `find_places("library")` for Spanish and Hindi questions and `plan_route(to: "Gregory Gym")` for a French one, replying in each language. "Beyonce baby" after a Spanish turn now gets "did I get that right?" with no tool call.
 - In Chrome with a fake microphone playing a spoken Spanish question: Listening → Transcribing → the question appeared as typed, then Muse Spark planned the shade route to Perry-Castañeda Library (15 min, 83% shade) and answered in Spanish. No page errors.
 - `npm test`: 680 pass; `npm run build` and `npm run lint` pass. iOS gets `NSMicrophoneUsageDescription` and Android `RECORD_AUDIO`; neither has run on a device.
+
+## Spoken replies with an open-source voice — 2026-11-04 (evening)
+
+Meta's Model API has no text-to-speech model (`/v1/audio/speech` and `/v1/tts/synthesize` return 404), so replies are read by Piper in the browser.
+
+- Production build served with `vercel.json`'s headers, in Chrome with a fake microphone. A spoken Spanish question turned on spoken replies. The first answer was read by the device's es-ES voice while the Spanish Piper voice (`es_MX-ald-medium`) downloaded; it was ready about 4 s later. The second answer played as 16.9 s of Piper audio.
+- Piper's English audio of a reply, sent back through Muse Voice Transcribe, came back nearly word for word ("Luther Lane is the coolest right now at an estimated feels like 80 degrees with full shade…").
+- No Content-Security-Policy violations from the voice. One `script-src eval` report comes from the main bundle and appears before the voice loads, as it did before this change.
+- `npm test`: 683 pass; `npm run build` and `npm run lint` pass. Not yet tried on an iPhone, where playback depends on the tap that sent the question (handled by `unlockAudio`).
