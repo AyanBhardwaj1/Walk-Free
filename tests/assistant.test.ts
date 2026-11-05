@@ -518,8 +518,24 @@ describe("bounding what reaches the model", () => {
 });
 
 describe("shared assistant and email verification", () => {
-  it("asks unverified accounts to verify before using the shared key", async () => {
+  it("lets any signed-in account use the shared key by default", async () => {
     vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    setUsageStore(memoryUsage());
+    requestJson.mockResolvedValueOnce({
+      choices: [{ message: { content: "Hi" } }],
+    });
+    const result = await post(
+      "/api/agent/chat",
+      { messages: [{ role: "user", content: "Hi" }], context },
+      {},
+      { id: "new-walker", emailVerified: false },
+    );
+    expect(result.status).toBe(200);
+  });
+
+  it("asks unverified accounts to verify when the site requires it", async () => {
+    vi.stubEnv("WALK_FREE_OPENAI_API_KEY", "sk-test");
+    vi.stubEnv("WALK_FREE_REQUIRE_VERIFIED_EMAIL", "on");
     setUsageStore(memoryUsage());
     const result = await post(
       "/api/agent/chat",

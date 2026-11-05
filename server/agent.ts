@@ -43,14 +43,20 @@ export const proposalSchema = z.object({
 export const agentRouter = Router();
 
 /**
- * The shared key is for verified accounts, so throwaway sign-ups can't use
- * up the site's monthly allowance. A person's own key is always allowed.
+ * With WALK_FREE_REQUIRE_VERIFIED_EMAIL=on, the shared key is for verified
+ * accounts only, so throwaway sign-ups can't use up the site's monthly
+ * allowance. Off by default: any signed-in account may use it, within the
+ * per-account and monthly caps. A person's own key is always allowed.
  */
 function requireVerifiedForSharedKey(
   config: { own?: boolean },
   account: { emailVerified?: boolean },
 ) {
-  if (!config.own && account.emailVerified === false)
+  if (
+    process.env.WALK_FREE_REQUIRE_VERIFIED_EMAIL === "on" &&
+    !config.own &&
+    account.emailVerified === false
+  )
     throw new ServiceError(
       "EMAIL_UNVERIFIED",
       "Verify your email to use the shared assistant, or add your own AI key in AI settings.",
