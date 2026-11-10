@@ -164,6 +164,26 @@ export function parseHeatRisk(
   return { today, days, ...(peak ? { peak } : {}) };
 }
 
+/**
+ * HeatRisk on the local day of `at`, for a walk planned at that time: the
+ * listed day's level, else today's single value when no days are listed
+ * and `at` is today; null when the day isn't covered.
+ */
+export function heatRiskOn(
+  risk: HeatRisk | null | undefined,
+  at: Date,
+  lon = 0,
+  now = new Date(),
+): number | null {
+  if (!risk) return null;
+  const day = localDay(at.getTime(), lon);
+  const hit = risk.days.find((d) => localDay(Date.parse(d.date), lon) === day);
+  if (hit) return hit.level;
+  return risk.days.length === 0 && localDay(now.getTime(), lon) === day
+    ? risk.today
+    : null;
+}
+
 const AQI_LEVELS: [number, string][] = [
   [50, "Good"],
   [100, "Moderate"],

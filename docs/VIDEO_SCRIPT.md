@@ -1,61 +1,257 @@
-# Walk-Free: 3-minute demo video script
+# Walk-Free: final 3-minute demo script
 
-**Event:** Meta Global AI Developer Hackathon, indie developer track. **Hard cap: 3:00.** Aim for 2:50 so nothing is cut.
-**Presenters:** Ayan Bhardwaj (A) and Saatvik Kesarwani (S).
-**Live link:** https://walk-free.vercel.app · **Guest demo (no sign-up):** https://walk-free.vercel.app/demo
+**Meta Global AI Developer Hackathon · Indie developer track**
+**Runtime:** 2:52 of spoken and shown content, plus 6 seconds on the end card (under the 3:00 cap).
+**Speakers:** AYAN (Ayan Bhardwaj) and SAATVIK (Saatvik Kesarwani). About 400 spoken words at a relaxed 140–150 words a minute.
+**Live:** https://walk-free.vercel.app · **Guest demo, no sign-up:** https://walk-free.vercel.app/demo
 
 How to read this:
+- **[ON CAMERA]** is filmed of you two.
+- **[VO]** is voice-over recorded over screen footage.
 - **SCREEN** is what to capture.
-- **SAY** is the voice-over or on-camera line.
-- **EDIT** is the cue for the editing workflow: animations, overlays, captions, sound.
+- **EDIT** is a cue for the editing workflow: animation, overlay, caption, sound.
 
-Lines are timed for an easy talking pace, about 150 words a minute.
+---
 
-## Before recording
+## SCENE 1: COLD OPEN (0:00–0:07)
 
-- Set the site's Meta key in Vercel first (docs/LAUNCH_CHECKLIST.md, step 1). Then Muse Spark, Muse Wonder, Muse Image and SAM 3.1 answer live in the guest demo.
-  - If the key isn't live yet, the Ask tab offers **Watch what it does**, a scripted run of the same tools. If you show that, caption it "scripted demo of the assistant's tools", never "Muse Spark".
-- Record the screen at 1440×900 or 1920×1080, Editorial style, with the browser zoomed to 100% and bookmarks hidden.
-- Open every demo link at **3 PM** (`&t=15`). The strongest heat contrast is a July afternoon: in the weather chip, tap **July afternoon**.
-- Have a real street photo ready (looking along a sunny sidewalk, ideally one with a few trees) for the SAM 3.1 shot.
-- Record each beat as its own clip. The software map can take a few seconds to settle after a click, so trim the waits in the edit.
-- Use the map's **Record the day as a time-lapse video** button (toolbar) to capture b-roll of shadows sweeping across campus. That one file covers the cold open and the outro.
+**SCREEN:** Time-lapse of UT Austin from 6 AM to 6 PM (map toolbar → "Record the day as a time-lapse video"). The paths shift from cool teal to hot orange as the sun climbs.
 
-## The script
+**AYAN [VO]:**
+> Three in the afternoon, Austin, Texas. The walk to class feels like a hundred and seventeen degrees.
 
-| Time | SCREEN | SAY | EDIT |
-|---|---|---|---|
-| **0:00–0:08** Cold open | Time-lapse b-roll: UT Austin from morning to evening, streets going from blue to red as the sun climbs. | (VO, A) "At three in the afternoon in Austin, the street outside the library feels like a hundred and seventeen degrees." | Start on black, fade in the time-lapse. Large animated counter in the corner ticking 81°F → 117°F in sync with the clock caption. Low, warm synth swell. No logo yet. |
-| **0:08–0:22** Intros, on camera | Both on camera, side by side or split screen. | **A:** "I'm Ayan, a student at UT Austin." **S:** "And I'm Saatvik. Every summer we walk between classes in the worst heat of the day, and our maps only ever send us the fastest way, straight through the sun." | Lower-thirds with name and role (Ayan Bhardwaj; Saatvik Kesarwani). Light film grain. Cut to the Walk-Free logo sting on "the sun" (0.5 s). |
-| **0:22–0:34** The problem | Landing page hero, slow scroll down to the FAQ "Why does a few degrees of shade matter?" | **A (VO):** "Heat is the deadliest weather in the US. In 2023 it was on more than twenty-three hundred death certificates, and sent about a hundred and twenty thousand people to the ER." | Kinetic type for "2,300+" and "~120,000", each popping in with a soft thud. Small source credits at the bottom (NWS, CDC, AP). |
-| **0:34–0:40** The pitch | Landing hero headline "The cooler way across campus is already there." | **A:** "So we built Walk-Free: it shows how hot every street will feel at the hour you walk it, and finds the shade." | Title card animates in over the hero: **Walk-Free · built on Meta AI**. |
-| **0:40–1:02** Muse Spark acts on the map | `/demo?area=ut-austin&tab=ask&t=15`. Type (or say with the mic) **"¿Cuál es la ruta con más sombra a Gregory Gym ahora mismo?"** The route draws on the 3D map. Then open one step under the answer to show the tool call. | **A:** "This is Meta's Muse Spark, and it doesn't just chat. I asked in Spanish for the shadiest way to the gym. It called Walk-Free's own tools, drew the route on a live 3D model of campus, and answered in my language. Every step it took is right here." | Zoom-and-pan (Ken Burns) onto the chat as the question types. Callout bubble "Muse Spark · tool call: plan_route" pointing at the opened step. Highlight the drawn route with a glowing trace animation. Subtitles: Spanish line plus an English translation. |
-| **1:02–1:16** DINOv3 finds the missing trees | Route tab: the canopy line "With Meta's DINOv3 canopy, this walk is …% shaded; without it, …%." Press **Hide its trees**, then **Show its trees**. | **A:** "Half of that shade comes from trees nobody ever mapped. OpenStreetMap has about four thousand trees on our six campuses. Meta's DINOv3 canopy map adds over sixty thousand." | Before/after wipe synced to the toggle. Counter overlay "4,375 → +62,748 tree crowns". Tag in the corner: "Meta × WRI Canopy Height Maps v2 (DINOv3)". |
-| **1:16–1:30** Routes that change with the hour | Drag the time slider 9 AM → 3 PM (streets turn red). Then compare **Quickest** with **More shade**; point at the heat-stress line under the route. | **A:** "Shade moves through the day, so the best walk moves too. The shade route skips about a fifth of the sun for a few extra steps. Over a semester that's about nine hours less in full sun." | Split screen of Quickest vs More shade with numbers ticking. Big caption "≈ 9 hours less in full sun / semester". Small badge on the UTCI line: "UTCI heat-stress index". |
-| **1:30–1:48** Saatvik: check it with a photo (SAM 3.1) | Heat tab → hottest list → open a street → **Check it with a photo (SAM 3.1)** → choose the prepared street photo. The overlay shows canopy, paved ground and sky, with sun vs shade on the ground. | **S:** "A model is only as good as the ground truth. So you can check any street with a photo. Meta's SAM 3.1 marks the tree canopy, the pavement and the sky, and we split the ground into sun and shade, right next to what the model predicted." | Picture-in-picture of Saatvik in the corner while he talks. The mask overlay animates in layer by layer: canopy (green), pavement, sky. Callout "SAM 3.1 · Meta Model API". |
-| **1:48–2:10** From a walk to civic action | Design studio → **Where should the next trees go?** → **Find where trees help the most walkers** → ranked list → **Plant this street** on #1 (Heat impact card: shade before → after, a few °F cooler) → **See it as a photo**. | **A:** "Then it goes further. Walk-Free walks the whole campus, finds the sunny streets most people use, and ranks where new trees would help the most walkers. One click plants them, and Meta's Muse Image turns the 3D view into a photo of the greener street." | Animated bar chart for the ranked list (bars grow in). Freeze-frame on the before/after numbers with a bold "X°F cooler" stamp (read X off the Heat impact card you recorded). Side-by-side reveal of the 3D model and the Muse Image photo with a slider wipe. Callout "Muse Image · images/edits". |
-| **2:10–2:22** Proposal and refuges | **Write a proposal**: show the letter and its link line "See it planted, in 3D". Then Heat tab → tick **Colour paths by walk to the nearest refuge**. | **A:** "It writes the proposal for the city council, with a link that opens campus with those trees already planted. And it maps how far every path is from a cool refuge, like Barcelona's climate shelters." | Highlight the link line in the proposal with a marker-sweep animation. Map recolours green → amber → red; overlay "28% within 5 min · 64% within 10 min (UT Austin, 3 PM)". |
-| **2:22–2:36** Saatvik: Muse Wonder | Ask tab → switch on **Think deeper with Meta's Muse Wonder** → ask "Should I walk from Jester to PCL at 9 AM or at 3 PM today, and which way keeps me in the shade?" | **S:** "For harder questions, one switch hands the same tools to Muse Wonder, Meta's reasoning model. Here it weighs the hour and the route together, and tells me when to go and which way." | Show the toggle with a glow pulse. Speed-ramp through the thinking wait (2–4×) with a "thinking…" shimmer overlay, then land at normal speed on the answer and the route on the map. |
-| **2:36–2:50** Close, on camera | Both on camera; cut to the landing "Built with Meta AI" section, then the time-lapse again. | **S:** "Muse Spark, Muse Wonder, Muse Image, SAM 3.1 and DINOv3, all pointed at one thing." **A:** "A cooler way across campus. Try it now, no sign-up: walk-free.vercel.app." | Logo wall of the five Meta technologies animating in one by one. End card: Walk-Free logo, URL, "Open source on GitHub", both names. Music resolves. |
-| **2:50–3:00** Buffer | End card holds. | (silence) | Hold the end card; leave the buffer so the upload stays under 3:00. |
+**EDIT:**
+- Fade up from black.
+- Big animated temperature counter in the lower right, ticking **81°F → 117°F** in sync with the time-lapse clock.
+- Add a small "modeled estimate" tag under the counter.
+- Warm, low synth pad builds under the line.
+- No logo yet.
 
-## On-screen numbers (all from the app or its cited sources; keep them exactly)
+---
 
-| Claim | Source |
+## SCENE 2: INTRODUCTIONS (0:07–0:19)
+
+**[ON CAMERA]:** Both of you, side by side or split screen. Natural light, plain background.
+
+**AYAN:**
+> Hi, I'm Ayan.
+
+**SAATVIK:**
+> And I'm Saatvik. We built Walk-Free.
+
+**AYAN:**
+> Every summer we cross campus in the worst heat of the day, and our maps send us the fastest way. Straight through the sun.
+
+**EDIT:**
+- Lower-third name tags slide in: "Ayan Bhardwaj", "Saatvik Kesarwani".
+- On "straight through the sun", a hard cut to the **Walk-Free logo sting** (0.5 s, sun-flare wipe).
+
+---
+
+## SCENE 3: THE PROBLEM (0:19–0:30)
+
+**SCREEN:** Landing page hero, then a slow scroll to the FAQ "Why does a few degrees of shade matter?", opened.
+
+**SAATVIK [VO]:**
+> Heat is the deadliest weather in America. In 2023 it was on more than twenty-three hundred death certificates, and sent about a hundred and twenty thousand people to the ER.
+
+**EDIT:**
+- Kinetic type: **2,300+** then **~120,000**, each landing with a soft low thud.
+- Small source line at the bottom: "NWS · CDC Heat & Health Tracker · AP analysis of CDC data".
+- Music drops to near silence on the second number.
+
+---
+
+## SCENE 4: THE IDEA (0:30–0:36)
+
+**SCREEN:** Hero headline "The cooler way across campus is already there."
+
+**AYAN [VO]:**
+> Walk-Free shows how hot every street will feel at the hour you walk it, and finds you the shade.
+
+**EDIT:**
+- Title card animates over the hero: **WALK-FREE · built on Meta AI**.
+- The music beat kicks in here.
+
+---
+
+## SCENE 5: MUSE SPARK ACTS ON THE MAP (0:36–0:58)
+
+**SCREEN:**
+1. Open `/demo?area=ut-austin&tab=ask&t=15`.
+2. Type, or say with the mic: **"¿Cuál es la ruta con más sombra a Gregory Gym ahora mismo?"**
+3. The route draws on the 3D map and the answer appears.
+4. Open one step under the answer to show the tool call.
+
+**AYAN [VO]:**
+> This is Meta's Muse Spark, and it doesn't just chat. I asked, in Spanish, for the shadiest way to the gym. It called our own tools, drew the route on a live 3D model of campus, and answered in my language. Every step it took is right here.
+
+**EDIT:**
+- Slow push-in on the chat as the question types.
+- Subtitle the Spanish question with an English translation.
+- Glowing trace animation along the route as it draws.
+- Callout bubble pointing at the opened step: **"Muse Spark · tool call: plan_route"**.
+- First appearance of the corner tag **Muse Spark** (keep this tag style for every Meta model).
+
+---
+
+## SCENE 6: DINOv3 FINDS THE MISSING TREES (0:58–1:12)
+
+**SCREEN:** Route tab. Show the line "With Meta's DINOv3 canopy, this walk is …% shaded; without it, …%." Press **Hide its trees**, hold a beat, then **Show its trees**.
+
+**AYAN [VO]:**
+> Half of that shade comes from trees nobody ever mapped. OpenStreetMap knows about four thousand trees on our campuses. Meta's DINOv3 canopy map finds sixty-two thousand more.
+
+**EDIT:**
+- Before/after wipe synced to the toggle (whoosh SFX).
+- Counter overlay: **4,375 → +62,748 tree crowns**.
+- Corner tag: **DINOv3 · Meta × WRI Canopy Height Maps**.
+
+---
+
+## SCENE 7: SHADE MOVES WITH THE CLOCK (1:12–1:25)
+
+**SCREEN:** Drag the time slider from 9 AM to 3 PM (streets turn red). Then show the **Quickest** and **More shade** route cards side by side, and the "Heat stress on this walk" line.
+
+**AYAN [VO]:**
+> And shade moves. The shade route skips about a fifth of the sun for a few extra steps: about nine hours less in full sun over a semester.
+
+**EDIT:**
+- Speed-ramp the slider drag.
+- Split screen: Quickest vs More shade, with the numbers ticking.
+- Big caption: **≈ 9 hours less in full sun per semester**.
+- Small badge on the heat-stress line: **UTCI heat-stress index**.
+
+---
+
+## SCENE 8: CHECK IT WITH A PHOTO, SAM 3.1 (1:25–1:43)
+
+**SCREEN:**
+1. Heat tab → open a street from the hottest list → **Check it with a photo (SAM 3.1)**.
+2. Choose your prepared street photo.
+3. The overlay shows tree canopy, paved ground and sky, with the ground split into sun and shade.
+
+**SAATVIK [VO, or picture-in-picture on camera]:**
+> A model is only useful if you can trust it. So you can check any street with a photo. Meta's SAM 3.1 finds the tree canopy, the pavement and the sky, and we split the ground into sun and shade, right next to what our model predicted.
+
+**EDIT:**
+- Picture-in-picture of Saatvik in a rounded corner frame while he speaks.
+- The mask layers animate in one at a time: canopy (green), pavement, sky.
+- Corner tag: **SAM 3.1**.
+
+---
+
+## SCENE 9: WHERE SHOULD THE NEXT TREES GO? (1:43–2:04)
+
+**SCREEN:**
+1. Design studio → **Find where trees help the most walkers** → the ranked list appears.
+2. **Plant this street** on #1 → the Heat impact card shows shade and feels-like before → after.
+3. **See it as a photo**: the 3D view beside Muse Image's photo of the planted street.
+
+**AYAN [VO]:**
+> Then we asked a bigger question: where should campus plant its next trees? Walk-Free samples everyday walks, finds the sunny streets most people share, and ranks where a row of trees saves the most sun. One click plants them, and Meta's Muse Image shows the greener street as a photo.
+
+**EDIT:**
+- The ranked bars grow in, staggered.
+- Freeze-frame on the Heat impact card with a bold stamp: **"[X]°F cooler"** (read the number off the card you recorded).
+- Slider-wipe reveal from the 3D model to the Muse Image photo.
+- Corner tag: **Muse Image**.
+
+---
+
+## SCENE 10: FROM A WALK TO CITY HALL (2:04–2:16)
+
+**SCREEN:**
+1. **Write a proposal**: scroll the letter to the line "See it planted, in 3D".
+2. Cut to the Heat tab → tick **Colour paths by walk to the nearest refuge**: the map recolours.
+
+**SAATVIK [VO]:**
+> It writes the proposal for the city, with a link that opens campus with those trees already planted. And like Barcelona's climate shelters, it maps how far every path is from a place to cool down.
+
+**EDIT:**
+- Highlighter sweep across the link line in the proposal.
+- Map recolour green → amber → red.
+- Overlay: **"28% of paths within 5 min · 64% within 10 min"** (UT Austin, 3 PM).
+
+---
+
+## SCENE 11: MUSE WONDER THINKS IT THROUGH (2:16–2:30)
+
+**SCREEN:**
+1. Ask tab → switch on **Think deeper with Meta's Muse Wonder**.
+2. Ask **"Should I walk from Jester to PCL at 9 AM or at 3 PM today, and which way keeps me in the shade?"**
+3. Show the answer and the route.
+
+**SAATVIK [VO]:**
+> For harder questions, one switch hands the same tools to Muse Wonder, Meta's reasoning model. It weighs the hour and the route together, and tells you when to go.
+
+**EDIT:**
+- Glow pulse on the toggle.
+- Speed-ramp through the thinking wait (2–4×) with a soft "thinking" shimmer.
+- Land at normal speed on the answer.
+- Corner tag: **Muse Wonder**.
+
+---
+
+## SCENE 12: CLOSE (2:30–2:52)
+
+**[ON CAMERA]:** Both of you again, same framing as Scene 2.
+
+**AYAN:**
+> Muse Spark, Muse Wonder, Muse Image, SAM 3.1 and DINOv3. Five pieces of Meta AI, pointed at one problem.
+
+**SAATVIK:**
+> Walk-Free. The cooler way across campus.
+
+**AYAN:**
+> Try it right now, no sign-up, at walk-free dot vercel dot app.
+
+**EDIT:**
+- On "five pieces of Meta AI", the five model tags fly in one by one and lock into a row.
+- Cut to the time-lapse b-roll for the last line.
+- End card: Walk-Free logo · **walk-free.vercel.app** · "Open source on GitHub" · both names.
+- Music resolves on the logo.
+
+## END CARD HOLD (2:52–2:58)
+
+The end card holds in silence. Export at **2:58 or shorter**.
+
+---
+
+## Production notes
+
+**Before recording**
+- Check https://walk-free.vercel.app/api/health shows `"aiConfigured": true`, `"guestAi": true` and `"aiUsageDatabase": true`.
+- In the browser you record with, remove any personal AI key: under the chat, if it says "Using your … key", click **Change** and remove it. The footer under each answer should then say **"Answered by Meta's Muse Spark"** (or Muse Wonder).
+- Do a full dry run of Scenes 5, 8, 9 and 11 once, so nothing surprises you on camera.
+- If any live AI call fails while recording, use the Ask tab's **Watch what it does** demo instead, and caption it on screen as **"scripted demo of the assistant's tools"**. Never label it as Muse Spark.
+
+**Capture settings**
+- Screen at 1920×1080 (or 1440×900), browser zoom 100%, bookmarks bar hidden, notifications off.
+- Open every demo link with `&t=15` (3 PM). For the strongest heat, tap the weather chip → **July afternoon**.
+- Record each scene as its own clip. The 3D map needs a moment after some clicks; cut those waits in the edit.
+- **B-roll:** the map's time-lapse button gives Scene 1 and the closing shot in one take. Also grab a slow orbit of campus (right-drag) and a street-level walk (Route tab → **Walk it at street level**) as spare cutaways.
+- For Scene 8, use a real photo looking along a sunny sidewalk with a few trees.
+
+**On-camera setup**
+- Eye-level camera, window light in front of you, quiet room, phone or lav mic close to your mouths.
+- Record each spoken line two or three times; pick the best take in the edit.
+
+**Look and sound (to match the site)**
+- Colours: ivory `#f4f1e6`, deep green `#2f4a33`, heat orange `#d7772d`, shade teal `#2f6577`.
+- Type: Playfair Display for headlines, DM Sans for captions and tags.
+- One music bed, ducked about 12 dB under speech.
+- Light UI click SFX on taps, a soft whoosh on the before/after wipes, a low thud on the big numbers.
+- **Burned-in captions for every spoken line.** Judges often watch muted.
+
+**Numbers on screen (keep them exactly as written)**
+
+| On screen | Source |
 |---|---|
-| Speedway, UT Austin, July: 81°F at 6 AM to 117°F in full sun at 3 PM | `public/landing/speedway.json` |
-| 4,375 trees in OpenStreetMap; +62,748 crowns from the DINOv3 canopy map (six campuses) | `public/landing/campuses.json` |
-| The shade route avoids 13–25% of the sun for 4–7% more walking; about 9 hours less in full sun per semester at UT (four walks a weekday, 15 weeks) | `public/landing/campuses.json`, landing page |
-| Refuges at UT, 3 PM: 28% of paths within 5 min, 64% within 10 min | Heat tab, "Cool refuges within reach" |
-| Heat on 2,300+ US death certificates in 2023; about 120,000 ER visits for heat illness that year; heat is the leading weather-related killer | AP analysis of CDC data; CDC Heat & Health Tracker; NWS (linked in the landing FAQ) |
+| 81°F → 117°F (Speedway, 6 AM → 3 PM, July, full sun) | `public/landing/speedway.json` |
+| 2,300+ death certificates (2023); ~120,000 ER visits for heat illness (2023) | AP analysis of CDC data; CDC Heat & Health Tracker |
+| 4,375 mapped trees → +62,748 DINOv3 crowns (six campuses) | `public/landing/campuses.json` |
+| ≈ 9 hours less in full sun per semester (UT; 4 walks a weekday, 15 weeks) | landing page campus card |
+| 28% of paths within 5 min, 64% within 10 min of a refuge (UT, 3 PM) | Heat tab, "Cool refuges within reach" |
 
-Numbers shown in the app itself (planner rankings, before/after, UTCI) change with the hour and weather. Read them off the screen you recorded rather than from this table.
-
-## Edit notes for the workflow
-
-- **Style:** warm editorial look that matches the site: ivory `#f4f1e6`, deep green `#2f4a33`, heat orange `#d7772d`, shade teal `#2f6577`. Serif headlines (Playfair Display), sans body (DM Sans).
-- **Captions:** burned-in subtitles for every line (judges often watch muted). Translate the Spanish question.
-- **Meta credits:** each Meta technology gets a small consistent tag the first time it appears: "Muse Spark", "DINOv3", "SAM 3.1", "Muse Image", "Muse Wonder".
-- **Pacing:** never hold on a loading spinner. Speed-ramp or cut waits. Keep each beat moving.
-- **Audio:** one music bed, ducked under speech. Subtle UI clicks on taps. A single "whoosh" on the before/after wipes.
-- **Honesty:** if a model call was replaced with the scripted demo, label it on screen. Temperatures are modeled estimates, so add a small "modeled estimate" tag the first time a temperature appears.
+Anything else the app shows on screen (route minutes, shade %, °F cooler, UTCI) changes with the hour and weather. Read it from your recording, never from this script.

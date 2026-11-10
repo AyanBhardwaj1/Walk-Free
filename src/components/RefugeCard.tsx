@@ -10,11 +10,16 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
  */
 export default function RefugeCard({
   coverage,
+  slowPace,
+  onSlowPace,
   shown,
   onToggle,
   onShow,
 }: {
   coverage: RefugeCoverage | null;
+  /** Minutes at an older walker's pace (3.28 km/h) rather than the usual. */
+  slowPace?: boolean;
+  onSlowPace?: (on: boolean) => void;
   shown: boolean;
   onToggle: (on: boolean) => void;
   onShow: (street: string) => void;
@@ -24,6 +29,7 @@ export default function RefugeCard({
         cool: coverage.refuges.filter((r) => r.kind === "cool-stop").length,
         shelter: coverage.refuges.filter((r) => r.kind === "shelter").length,
         park: coverage.refuges.filter((r) => r.kind === "shaded-park").length,
+        indoors: coverage.refuges.filter((r) => r.kind === "indoors").length,
       }
     : null;
   return (
@@ -52,6 +58,8 @@ export default function RefugeCard({
           <p className="fine">
             {[
               kinds.cool && `${kinds.cool} air-conditioned`,
+              kinds.indoors &&
+                `${kinds.indoors} open building${kinds.indoors > 1 ? "s" : ""} with a mapped inside`,
               kinds.shelter &&
                 `${kinds.shelter} shade shelter${kinds.shelter > 1 ? "s" : ""}`,
               kinds.park &&
@@ -62,6 +70,17 @@ export default function RefugeCard({
             right now. Barcelona aims for a climate shelter within a 10-minute
             walk of everyone.
           </p>
+          {onSlowPace && (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={!!slowPace}
+                onChange={(e) => onSlowPace(e.target.checked)}
+              />
+              At an older walker&apos;s pace (3.3 km/h, as Barcelona&apos;s
+              climate-shelter plan counts)
+            </label>
+          )}
           <label className="check">
             <input
               type="checkbox"

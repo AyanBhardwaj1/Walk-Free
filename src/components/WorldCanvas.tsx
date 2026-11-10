@@ -1,7 +1,17 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import CameraRig, { type MapCamera } from "./scene/CameraRig";
-import { useMemo, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  Component,
+  lazy,
+  Suspense,
+  type ReactNode,
+  useMemo,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import * as THREE from "three";
 import type { PlaceLabel } from "../lib/place-labels";
 import type {
@@ -14,6 +24,10 @@ import type {
 import Building from "./scene/Buildings";
 import Trees from "./scene/Trees";
 import MergedBuildings from "./scene/MergedBuildings";
+import Interiors from "./scene/Interiors";
+import { LEVEL_HEIGHT_M } from "../lib/indoor/types";
+import { footprintRing } from "../lib/indoor/place";
+import { inside } from "../../shared/canopy";
 import Crowd from "./scene/Crowd";
 import { sunDirection } from "../lib/environment";
 import { terrainHeight } from "../lib/geo";
@@ -651,6 +665,72 @@ const EYE_M = 2;
  * Street level: the camera walks the route, looking a little way ahead,
  * then hands control back where it was. Any drag stops it.
  */
+/**
+ * You on the map: a dot, a soft ring as wide as the position is uncertain,
+ * and an arrow along the direction of travel once you're moving.
+ */
+function YouMarker({
+  point,
+  height,
+  accuracy,
+  heading,
+}: {
+  point: Point;
+  height: number;
+  accuracy?: number;
+  heading: number | null;
+}) {
+  const ring = Math.min(150, Math.max(8, accuracy ?? 0));
+  return (
+    <group position={[point[0], height, point[1]]}>
+      {accuracy !== undefined && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={31}>
+          <circleGeometry args={[ring, 48]} />
+          <meshBasicMaterial
+            color={sc("#3479bf")}
+            opacity={0.14}
+            depthTest={false}
+            transparent
+          />
+        </mesh>
+      )}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={32}>
+        <circleGeometry args={[7.5, 24]} />
+        <meshBasicMaterial color="#ffffff" depthTest={false} transparent />
+      </mesh>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.1, 0]}
+        renderOrder={33}
+      >
+        <circleGeometry args={[5.5, 24]} />
+        <meshBasicMaterial
+          color={sc("#3479bf")}
+          depthTest={false}
+          transparent
+        />
+      </mesh>
+      {heading !== null && (
+        // North is -z; turn the arrow clockwise from it.
+        <group rotation={[0, (-heading * Math.PI) / 180, 0]}>
+          <mesh
+            position={[0, 0.2, -12]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={33}
+          >
+            <circleGeometry args={[5, 3, Math.PI / 2]} />
+            <meshBasicMaterial
+              color={sc("#3479bf")}
+              depthTest={false}
+              transparent
+            />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
 function StreetWalk({
   points,
   terrain,
@@ -854,6 +934,32 @@ function RouteDraw({
     </>
   );
 }
+/** Postprocessing for the Cinematic look, loaded only when it's chosen. */
+const CinematicEffects = lazy(() => import("./CinematicEffects"));
+
+/**
+ * If the Cinematic effects can't load (offline, an old build) or draw (a
+ * weak GPU), the map carries on without them instead of failing.
+ */
+class EffectsBoundary extends Component<
+  { onError?: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.warn("[walk-free] cinematic effects unavailable", error);
+    this.props.onError?.();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+export type MapLook = "standard" | "heat" | "minimal" | "cinematic";
+
 export default function WorldCanvas({
   world,
   environment,
@@ -865,6 +971,8 @@ export default function WorldCanvas({
   endPoint,
   showWalkingPaths = false,
   locationPoint,
+  locationAccuracy,
+  locationHeading,
   pickingEndpoint = false,
   showTrees = true,
   showBuildings = true,
@@ -873,6 +981,8 @@ export default function WorldCanvas({
   insets = NO_INSETS,
   theme = "editorial",
   ambient,
+  look = "standard",
+  onLookFailed,
   onCaptureReady,
   onFrameReady,
   crowd,
@@ -883,6 +993,8 @@ export default function WorldCanvas({
   cameraApi,
   onBearing,
   routeShade,
+  openInterior,
+  interiorLevel = 0,
 }: {
   world: World;
   environment: Environment;
@@ -893,6 +1005,10 @@ export default function WorldCanvas({
   startPoint?: Point;
   endPoint?: Point;
   locationPoint?: Point;
+  /** How sure the position is (one standard deviation, metres). */
+  locationAccuracy?: number;
+  /** Direction of travel, degrees clockwise from north. */
+  locationHeading?: number | null;
   showWalkingPaths?: boolean;
   pickingEndpoint?: boolean;
   showTrees?: boolean;
@@ -905,6 +1021,11 @@ export default function WorldCanvas({
   theme?: ThemeName;
   /** A fictional city's own sky; the canvas turns see-through over it. */
   ambient?: Ambient | null;
+  /** How the map is drawn: "heat" and "minimal" drop shadows and haze for
+   * a flat, clear read; "cinematic" draws sharper with long haze. */
+  look?: MapLook;
+  /** Called when the Cinematic effects fail, so the app can fall back. */
+  onLookFailed?: () => void;
   /** Receives a snapshot function while the scene is mounted. */
   onCaptureReady?: (capture: (() => string) | null) => void;
   /** Renders a frame and returns the canvas, for recording video. */
@@ -924,6 +1045,10 @@ export default function WorldCanvas({
   focusOn?: Point[];
   /** Named places to tag on the map (hidden at street level). */
   labels?: PlaceLabel[];
+  /** A building shown from inside (its shell hidden), by id. */
+  openInterior?: string | null;
+  /** Which level of the open interior to show. */
+  interiorLevel?: number;
 }) {
   // Children read the scene style while rendering (see lib/scene-theme).
   setSceneTheme(theme);
@@ -957,12 +1082,25 @@ export default function WorldCanvas({
   const extent = world.extent;
   // At street level, crowns the camera would pass through are hidden, so the
   // walk isn't seen from inside a tree.
+  const opening = openInterior
+    ? world.objects.find(
+        (o) =>
+          o.id === openInterior &&
+          world.indoor?.some((i) => i.buildingId === o.id),
+      )
+    : undefined;
   const shownTrees = useMemo(() => {
-    const trees = world.objects.filter((o) => o.kind === "tree");
+    let trees = world.objects.filter((o) => o.kind === "tree");
+    // Trees mapped from above can stand where an opened building's roof
+    // was; inside the cutaway they'd grow through the floors.
+    if (opening) {
+      const ring = footprintRing(opening);
+      trees = trees.filter((t) => !inside(ring, t.position[0], t.position[1]));
+    }
     if (!walkthrough || walkthrough.length < 2) return trees;
     const inTheWay = crownsOnPath(trees, walkthrough);
     return trees.filter((t) => !inTheWay.has(t.id));
-  }, [world.objects, walkthrough]);
+  }, [world.objects, walkthrough, opening]);
   // Large mapped areas draw OSM buildings as one mesh; designed objects and
   // the selected building stay individual so they keep their detail.
   const [reducedMotion] = useState(
@@ -981,6 +1119,38 @@ export default function WorldCanvas({
       typeof matchMedia !== "undefined" &&
       matchMedia("(max-width: 720px), (pointer: coarse)").matches,
   );
+  // A walk up to another floor is drawn at that floor's height, as the
+  // cutaway stacks them (see Interiors: the lowest floor at grade).
+  const routeLift = useMemo(() => {
+    if (!route || !world.indoor?.length) return [];
+    const floorHeight = (id: string) => {
+      const m = /^indoor:(.+?):(?:f(-?\d+))?[nr]\d+$/.exec(id);
+      if (!m) return 0;
+      const levels = world.indoor?.find((i) => i.buildingId === m[1])?.levels;
+      if (!levels?.length) return 0;
+      const ordinals = levels.map((l) => l.ordinal);
+      const ground = [...ordinals].sort((a, b) => Math.abs(a) - Math.abs(b))[0];
+      const lowest = Math.min(0, ...ordinals);
+      const ordinal = m[2] !== undefined ? Number(m[2]) : ground;
+      return (ordinal - lowest) * LEVEL_HEIGHT_M;
+    };
+    const lift: number[] = [];
+    route.edges.forEach((e, i) => {
+      const a = floorHeight(e.from),
+        b = floorHeight(e.to);
+      const n = e.points.length;
+      e.points.forEach((_, j) => {
+        if (i && !j) return; // shared with the edge before
+        lift.push(n > 1 ? a + ((b - a) * j) / (n - 1) : a);
+      });
+    });
+    return lift;
+  }, [route, world.indoor]);
+  // Only a building with a mapped interior opens; its shell steps aside.
+  const interior = openInterior
+    ? world.indoor?.find((i) => i.buildingId === openInterior)
+    : undefined;
+  const opened = interior ? openInterior : null;
   const merged = useMemo(
     () =>
       world.objects.length >= MERGE_THRESHOLD
@@ -995,26 +1165,30 @@ export default function WorldCanvas({
                 ((o.source === "study" || o.source === "ai") &&
                   o.kind !== "tower" &&
                   o.kind !== "landmark")) &&
-              o.id !== selectedId,
+              o.id !== selectedId &&
+              o.id !== opened,
           )
         : null,
-    [world.objects, selectedId, lowPower],
+    [world.objects, selectedId, lowPower, opened],
   );
   // Whatever is merged is drawn once, never again on its own.
   const mergedIds = useMemo(
     () => new Set(merged?.map((o) => o.id) ?? []),
     [merged],
   );
+  const flat = look === "heat" || look === "minimal";
   return (
     <Canvas
-      shadows="soft"
+      // A change between shadowed and flat looks draws the scene afresh.
+      key={flat ? "flat" : "shadowed"}
+      shadows={flat ? false : "soft"}
       camera={{
         position: [extent * 0.65, extent * 0.72, extent * 0.7],
         fov: 40,
         near: 1,
         far: 20000,
       }}
-      dpr={[1, 1.6]}
+      dpr={look === "cinematic" ? [1, 2] : [1, 1.6]}
       gl={{ antialias: true, alpha: !!ambient }}
       // Draw only when the camera or scene changes, not 60 times a second.
       frameloop="demand"
@@ -1029,10 +1203,18 @@ export default function WorldCanvas({
         framed={framed}
       />
       <ArrivalFlight framed={framed} />
+      {look === "cinematic" && (
+        <EffectsBoundary onError={onLookFailed}>
+          <Suspense fallback={null}>
+            <CinematicEffects night={sun.y <= 0} extent={extent} />
+          </Suspense>
+        </EffectsBoundary>
+      )}
       {!ambient && <color attach="background" args={[sky]} />}
       {/* Depth: far streets fade into the background colour; fictional
           cities fade sooner into their own haze. */}
-      {ambient ? <FogFollowsCamera /> : <FogFollowsCamera extent={extent} />}
+      {!flat &&
+        (ambient ? <FogFollowsCamera /> : <FogFollowsCamera extent={extent} />)}
       {onCaptureReady && (
         <CaptureBridge onReady={onCaptureReady} onFrameReady={onFrameReady} />
       )}
@@ -1055,17 +1237,20 @@ export default function WorldCanvas({
           streetLevel={!!walkthrough}
         />
       )}
-      <fog
-        attach="fog"
-        args={[
-          sky,
-          extent * (ambient ? 0.9 : 1.6),
-          extent * (ambient ? 3.4 : 5),
-        ]}
-      />
+      {!flat && (
+        <fog
+          attach="fog"
+          args={[
+            sky,
+            extent * (ambient ? 0.9 : look === "cinematic" ? 1.1 : 1.6),
+            extent * (ambient ? 3.4 : look === "cinematic" ? 3.8 : 5),
+          ]}
+        />
+      )}
       {/* Less flat fill than before so shade reads, plus cool moonlight at
           night instead of darkness. */}
-      <ambientLight intensity={sun.y > 0 ? 0.62 : 0.32} />
+      {/* Flat looks light evenly, so colours (heat above all) read true. */}
+      <ambientLight intensity={(sun.y > 0 ? 0.62 : 0.32) + (flat ? 0.35 : 0)} />
       <hemisphereLight
         args={[
           ambient
@@ -1154,7 +1339,10 @@ export default function WorldCanvas({
         )}
         {showBuildings &&
           world.objects
-            .filter((o) => o.kind !== "tree" && !mergedIds.has(o.id))
+            .filter(
+              (o) =>
+                o.kind !== "tree" && !mergedIds.has(o.id) && o.id !== opened,
+            )
             .map((o) => (
               <Building
                 key={o.id}
@@ -1173,6 +1361,14 @@ export default function WorldCanvas({
                 }
               />
             ))}
+        {interior && (
+          <Interiors
+            interior={interior}
+            building={world.objects.find((o) => o.id === opened)}
+            terrain={world.terrain}
+            level={interiorLevel}
+          />
+        )}
         {showTrees && (
           <Trees
             objects={shownTrees}
@@ -1194,9 +1390,9 @@ export default function WorldCanvas({
         <RouteDraw
           // A new route draws itself in; the same route doesn't replay.
           key={route.points.map((p) => p.join(",")).join(";")}
-          points={route.points.map((p) => [
+          points={route.points.map((p, i) => [
             p[0],
-            terrainHeight(p, world.terrain) + 3,
+            terrainHeight(p, world.terrain) + 3 + (routeLift[i] ?? 0),
             p[1],
           ])}
           overHeat={!!heat}
@@ -1232,22 +1428,12 @@ export default function WorldCanvas({
         <Endpoint point={endPoint} label="Finish" terrain={world.terrain} />
       )}
       {locationPoint && (
-        <mesh
-          position={[
-            locationPoint[0],
-            terrainHeight(locationPoint, world.terrain) + 5,
-            locationPoint[1],
-          ]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={32}
-        >
-          <circleGeometry args={[6, 24]} />
-          <meshBasicMaterial
-            color={sc("#3479bf")}
-            depthTest={false}
-            transparent
-          />
-        </mesh>
+        <YouMarker
+          point={locationPoint}
+          height={terrainHeight(locationPoint, world.terrain) + 5}
+          accuracy={locationAccuracy}
+          heading={locationHeading ?? null}
+        />
       )}
       {/* Map-style: drag pans, right-drag or two fingers turn and tilt, the
           wheel or a pinch zooms toward the pointer, with a soft glide. */}

@@ -2835,3 +2835,158 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Where you can walk: a globe of the ready places, with the same places as
+   a list of links (the globe itself is decorative). */
+.coverage-section {
+  padding: 110px 6%;
+  background: #f1efe5;
+}
+.coverage-body {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 60px;
+  align-items: center;
+  max-width: 1240px;
+}
+.coverage-section.no-globe .coverage-body {
+  grid-template-columns: minmax(0, 640px);
+}
+.coverage-globe {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 1;
+  justify-self: center;
+}
+.coverage-globe-canvas {
+  position: absolute !important;
+  inset: 0;
+}
+/* Shown while three.js loads, or if the globe can't draw. */
+.coverage-globe-placeholder {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 1px solid #c9d4bd;
+  background:
+    radial-gradient(circle at 35% 30%, #fbf9f1 0 45%, transparent 75%),
+    repeating-linear-gradient(0deg, transparent 0 22px, #e1e6d6 22px 23px),
+    #f7f5ed;
+}
+.coverage-globe-label {
+  transform: translate(14px, -50%);
+  padding: 5px 9px;
+  border-radius: 4px;
+  background: #17241b;
+  color: #f4f1e6;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(23 36 27 / 18%);
+  transition: opacity 0.2s;
+}
+.coverage-list h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  margin: 30px 0 10px;
+  color: #3f5644;
+}
+.coverage-list h3:first-child {
+  margin-top: 0;
+}
+.coverage-list p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #4f5a47;
+  margin: 0 0 12px;
+}
+.coverage-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.coverage-list ul:not(.coverage-chips) {
+  border-top: 1px solid #daddce;
+}
+.coverage-list li a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #daddce;
+  font-size: 15px;
+  transition: background 0.15s;
+}
+.coverage-list li a > svg:first-child {
+  color: #c4561f;
+}
+.coverage-list li a:hover,
+.coverage-list li a.is-active {
+  background: #e6eadb;
+}
+.coverage-list li a:hover .coverage-name,
+.coverage-list li a.is-active .coverage-name {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.coverage-kind {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #5f6956;
+}
+.coverage-list .coverage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coverage-list .coverage-chips a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 13px;
+  border: 1px solid #c9d0bc;
+  border-radius: 999px;
+  background: #fbf9f1;
+  font-size: 13px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.coverage-list .coverage-chips a:hover {
+  background: #e6eadb;
+  border-color: #9db58a;
+}
+.coverage-list .coverage-chips .coverage-generate {
+  background: #334f38;
+  border-color: #334f38;
+  color: #fffdf3;
+}
+.coverage-list .coverage-chips .coverage-generate:hover {
+  background: #436448;
+}
+@media (max-width: 900px) {
+  .coverage-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+}
+@media (max-width: 700px) {
+  .coverage-section {
+    padding: 80px 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coverage-globe-label,
+  .coverage-list li a,
+  .coverage-list .coverage-chips a {
+    transition: none;
+  }
+}

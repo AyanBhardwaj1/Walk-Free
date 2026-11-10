@@ -14,6 +14,8 @@ export interface MapCamera {
   tilt(): void;
   /** Move the view across the ground, in screen directions (right, down). */
   pan(right: number, down: number): void;
+  /** Glide the view to centre on a ground point, keeping angle and zoom. */
+  centerOn(point: [number, number]): void;
 }
 
 interface Orbit extends THREE.EventDispatcher<{
@@ -147,6 +149,17 @@ export default function CameraRig({
           const shift = rightward
             .multiplyScalar(right * step)
             .addScaledVector(forward, -down * step);
+          move(
+            orbit.target.clone().add(shift),
+            camera.position.clone().add(shift),
+          );
+        },
+        centerOn([x, z]) {
+          const shift = new THREE.Vector3(
+            x - orbit.target.x,
+            0,
+            z - orbit.target.z,
+          );
           move(
             orbit.target.clone().add(shift),
             camera.position.clone().add(shift),

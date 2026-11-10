@@ -1,4 +1,7 @@
-import type { Destination } from "./destinations.js";
+import {
+  placeName as sharedPlaceName,
+  type Destination,
+} from "./destinations.js";
 import { runTool, type ToolHost } from "./assistant-tools.js";
 import { coolStopNodes } from "./cool-stops.js";
 import { formatTemp, type TempUnit } from "./units.js";
@@ -25,8 +28,8 @@ export interface DemoTurn {
   reply: string;
 }
 
-/** The building or park a catalog entry is about ("Path near PCL" → "PCL"). */
-const placeName = (d: Destination) => d.label.replace(/^Path near /i, "");
+/** The building or park a catalog entry is about ("Near PCL" → "PCL"). */
+const placeName = (d: Destination) => sharedPlaceName(d);
 
 /** Two named places 400-900 m apart on this map, the same every time. */
 export function demoPair(host: ToolHost): [string, string] | null {

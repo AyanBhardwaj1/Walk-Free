@@ -94,7 +94,17 @@ export interface Destination {
    * their codes and aliases (place: true), and street names. `primary`
    * marks the names the label is about. */
   keys: { text: string; place: boolean; primary?: boolean }[];
+  /** For a label made from a nearby place ("Near X"), that place: X. */
+  place?: string;
 }
+
+/**
+ * The place a destination is about, for short mentions ("PCL → Gregory
+ * Gym"): the nearby place a "Near X" label was made from, else the label.
+ * Labels saved before this (as "Path near X") lose that prefix too.
+ */
+export const placeName = (d: { label: string; place?: string }) =>
+  d.place ?? d.label.replace(/^Path near /, "");
 
 /**
  * Lower case without accents or punctuation, with letters and digits apart,
@@ -206,7 +216,7 @@ export function destinationCatalog(world: World): Destination[] {
       const road = [...roads.get(n.id)!].join(" / ");
       const label =
         n.name ||
-        (places.length ? `Path near ${places[0].name}` : road || "Mapped path");
+        (places.length ? `Near ${places[0].name}` : road || "Mapped path");
       const detail = `${road && road !== label ? road + " · " : ""}${locationLabel(n.point)}`;
       // The label names the node, else its nearest place, else its streets.
       const labelPlace = !n.name && places.length ? places[0] : null;
@@ -230,6 +240,7 @@ export function destinationCatalog(world: World): Destination[] {
       return {
         id: n.id,
         label,
+        ...(labelPlace ? { place: labelPlace.name } : {}),
         detail,
         search: fold(
           [

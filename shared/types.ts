@@ -96,6 +96,28 @@ export interface Amenity {
   name: string;
   position: Point;
 }
+/** The inside of a building (see src/lib/indoor/types.ts). */
+export interface WorldIndoor {
+  buildingId: string;
+  buildingName: string;
+  source: string;
+  /** Opening hours (OSM opening_hours syntax); routes skip the inside
+   * while it's closed. Absent when unknown. */
+  hours?: string;
+  levels: {
+    ordinal: number;
+    name: string;
+    rooms: {
+      name: string;
+      ring: Point[];
+      kind: "room" | "corridor" | "stairs" | "elevator" | "restroom" | "other";
+    }[];
+    paths: Point[][];
+    doors: Point[];
+    entrances?: Point[];
+    placed?: boolean;
+  }[];
+}
 export interface World {
   id: string;
   name: string;
@@ -107,6 +129,8 @@ export interface World {
   landscapes: Landscape[];
   /** Drinking water and shade shelters; absent in older saved scenes. */
   amenities?: Amenity[];
+  /** Imported building interiors (floor plans), walkable on the ground floor. */
+  indoor?: WorldIndoor[];
   graph: WalkGraph;
   terrain?: Terrain;
   provenance: {

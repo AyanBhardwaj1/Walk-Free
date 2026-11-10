@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Environment } from "../shared/types";
-import { atLocalHour, scenarioAt, weatherAt } from "../src/lib/heat";
+import {
+  forecastCovers,
+  atLocalHour,
+  scenarioAt,
+  weatherAt,
+} from "../src/lib/heat";
 
 const tz = "America/Chicago";
 // 3 PM CDT on a July afternoon, the hour a heat scenario describes.
@@ -52,5 +57,29 @@ describe("scenario weather through the day", () => {
     expect(
       weatherAt(afternoon, atLocalHour(afternoon.dateTime, tz, 5)).temperatureC,
     ).toBe(38);
+  });
+});
+
+describe("how far the forecast reaches", () => {
+  it("covers hours it has, and not days past its end", () => {
+    const forecast = {
+      source: "test",
+      fetchedAt: "2026-11-06T18:00:00Z",
+      attribution: "",
+      hours: Array.from({ length: 48 }, (_, i) => ({
+        time: new Date(
+          Date.parse("2026-11-06T18:00:00Z") + i * 3600_000,
+        ).toISOString(),
+        temperatureC: 30,
+      })),
+    };
+    expect(forecastCovers(forecast as never, "2026-11-07T09:20:00Z")).toBe(
+      true,
+    );
+    // Monday, two days past its last hour: not covered.
+    expect(forecastCovers(forecast as never, "2026-11-09T14:00:00Z")).toBe(
+      false,
+    );
+    expect(forecastCovers(null, "2026-11-07T09:20:00Z")).toBe(false);
   });
 });

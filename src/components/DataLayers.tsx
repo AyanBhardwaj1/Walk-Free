@@ -1,3 +1,4 @@
+import { hoursStatus } from "../lib/opening-hours";
 import { CheckCircle2, CircleDashed } from "lucide-react";
 import type { Environment, WeatherForecast, World } from "../../shared/types";
 import { HEAT_RISK_LEVELS, type Outlook } from "../../shared/outlook";
@@ -26,6 +27,14 @@ export default function DataLayers({
   const water = (world.amenities ?? []).filter((a) => a.kind === "water");
   const shelters = (world.amenities ?? []).length - water.length;
   const live = env.weatherMode === "forecast" && forecast;
+  // Mapped building interiors, and how many have hours (and are closed).
+  const interiors = world.indoor ?? [];
+  const withHours = interiors.filter((i) => i.hours).length;
+  const closedNow = interiors.filter(
+    (i) =>
+      hoursStatus(i.hours, new Date(env.dateTime), world.timezone)?.open ===
+      false,
+  ).length;
   const layers: {
     name: string;
     source: string;
@@ -94,6 +103,22 @@ export default function DataLayers({
           : `Today ${outlook.heatRisk.today} · ${HEAT_RISK_LEVELS[outlook.heatRisk.today].label}`
         : "Unavailable here or right now",
       ok: !!outlook?.heatRisk,
+    },
+    {
+      name: "Building interiors and hours",
+      source:
+        "Imported floor plans (IMDF, OpenStreetMap indoor, plan images); hours in OpenStreetMap's opening_hours format",
+      detail: interiors.length
+        ? `${plural(interiors.length, "building")} mapped inside · ${withHours} with hours${closedNow ? ` · ${closedNow} closed now` : ""}`
+        : "None yet: select a building in the Design studio to add its floor plan",
+      ok: interiors.length > 0,
+    },
+    {
+      name: "Heat check guidance",
+      source:
+        "UTCI heat-stress bands (Bröde et al. 2012) · NWS HeatRisk · heat-illness warning signs from the CDC",
+      detail: "Guidance for the walk, not medical advice",
+      ok: true,
     },
     {
       name: "Official heat and air alerts",

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Crosshair, Minus, Plus } from "lucide-react";
-import type { Point, RouteResult, World } from "../../shared/types";
+import type {
+  Point,
+  RouteResult,
+  World,
+  WorldIndoor,
+} from "../../shared/types";
 import { baseEdgeId } from "../lib/walk-location";
 import { sc, setSceneTheme } from "../lib/scene-theme";
 import type { ThemeName } from "../lib/theme";
@@ -41,6 +46,8 @@ export default function WalkMap2D({
   edgeColors,
   insets,
   theme = "editorial",
+  interior,
+  level = 0,
 }: {
   world: World;
   route: RouteResult | null;
@@ -54,6 +61,9 @@ export default function WalkMap2D({
   insets?: { left: number; bottom: number; top: number };
   /** Interface style; the map's colours follow it. */
   theme?: ThemeName;
+  /** A building shown from inside, and the floor to draw. */
+  interior?: WorldIndoor | null;
+  level?: number;
 }) {
   setSceneTheme(theme);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -174,6 +184,33 @@ export default function WalkMap2D({
       g.closePath();
       g.fill();
     }
+    // An opened building's floor: rooms over its roof, corridors dashed.
+    const floor = interior?.levels.find((l) => l.ordinal === level);
+    if (floor) {
+      g.lineWidth = Math.max(1, scale * 0.25);
+      g.strokeStyle = sc("#8a7f66");
+      for (const r of floor.rooms) {
+        g.fillStyle = sc(
+          r.kind === "corridor"
+            ? "#cfe0c6"
+            : r.kind === "stairs" || r.kind === "elevator"
+              ? "#e4c58f"
+              : "#f1dfb8",
+        );
+        g.beginPath();
+        line(r.ring);
+        g.closePath();
+        g.fill();
+        g.stroke();
+      }
+      g.setLineDash([4 * dpr, 3 * dpr]);
+      g.strokeStyle = sc("#699271");
+      g.lineWidth = Math.max(1.5 * dpr, scale * 0.4);
+      g.beginPath();
+      for (const p of floor.paths) line(p);
+      g.stroke();
+      g.setLineDash([]);
+    }
     // Tree crowns, mapped and inferred, so shade reads at a glance.
     g.fillStyle = COLORS.canopy;
     g.beginPath();
@@ -248,6 +285,8 @@ export default function WalkMap2D({
     size,
     insets,
     theme,
+    interior,
+    level,
   ]);
   // Where the map's centre sits on screen (CSS pixels), as drawn above.
   const view = useRef({ zoom, center, cx: 0, cy: 0 });

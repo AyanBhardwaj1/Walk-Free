@@ -23,11 +23,15 @@ import {
   Download,
   Camera,
   Video,
+  Ellipsis,
+  ImageUp,
   FileText,
   Upload,
   Trash2,
   Sparkles,
   Footprints,
+  ChevronDown,
+  Clock,
   Users,
   MapPin,
   Navigation,
@@ -61,6 +65,7 @@ import type {
   SceneObject,
   City,
   RoutePreference,
+  RouteResult,
   WeatherForecast,
 } from "../shared/types";
 import { heatIndexC, isShaded, sunDirection } from "./lib/environment";
@@ -100,10 +105,12 @@ import {
   HEAT_LEVELS,
   heatLevel,
   weatherAt,
+  forecastCovers,
   scenarioAt,
   areaHeat,
   clockLabel,
   canopyShare,
+  heatConditions,
 } from "./lib/heat";
 import { PREBUILT_AREAS, prebuiltAreaFor } from "../shared/areas";
 import { matchDestinations, runTool } from "./lib/assistant-tools";
@@ -113,7 +120,11 @@ import PlaceField from "./components/PlaceField";
 import OmniSearch, { matchFiction } from "./components/OmniSearch";
 import Select from "./components/Select";
 import { googleMapsWalk } from "./lib/google-maps";
-import { defaultEndpoints, destinationCatalog } from "./lib/destinations";
+import {
+  defaultEndpoints,
+  destinationCatalog,
+  placeName as destinationPlace,
+} from "./lib/destinations";
 import { baseEdgeId, hasArrived, snapWalkPosition } from "./lib/walk-location";
 import { spokenShadeHint, sunAhead } from "./lib/sun-ahead";
 import { useWalkLocation } from "./hooks/useWalkLocation";
@@ -160,6 +171,7 @@ import { loadOutlook } from "./lib/outlook-source";
 import {
   activeOutlook,
   HEAT_RISK_LEVELS,
+  heatRiskOn,
   outlookContext,
   type Outlook,
 } from "../shared/outlook";
@@ -167,11 +179,79 @@ import OutlookNotice from "./components/OutlookNotice";
 import CoolWalkCard from "./components/CoolWalkCard";
 import AssistantDemo from "./components/AssistantDemo";
 import TreePlanner from "./components/TreePlanner";
+import {
+  cancelLeaveReminder,
+  clockTime,
+  dayWord,
+  reminderTime,
+  remindToLeave,
+  type ReminderResult,
+} from "./lib/leave-reminder";
+import {
+  footprintRing,
+  removeInterior,
+  setInteriorHours,
+} from "./lib/indoor/place";
 import HeatStressLine from "./components/HeatStressLine";
+import WalkAdvice from "./components/WalkAdvice";
+import { routeAdvice } from "./lib/walk-advice";
+import FirstRunGuide, { guideSeen } from "./components/FirstRunGuide";
+import { hoursStatus } from "./lib/opening-hours";
 import { heatStress } from "./lib/heat-stress";
+import { sunWeek, walkSun, type SunWeek } from "./lib/ml/exposure";
+import { sunAvoided } from "./lib/ml/sun-avoided";
+import { walkStreak } from "./lib/ml/streak";
+import {
+  SPOKEN_LANGS,
+  translateGuidance,
+  type SpokenLang,
+} from "./lib/speech-i18n";
+import {
+  ACCESS_PROFILES,
+  applyAccessNeed,
+  type AccessNeed,
+} from "./lib/access-profiles";
+import { shareWeekCard } from "./lib/share-card";
+import { tripAdvice, tripHeat } from "./lib/ml/trip-heat";
+import { walkSummary } from "./lib/ml/walk-summary";
+import { leaveEvent } from "./lib/ml/calendar";
+import { shadySides } from "./lib/shady-side";
+import MyWalksPanel, { ROLES, type LeaveBy } from "./components/MyWalksPanel";
+import {
+  addFix,
+  closeOpen,
+  deleteLog,
+  emptyLog,
+  importWalks,
+  MAX_IMPORT_BYTES,
+  loadLog,
+  saveLog,
+} from "./lib/walk-log";
+import { learnPace, personalEta } from "./lib/ml/pace-model";
+import {
+  findPlaces,
+  findRoutines,
+  leaveBy as leaveByTime,
+  nextTrip,
+  tripKey,
+  routineMinutes,
+} from "./lib/ml/routines";
+import { guessPersona, PERSONAS, shadeThreshold } from "./lib/ml/persona";
+import { sampleWalks } from "./lib/ml/sample-walks";
+import {
+  WalkTracker,
+  outsideArea,
+  RECENTER_M,
+  type Estimate,
+} from "./lib/follow";
 import { recordTimelapse, recordingType } from "./lib/timelapse";
 import RefugeCard from "./components/RefugeCard";
-import { findRefuges, refugeColor, refugeCoverage } from "./lib/refuges";
+import {
+  findRefuges,
+  refugeColor,
+  refugeCoverage,
+  SLOW_WALK_M_PER_MIN,
+} from "./lib/refuges";
 import HeatRiskWeek from "./components/HeatRiskWeek";
 import { streetHeatCsv } from "./lib/heat-csv";
 import { heatBrief } from "./lib/heat-brief";
@@ -196,7 +276,10 @@ import { ServiceError } from "../shared/errors";
 import { loadProject, saveProject } from "./lib/project-store";
 import { clampObjectField, repairWorld } from "./lib/scene-limits";
 import type { MapCamera } from "./components/scene/CameraRig";
-import WorldCanvas, { type MapInsets } from "./components/WorldCanvas";
+import WorldCanvas, {
+  type MapInsets,
+  type MapLook,
+} from "./components/WorldCanvas";
 import DataLayers from "./components/DataLayers";
 import BestTime from "./components/BestTime";
 import { routeLabels } from "./components/RouteChoices";
@@ -227,6 +310,10 @@ import WalkMap2D from "./components/WalkMap2D";
 import type { Account } from "./lib/account";
 import { ZodError } from "zod";
 const Atlas = lazy(() => import("./components/Atlas"));
+// Loaded when first opened: most visits never step into a photo.
+const PhotoScene = lazy(() => import("./components/PhotoScene"));
+// The floor-plan tools (image tracing, IMDF archives) load in the studio.
+const IndoorImport = lazy(() => import("./components/IndoorImport"));
 const initial: Environment = {
   dateTime: "2026-07-15T20:00:00Z",
   temperatureC: 30,
@@ -394,6 +481,41 @@ const tools = [
   ["lower", "Lower", Minus],
   ["flatten", "Flatten", Layers],
 ] as const;
+/** The map look kept on this device, or "standard". */
+function savedMapLook(): MapLook {
+  try {
+    const saved = localStorage.getItem("walk-free-map-look");
+    return MAP_LOOKS.some((l) => l.id === saved)
+      ? (saved as MapLook)
+      : "standard";
+  } catch {
+    return "standard";
+  }
+}
+/** The map's looks, from the most detailed to the plainest. */
+const MAP_LOOKS: { id: MapLook; label: string; does: string }[] = [
+  {
+    id: "standard",
+    label: "Standard",
+    does: "Shadows, haze and the day's light.",
+  },
+  {
+    id: "cinematic",
+    label: "Cinematic",
+    does: "Sharper, with long haze, people and trees: the most realistic.",
+  },
+  {
+    id: "heat",
+    label: "Heat focus",
+    does: "Even light and no shadows or haze, with the heat colours on.",
+  },
+  {
+    id: "minimal",
+    label: "Bare bones",
+    does: "Just streets and buildings: no trees, people, heat or shadows.",
+  },
+];
+
 export default function App({
   account,
   onSignOut,
@@ -419,6 +541,12 @@ export default function App({
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  // The five-step guide for first-time visitors (not with ?tour=auto).
+  const [guideOpen, setGuideOpen] = useState(
+    () =>
+      !guideSeen() &&
+      new URLSearchParams(window.location.search).get("tour") !== "auto",
+  );
   // ?tour=auto plays every step on its own, for judges and recordings.
   const [autoTour, setAutoTour] = useState(false);
   // The on-screen map controls drive the 3D camera through this.
@@ -527,6 +655,13 @@ export default function App({
   const [history, setHistory] = useState<World[]>([]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  // A building seen from inside (its shell hidden), and which floor.
+  const [insideId, setInsideId] = useState<string | null>(null);
+  const [insideLevel, setInsideLevel] = useState(0);
+  const [photoScene, setPhotoScene] = useState(false);
+  const openInterior = insideId
+    ? world.indoor?.find((i) => i.buildingId === insideId)
+    : undefined;
   const [tab, setTab] = useState("route");
   const [start, setStart] = useState(() =>
     world.provenance.live ? defaultEndpoints(world)[0] : "market-gate",
@@ -567,8 +702,56 @@ export default function App({
       /* Private windows can refuse storage; the setting still applies. */
     }
   }, [sunAversion]);
-  const [trees, setTrees] = useState(true);
+  // More sensitive to heat (the CDC's higher-risk groups): the heat check
+  // speaks up a level sooner. Kept on this device.
+  const [heatSensitive, setHeatSensitive] = useState(() => {
+    try {
+      return localStorage.getItem("walk-free-heat-sensitive") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "walk-free-heat-sensitive",
+        heatSensitive ? "1" : "0",
+      );
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+  }, [heatSensitive]);
+  // A saved "Bare bones" look starts with its layers off too.
+  const [trees, setTrees] = useState(() => savedMapLook() !== "minimal");
   const [buildings, setBuildings] = useState(true);
+  // The map's "More tools" menu: closes on a click elsewhere.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const away = (e: PointerEvent) => {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    // Escape closes it and puts focus back on its button.
+    const escape = (e: KeyboardEvent) => {
+      // Only for the menu itself: not from elsewhere, nor over a dialog.
+      if (
+        e.key !== "Escape" ||
+        !moreRef.current?.contains(document.activeElement) ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      setMoreOpen(false);
+      moreButton.current?.focus();
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [moreOpen]);
   const [prompt, setPrompt] = useState("");
   const [proposal, setProposal] = useState<{
     summary: string;
@@ -612,8 +795,83 @@ export default function App({
     if (tracking) setView("2d");
   }, [tracking]);
   const [voice, setVoice] = useState(true);
+  // A buzz at each new instruction, for noisy streets or without sound
+  // (phones that can vibrate; iPhone browsers can't). Kept on this device.
+  const canVibrate =
+    typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+  const [buzz, setBuzz] = useState(() => {
+    try {
+      return localStorage.getItem("walk-free-buzz") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("walk-free-buzz", buzz ? "1" : "0");
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+  }, [buzz]);
+  const lastBuzzed = useRef("");
+  // How the 3D map is drawn (see MapLook), kept on this device.
+  const [mapLook, setMapLook] = useState<MapLook>(savedMapLook);
+  useEffect(() => {
+    try {
+      localStorage.setItem("walk-free-map-look", mapLook);
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+  }, [mapLook]);
+  // The language turn-by-turn guidance is spoken in. Kept on this device.
+  const [spokenLang, setSpokenLang] = useState<SpokenLang>(() => {
+    try {
+      const saved = localStorage.getItem("walk-free-spoken-lang");
+      return SPOKEN_LANGS.some((l) => l.code === saved)
+        ? (saved as SpokenLang)
+        : "en-US";
+    } catch {
+      return "en-US";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("walk-free-spoken-lang", spokenLang);
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+  }, [spokenLang]);
+  // How this person uses the app (see ACCESS_PROFILES): each turns on the
+  // settings that suit it. Kept on this device.
+  const [access, setAccess] = useState<AccessNeed[]>(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem("walk-free-access") ?? "[]",
+      ) as unknown;
+      return Array.isArray(saved)
+        ? saved.filter((n): n is AccessNeed =>
+            ACCESS_PROFILES.some((p) => p.id === n),
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  // The section opens by itself when needs were saved, decided once, so
+  // unticking the last one doesn't snap it shut under the walker's focus.
+  const [accessOpenAtStart] = useState(() => access.length > 0);
+  useEffect(() => {
+    try {
+      localStorage.setItem("walk-free-access", JSON.stringify(access));
+    } catch {
+      /* Private windows can refuse storage; the setting still applies. */
+    }
+    // Bigger text for low vision or blind users with some sight.
+    document.documentElement.dataset.textSize =
+      access.includes("low-vision") || access.includes("blind") ? "large" : "";
+  }, [access]);
   const [showPaths, setShowPaths] = useState(true);
-  const [heatMap, setHeatMap] = useState(true);
+  const [heatMap, setHeatMap] = useState(() => savedMapLook() !== "minimal");
   const [heatPlaceId, setHeatPlaceId] = useState<string | null>(null);
   const [comparePlaceId, setComparePlaceId] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
@@ -714,26 +972,102 @@ export default function App({
     };
   }, [guest]);
   const [speakReplies, setSpeakReplies] = useState(false);
+  // Fixes smoothed into a steady position, speed and heading (a Kalman
+  // filter), so a laptop's jumpy Wi-Fi fixes can be followed too.
+  const following = location.mode === "following";
+  const trackerRef = useRef(new WalkTracker());
+  const [estimate, setEstimate] = useState<Estimate | null>(null);
+  useEffect(() => {
+    trackerRef.current.reset();
+    setEstimate(null);
+  }, [world.id]);
+  useEffect(() => {
+    const fix = location.fix;
+    if (!fix) {
+      setEstimate(null);
+      return;
+    }
+    setEstimate(
+      trackerRef.current.update(
+        toLocal(fix.lat, fix.lon, world.origin),
+        fix.accuracy,
+        fix.timestamp,
+      ),
+    );
+  }, [location.fix, world.origin]);
   const userPosition = useMemo(
     () =>
-      location.fix
-        ? toLocal(location.fix.lat, location.fix.lon, world.origin)
-        : null,
-    [location.fix, world.origin],
+      estimate
+        ? estimate.position
+        : location.fix
+          ? toLocal(location.fix.lat, location.fix.lon, world.origin)
+          : null,
+    [estimate, location.fix, world.origin],
   );
+  // Walks start from you when the position is good enough to snap to a
+  // path; a coarse laptop fix while following leaves the chosen start.
+  // Only a close fix starts a route: a laptop's Wi-Fi guess (±100 m and
+  // more) is fine for following on the map, not for choosing a path.
+  const startFromYou = !!location.fix && location.fix.accuracy <= 50;
+  // My walks: logged and learned from on this device only.
+  const [walkLog, setWalkLog] = useState(() => loadLog(account.id));
+  const saveWarned = useRef(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Say once when the device won't keep the log (storage full or
+      // blocked), rather than losing walks silently.
+      if (!saveLog(account.id, walkLog) && !saveWarned.current) {
+        saveWarned.current = true;
+        setMessage(
+          "This browser's storage is full, so new walks are kept for this visit only. Export your walks to keep them.",
+        );
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [walkLog, account.id]);
+  useEffect(() => {
+    const fix = location.fix;
+    if (!fix || !(following || location.mode === "walking")) return;
+    const c = heatConditions(env, world.origin);
+    setWalkLog((log) =>
+      addFix(
+        log,
+        { lat: fix.lat, lon: fix.lon, t: fix.timestamp, acc: fix.accuracy },
+        world.id,
+        {
+          temperatureC: env.temperatureC,
+          humidity: env.humidity,
+          cloudCover: env.cloudCover,
+          feelsLikeC: c.shadeFeelsC,
+        },
+      ),
+    );
+    // Each new fix is logged once; the weather is read as it is then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.fix]);
+  // Stopping closes the walk in progress.
+  useEffect(() => {
+    if (following || location.mode === "walking") return;
+    setWalkLog((log) =>
+      log.open.length ? closeOpen(log, Date.now(), true) : log,
+    );
+  }, [following, location.mode]);
   const snappedLocation = useMemo(
     () =>
-      userPosition
+      userPosition && startFromYou
         ? snapWalkPosition(world, userPosition, {
             avoidStairs: stairs,
             allowHypothetical: tracking ? false : hypothetical,
           })
         : null,
-    [world, userPosition, stairs, hypothetical, tracking],
+    [world, userPosition, stairs, hypothetical, tracking, startFromYou],
   );
   const routeWorld = snappedLocation?.world || world;
-  const routeStart = location.fix ? snappedLocation?.nodeId || "" : start;
+  const routeStart = startFromYou ? snappedLocation?.nodeId || "" : start;
   const lastSpoken = useRef("");
+  // The heat check's first step, said once with the first instruction of
+  // a walk (then the walk speaks for itself).
+  const startTip = useRef<string | null>(null);
   const buildRequest = useRef(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const worldRef = useRef(world);
@@ -800,6 +1134,14 @@ export default function App({
       setWalkStop({ ...walkStop, reached: true });
   }, [walkStop, userPosition, world, routeEnv]);
   const currentRoute = routeChoices[pref];
+  // Which sidewalk is shadier on each street of the walk, at its hour.
+  const sideHints = useMemo(
+    () =>
+      currentRoute && tab === "route"
+        ? shadySides(currentRoute, routeWorld, routeEnv)
+        : [],
+    [currentRoute, routeWorld, routeEnv, tab],
+  );
   // After dark, shade means nothing and light matters: a walk planned for
   // shade becomes the lit-street walk, and back again at sunrise.
   const routeDark = sunDirection(routeEnv, world.origin).altitude <= 0;
@@ -821,15 +1163,452 @@ export default function App({
       currentRoute ? canopyShare(world, routeEnv, currentRoute.edges) : null,
     [world, routeEnv, currentRoute],
   );
+  // What the walk log teaches: pace, places, routines and profile. Real
+  // walks win; sample walks only stand in when there are none.
+  const learnFrom = useMemo(() => {
+    const real = walkLog.walks.filter((w) => !w.sample);
+    return real.length ? real : walkLog.walks;
+  }, [walkLog.walks]);
+  const realWalks =
+    walkLog.walks.length - learnFrom.filter((w) => w.sample).length;
+  const usingSamples = learnFrom.length > 0 && learnFrom.every((w) => w.sample);
+  const pace = useMemo(() => learnPace(learnFrom), [learnFrom]);
+  // Direct sun on this map's walks, worked out only while My walks is open
+  // and after the tab has drawn (it replays every walk against the map).
+  const [sunThisWeek, setSunThisWeek] = useState<SunWeek | null>(null);
+  const routeEnvRef = useRef(routeEnv);
+  routeEnvRef.current = routeEnv;
+  // Another map: the last one's sun figures no longer apply.
+  useEffect(() => setSunThisWeek(null), [world.id]);
+  useEffect(() => {
+    if (tab !== "you") return;
+    const twoWeeks = Date.now() - 14 * 24 * 3600_000;
+    const recent = learnFrom.filter(
+      (w) => w.area === world.id && (w.points[0]?.t ?? 0) > twoWeeks,
+    );
+    if (!recent.length) {
+      setSunThisWeek(null);
+      return;
+    }
+    // The week's sun first; then, a moment later so the card has drawn,
+    // the comparison with the quickest ways (it re-routes each trip).
+    let later: ReturnType<typeof setTimeout> | undefined;
+    const t = setTimeout(() => {
+      const env = routeEnvRef.current;
+      const list = walkSun(recent, world, env);
+      const week = sunWeek(list);
+      setSunThisWeek(week);
+      later = setTimeout(() => {
+        const since = Date.now() - 7 * 24 * 3600_000;
+        const avoided = sunAvoided(
+          recent,
+          list.filter((w) => w.start > since),
+          world,
+          env,
+        );
+        setSunThisWeek({ ...week, avoided });
+      }, 50);
+    }, 50);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(later);
+    };
+  }, [tab, learnFrom, world]);
+  // Named places (buildings, parks) with their path points, for naming
+  // the places your walks start and end at.
+  const namedPlaces = useMemo(() => {
+    const at = new Map(world.graph.nodes.map((n) => [n.id, n.point]));
+    return destinationCatalog(world).flatMap((d) =>
+      d.keys.some((k) => k.place) && at.has(d.id)
+        ? [
+            {
+              label: destinationPlace(d),
+              point: at.get(d.id)!,
+            },
+          ]
+        : [],
+    );
+  }, [world]);
+  const placeLabel = useCallback(
+    (lat: number, lon: number) => {
+      const p = toLocal(lat, lon, world.origin);
+      if (Math.max(Math.abs(p[0]), Math.abs(p[1])) > world.extent / 2)
+        return null;
+      let best: string | null = null,
+        bestD = 150;
+      for (const n of namedPlaces) {
+        const d = Math.hypot(n.point[0] - p[0], n.point[1] - p[1]);
+        if (d < bestD) {
+          bestD = d;
+          best = n.label;
+        }
+      }
+      return best;
+    },
+    [world, namedPlaces],
+  );
+  const myPlaces = useMemo(
+    () => findPlaces(learnFrom, placeLabel),
+    [learnFrom, placeLabel],
+  );
+  const myRoutines = useMemo(
+    () => findRoutines(learnFrom, myPlaces),
+    [learnFrom, myPlaces],
+  );
+  const campusArea = prebuiltAreaFor(
+    world.origin.lat,
+    world.origin.lon,
+    world.extent / 2,
+  );
+  const onCampus = !!campusArea && campusArea.slug !== "midtown-manhattan";
+  const persona = useMemo(
+    () => guessPersona(learnFrom, myPlaces, onCampus),
+    [learnFrom, myPlaces, onCampus],
+  );
+  const role = walkLog.role ?? "auto";
+  const personaId = ROLES.find((r) => r.id === role)?.persona ?? persona.id;
+  const shadeAboveC = useMemo(
+    () => shadeThreshold(walkLog.choices ?? []),
+    [walkLog.choices],
+  );
+  /** A mild day's feels-like, °C, for walks past the forecast. */
+  const MILD_FEELS_C = 24;
+  const paceContext = (iso: string) => {
+    const d = new Date(iso);
+    // The forecast for that hour when the weather is live.
+    const live = routeEnv.weatherMode === "forecast" ? forecast : null;
+    return {
+      // The heat at that hour (a scenario follows its daily cycle); past
+      // the forecast, a mild day rather than today's weather.
+      feelsLikeC:
+        live && !forecastCovers(live, iso)
+          ? MILD_FEELS_C
+          : heatConditions(
+              weatherAt(routeEnv, iso, live, world.timezone),
+              world.origin,
+            ).shadeFeelsC,
+      hour: d.getHours() + d.getMinutes() / 60,
+      weekend: d.getDay() === 0 || d.getDay() === 6,
+    };
+  };
+  const myEta =
+    currentRoute && pace.walks
+      ? personalEta(pace, currentRoute.distance, paceContext(routeEnv.dateTime))
+      : null;
+  // When to leave for your next routine walk, at your pace plus a buffer.
+  // The clock, to the minute, so the next trip moves on as the day does.
+  const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60_000));
+  const hasRoutines = myRoutines.length > 0;
+  useEffect(() => {
+    // Whenever there are routines to time, learning on or not.
+    if (!hasRoutines) return;
+    const t = setInterval(
+      () => setMinute(Math.floor(Date.now() / 60_000)),
+      30_000,
+    );
+    return () => clearInterval(t);
+  }, [hasRoutines]);
+  const leave = useMemo<LeaveBy | null>(() => {
+    const now = minute * 60_000;
+    // The next trip there's still time to leave for (one whose leave-by
+    // has passed gives way to the one after it).
+    const missed = new Set<string>();
+    for (let tries = 0; tries < 8; tries++) {
+      const next = nextTrip(myRoutines, now, missed);
+      if (!next) return null;
+      const eta = personalEta(
+        pace,
+        next.routine.metres,
+        paceContext(new Date(next.arriveBy).toISOString()),
+      );
+      // Your own times on this exact trip count most once there are a few.
+      const minutes = routineMinutes(next.routine, eta.minutes);
+      const safe = minutes * (eta.safeMinutes / eta.minutes);
+      const leaveAt = leaveByTime(
+        next.arriveBy,
+        safe + PERSONAS[personaId].buffer,
+      );
+      if (leaveAt > now)
+        return {
+          routine: next.routine,
+          arriveBy: next.arriveBy,
+          leaveAt,
+          minutes,
+          standardMinutes: eta.standardMinutes,
+        };
+      missed.add(tripKey(next.routine, next.arriveBy));
+    }
+    return null;
+    // paceContext reads the weather shown; the routine and pace decide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myRoutines, pace, personaId, minute]);
+  // A real walk just logged: say so, with how it went.
+  const lastWalkId = useRef(
+    walkLog.walks.filter((w) => !w.sample).at(-1)?.id ?? "",
+  );
+  useEffect(() => {
+    const real = walkLog.walks.filter((w) => !w.sample);
+    const last = real.at(-1);
+    if (!last || last.id === lastWalkId.current) return;
+    lastWalkId.current = last.id;
+    // A trace left open last time and closed on loading isn't news.
+    if (Date.now() - (last.points.at(-1)?.t ?? 0) > 10 * 60_000) return;
+    const sun =
+      last.area === world.id
+        ? (walkSun([last], world, routeEnvRef.current)[0]?.sunMinutes ?? null)
+        : null;
+    // Compared with your other walks, not with itself.
+    const before = real.slice(0, -1);
+    const usual = before.length ? learnPace(before).median : null;
+    const line = walkSummary(last, usual, sun, unit);
+    if (line) setMessage(line);
+    // Only a new walk announces itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walkLog.walks]);
+  // How hot that walk will be at that hour, and what the shade route saves
+  // (worked out after render: it plans two routes).
+  const [advice, setAdvice] = useState<{ key: string; text: string | null }>({
+    key: "",
+    text: null,
+  });
+  // This trip, leaving at about this time (to ten minutes): advice for
+  // another trip or hour is never shown or sent.
+  const adviceKey = leave
+    ? `${tripKey(leave.routine, leave.arriveBy)}@${Math.round(leave.leaveAt / 600_000)}`
+    : "";
+  const leaveAdvice = advice.key === adviceKey ? advice.text : null;
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
+  const envRef = useRef(env);
+  envRef.current = env;
+  // Hand-set weather (no forecast): advice follows changes to it.
+  const adviceWeather = forecast
+    ? ""
+    : `${env.temperatureC}|${env.humidity}|${env.cloudCover}|${env.windMps}|${env.weatherMode}`;
+  useEffect(() => {
+    const l = leaveRef.current;
+    if (!l) return;
+    const key = adviceKey;
+    const t = setTimeout(() => {
+      // The weather at the hour of the walk: the forecast when there is
+      // one, else the hand-set weather following its daily cycle.
+      const iso = new Date(l.leaveAt).toISOString();
+      // Past the forecast (a trip days away), today's weather says nothing
+      // about the walk: no heat advice rather than wrong advice.
+      const live = envRef.current.weatherMode === "forecast" ? forecast : null;
+      if (live && !forecastCovers(live, iso)) {
+        setAdvice({ key, text: null });
+        return;
+      }
+      const at = weatherAt(envRef.current, iso, live, world.timezone);
+      const h = tripHeat(world, l.routine.from, l.routine.to, at);
+      setAdvice({
+        key,
+        text: h ? tripAdvice(h, (c) => formatTemp(c, unit)) : null,
+      });
+    }, 80);
+    return () => clearTimeout(t);
+    // The trip and its hour, the map, the forecast and the unit decide.
+  }, [adviceKey, world, unit, forecast, adviceWeather]);
+  // A reminder to leave for the next routine walk, when asked for.
+  const [reminder, setReminder] = useState<{
+    result: ReminderResult;
+    at: number;
+  } | null>(null);
+  // Whether reminders are on, set at once by the toggle (state lags).
+  const remindOn = useRef(!!walkLog.remind);
+  /**
+   * What a reminder is set for: the leave-by time and, until its alert is
+   * due, the advice in it. Once inside the alert window a reminder already
+   * set for this leave-by stays as it is: setting it again would alert at
+   * once, a second time.
+   */
+  const reminderKey = () => {
+    if (!leave) return "";
+    const due = Date.now() >= leave.leaveAt - 5 * 60_000;
+    const settled = advice.key === adviceKey;
+    // Once due, the trip alone names it: a leave-by nudged by a re-learned
+    // pace mustn't alert again.
+    const trip = tripKey(leave.routine, leave.arriveBy);
+    return due
+      ? `${trip}|due`
+      : `${trip}@${leave.leaveAt}|${settled ? (leaveAdvice ?? "") : "pending"}`;
+  };
+  async function scheduleReminder() {
+    const key = reminderKey();
+    remindedFor.current = key;
+    const at = leave && reminderTime(leave.leaveAt);
+    if (!leave || !at) {
+      cancelLeaveReminder();
+      setReminder(null);
+      return;
+    }
+    const to = leave.routine.to.label;
+    const result = await remindToLeave(
+      at,
+      `Time to head to ${to}`,
+      // Shown at leave time, so the plain time of day (no "tomorrow").
+      `Leave by ${clockTime(leave.leaveAt)} to reach ${to} by ${clockTime(leave.arriveBy)}: about ${Math.round(leave.minutes)} min at your pace.${leaveAdvice ? ` ${leaveAdvice}` : ""}`,
+    ).catch((): ReminderResult => "unsupported");
+    // Turned off (or moved on) while the permission prompt was open.
+    if (!remindOn.current || remindedFor.current !== key) return;
+    setReminder({ result, at });
+  }
+  const scheduleRef = useRef(scheduleReminder);
+  scheduleRef.current = scheduleReminder;
+  // What the reminder was set for (see reminderKey), so it's set once.
+  const remindedFor = useRef<string | null>(null);
+  useEffect(() => {
+    remindOn.current = !!walkLog.remind;
+    if (!walkLog.remind) {
+      remindedFor.current = null;
+      return;
+    }
+    // Wait for this trip's advice (it follows within a moment), except when
+    // it can't arrive (no trip) or the alert is already due.
+    const key = reminderKey();
+    if (key.endsWith("|pending")) return;
+    // Inside the window, any reminder set for this leave-by stands.
+    if (
+      key.endsWith("|due") &&
+      leave &&
+      remindedFor.current?.startsWith(tripKey(leave.routine, leave.arriveBy))
+    )
+      return;
+    if (remindedFor.current === key) return;
+    void scheduleRef.current();
+    // reminderKey reads the advice and the clock; these decide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walkLog.remind, leave?.leaveAt, leaveAdvice, advice.key, adviceKey]);
+  useEffect(() => () => cancelLeaveReminder(), []);
+  // The assistant's my_walks tool reads the latest of these.
+  const walkLogRef = useRef(walkLog);
+  walkLogRef.current = walkLog;
+  const walkerRef = useRef({
+    pace,
+    routines: myRoutines,
+    leave,
+    personaId,
+    samples: usingSamples,
+    advice: leaveAdvice,
+    sun: sunThisWeek,
+  });
+  walkerRef.current = {
+    advice: leaveAdvice,
+    sun: sunThisWeek,
+    pace,
+    routines: myRoutines,
+    leave,
+    personaId,
+    samples: usingSamples,
+  };
+  // With learning on, a new area opens on the route your profile favours:
+  // shade once it's hotter than where you start choosing shade.
+  useEffect(() => {
+    if (!walkLog.learning || routeDark) return;
+    // Choices were learned against the feels-like in the sun (see
+    // navigation()), so compare the same thing.
+    const c = heatConditions(routeEnv, world.origin);
+    const feels = c.shadeFeelsC + c.sunBoostC;
+    setPref(
+      shadeAboveC !== null && feels >= shadeAboveC
+        ? "shade"
+        : PERSONAS[personaId].preference,
+    );
+    // Only when the area changes or learning is switched on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world.id, walkLog.learning]);
   // UTCI in sun and shade at the walk's hour, and at the map's hour.
   const routeStress = useMemo(
     () => heatStress(routeEnv, world.origin),
     [routeEnv, world.origin],
   );
+  // What the walk's heat means in practice: a shadier swap, water, signs.
+  const heatAdvice = useMemo(() => {
+    if (!currentRoute || !routeStress || routeDark) return null;
+    return routeAdvice(
+      routeChoices,
+      pref,
+      routeStress,
+      routeLabels,
+      // HeatRisk describes real forecast days, not a what-if scenario.
+      routeEnv.weatherMode === "forecast"
+        ? heatRiskOn(
+            outlook?.heatRisk,
+            new Date(routeEnv.dateTime),
+            world.origin.lon,
+          )
+        : null,
+      heatSensitive,
+    );
+  }, [
+    heatSensitive,
+    currentRoute,
+    routeStress,
+    routeDark,
+    routeChoices,
+    pref,
+    routeEnv,
+    outlook,
+    world.origin.lon,
+  ]);
+  // The open building's hours at the time on the map.
+  const openStatus = openInterior
+    ? hoursStatus(openInterior.hours, new Date(env.dateTime), world.timezone)
+    : null;
+  // Mapped interiors closed at the walk's hour, which routes walk around.
+  const closedInside = useMemo(
+    () =>
+      (routeWorld.indoor ?? []).flatMap((i) => {
+        const s = hoursStatus(
+          i.hours,
+          new Date(routeEnv.dateTime),
+          routeWorld.timezone,
+        );
+        return s && !s.open ? [{ name: i.buildingName, label: s.label }] : [];
+      }),
+    [routeWorld, routeEnv.dateTime],
+  );
+  // One line on the chosen walk for the phone sheet's first view.
+  const walkPeek = useMemo(() => {
+    if (!currentRoute) return null;
+    const minutes = Math.max(1, Math.round(currentRoute.durationMinutes));
+    const head = `${routeLabels[pref]} · ${minutes} min`;
+    if (routeDark) return `${head} · after dark`;
+    const sun = (r: RouteResult) => r.durationMinutes * (1 - r.shadeFraction);
+    const quick = routeChoices.quickest;
+    const mine = Math.round(sun(currentRoute));
+    const theirs = quick && pref !== "quickest" ? Math.round(sun(quick)) : 0;
+    return `${head} · ${mine} min in sun${
+      theirs > mine ? ` vs ${theirs} on the quickest` : ""
+    }`;
+  }, [currentRoute, pref, routeDark, routeChoices.quickest]);
   // Hide the canopy crowns on the map to see the walk without them.
   const [hideCanopy, setHideCanopy] = useState(false);
   // A new area starts with its trees shown.
   useEffect(() => setHideCanopy(false), [world.id]);
+  useEffect(() => {
+    setInsideId(null);
+    setInsideLevel(0);
+  }, [world.id]);
+  // Walking to a room opens its building at that floor, so the end of the
+  // walk is in view rather than hidden under a roof.
+  useEffect(() => {
+    const room = /^indoor:(.+):(?:f(-?\d+))?r\d+$/.exec(end);
+    if (!room) return;
+    const interior = worldRef.current.indoor?.find(
+      (i) => i.buildingId === room[1],
+    );
+    if (!interior) return;
+    setInsideId(room[1]);
+    setInsideLevel(
+      room[2] !== undefined
+        ? Number(room[2])
+        : ([...interior.levels].sort(
+            (a, b) => Math.abs(a.ordinal) - Math.abs(b.ordinal),
+          )[0]?.ordinal ?? 0),
+    );
+  }, [end]);
   const withoutCanopy = useMemo(
     () =>
       hideCanopy
@@ -910,8 +1689,11 @@ export default function App({
   const people =
     peopleFor.id === world.id
       ? peopleFor.on
-      : !lowPowerDevice &&
-        (world.id.startsWith("fiction-") || world.id.startsWith("ai-"));
+      : mapLook === "minimal"
+        ? false
+        : mapLook === "cinematic" ||
+          (!lowPowerDevice &&
+            (world.id.startsWith("fiction-") || world.id.startsWith("ai-")));
   const edgeShade = useMemo(
     () =>
       edgeHeat
@@ -936,9 +1718,11 @@ export default function App({
       place:
         areaLabels[1]?.text ??
         world.objects.find((o) => o.kind === "landmark" && o.name)?.name,
+      // Where the person's next usual walk goes, once Walk-Free has learned it.
+      routine: walkLog.learning ? leave?.routine.to.label : undefined,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [places, world.id],
+    [places, world.id, walkLog.learning, leave?.routine.to.label],
   );
   const findPlace = (id: string | null) => {
     if (!id || !edgeHeat) return null;
@@ -1043,12 +1827,18 @@ export default function App({
   );
   // Cool refuges within reach, worked out while the Heat tab is open.
   const [refugeMap, setRefugeMap] = useState(false);
+  // Coverage at an older walker's pace (3.28 km/h), as heat planners use.
+  const [slowPace, setSlowPace] = useState(false);
   const refuges = useMemo(
     () =>
       mode === "explore" && tab === "heat"
-        ? refugeCoverage(world, findRefuges(world, heatEnv, places))
+        ? refugeCoverage(
+            world,
+            findRefuges(world, heatEnv, places),
+            slowPace ? SLOW_WALK_M_PER_MIN : undefined,
+          )
         : null,
-    [mode, tab, world, heatEnv, places],
+    [mode, tab, world, heatEnv, places, slowPace],
   );
   const showRefuges = refugeMap && !!refuges && tab === "heat";
   const heatOverlay = useMemo(() => {
@@ -1423,7 +2213,10 @@ export default function App({
   const toolHost = useRef<ToolHost>(null!);
   toolHost.current = {
     world: routeWorld,
-    scene: world,
+    // The latest saved scene, even mid-turn (see edit).
+    get scene() {
+      return worldRef.current;
+    },
     env,
     forecast,
     sunAversion,
@@ -1448,6 +2241,64 @@ export default function App({
       setHeatPlaceId(id);
       setComparePlaceId(null);
     },
+    walker() {
+      if (!walkLogRef.current.learning) return { learning_off: true };
+      const w = walkerRef.current;
+      const clock = (t: number) =>
+        new Date(t).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      return {
+        from_sample_walks: w.samples,
+        // Days in a row with a walk (real walks), counting today.
+        streak_days: walkStreak(walkLogRef.current.walks).days,
+        walks_logged: w.pace.walks,
+        typical_pace_kmh: Math.round(w.pace.median * 36) / 10,
+        pace_model:
+          w.pace.model && w.pace.modelMae && w.pace.baselineMae
+            ? `neural network, ${Math.round((1 - w.pace.modelMae / w.pace.baselineMae) * 100)}% closer to real times than a fixed pace`
+            : "median pace (a network trains after 6 walks)",
+        walker_type: PERSONAS[w.personaId].label,
+        routines: w.routines.slice(0, 5).map((r) => ({
+          from: r.from.label,
+          to: r.to.label,
+          usual_arrival: clock(
+            new Date().setHours(Math.floor(r.arrival / 60), r.arrival % 60),
+          ),
+          minutes: Math.round(r.minutes),
+        })),
+        next: w.leave
+          ? {
+              from: w.leave.routine.from.label,
+              to: w.leave.routine.to.label,
+              leave_by: `${clock(w.leave.leaveAt)}${dayWord(w.leave.leaveAt) ? ` ${dayWord(w.leave.leaveAt)}` : ""}`,
+              arrive_by: clock(w.leave.arriveBy),
+              minutes_at_your_pace: Math.round(w.leave.minutes),
+              heat: w.advice ?? undefined,
+            }
+          : null,
+        // Only known once My walks has been opened on this map.
+        sun_this_week: w.sun
+          ? {
+              walks: w.sun.walks,
+              walking_minutes: Math.round(w.sun.minutes),
+              minutes_in_direct_sun: Math.round(w.sun.sunMinutes),
+              share_week_before: w.sun.previousShare,
+              ...(w.sun.avoided && w.sun.avoided.walks > 0
+                ? {
+                    // Against the quickest way between each walk's ends,
+                    // at the walker's own pace; negative means sunnier.
+                    minutes_of_sun_avoided_vs_quickest: Math.round(
+                      w.sun.avoided.minutes,
+                    ),
+                    walks_compared: w.sun.avoided.walks,
+                  }
+                : {}),
+            }
+          : undefined,
+      };
+    },
     async generateCity(description, realism) {
       // One generated city per question: each costs credits.
       if (cityThisTurn.current)
@@ -1470,6 +2321,9 @@ export default function App({
       return built
         ? `Built ${city.name}, ${city.state}. Routes and heat now use this area.`
         : `Could not build ${city.name}; the map providers may be busy.`;
+    },
+    setBuildingHours(buildingId, hours) {
+      edit(setInteriorHours(worldRef.current, buildingId, hours));
     },
     applyPlanting(result, before) {
       setHeatBaseline((current) => current ?? before);
@@ -1791,7 +2645,8 @@ export default function App({
   }, [world, projectKey, hydrated]);
   useEffect(() => () => stopSpeech(), []);
   function edit(next: World) {
-    location.reset();
+    // Following carries on across edits (and into a newly built area).
+    if (location.mode !== "following") location.reset();
     stopSpeech();
     setProposal(null);
     // A different area makes any before/after planting comparison meaningless.
@@ -1801,18 +2656,38 @@ export default function App({
     if (next.id !== current.id) clearHeatImpact();
     setHistory((h) => [...h.slice(-29), current]);
     setWorld(next);
+    // Seen at once by the next edit in the same turn (two assistant tools
+    // in a row), before React draws this one.
+    worldRef.current = next;
   }
   function clearHeatImpact() {
     setHeatBaseline(null);
     setPlanting(null);
   }
   function updateObject(changes: Partial<SceneObject>) {
-    edit({
+    let next: World = {
       ...world,
       objects: world.objects.map((o) =>
         o.id === selected ? { ...o, ...changes } : o,
       ),
-    });
+    };
+    // A floor plan was fitted to the old outline; moved or reshaped, the
+    // building no longer has the inside it had.
+    const reshaped = (
+      ["position", "width", "depth", "rotation", "footprint"] as const
+    ).some((k) => k in changes);
+    if (
+      selected &&
+      reshaped &&
+      world.indoor?.some((i) => i.buildingId === selected)
+    ) {
+      next = removeInterior(next, selected);
+      if (insideId === selected) setInsideId(null);
+      setMessage(
+        "The building changed shape, so its floor plan was taken out. Add it again to fit the new outline.",
+      );
+    }
+    edit(next);
   }
   /** Open one of the generated fictional cities, dressed for its mood. */
   function openFiction(slug: string, fromAssistant = false) {
@@ -1835,7 +2710,8 @@ export default function App({
     setMode("explore");
     if (!fromAssistant) setTab("route");
     setPicking(null);
-    setTrees(true);
+    // Trees come back with a new area, unless the look is Bare bones.
+    setTrees(savedMapLook() !== "minimal");
     setBuildings(true);
     setShowPaths(true);
     setForecast(null);
@@ -2101,7 +2977,8 @@ export default function App({
     setMode("explore");
     if (!fromAssistant) setTab("route");
     setPicking(null);
-    setTrees(true);
+    // Trees come back with a new area, unless the look is Bare bones.
+    setTrees(savedMapLook() !== "minimal");
     setBuildings(true);
     setShowPaths(true);
     setForecast(null);
@@ -2275,7 +3152,7 @@ export default function App({
       setMode("explore");
       setTab(link?.tab ?? "route");
       setPicking(null);
-      setTrees(true);
+      setTrees(savedMapLook() !== "minimal");
       setBuildings(true);
       setShowPaths(true);
       const now = new Date().toISOString();
@@ -2713,6 +3590,50 @@ export default function App({
       );
     }
   }
+  // Follow me: the map keeps you in view as you walk, on a phone or a laptop.
+  const lastCentered = useRef<Point | null>(null);
+  useEffect(() => {
+    if (!following) {
+      lastCentered.current = null;
+      return;
+    }
+    if (!estimate) return;
+    const p = estimate.position,
+      last = lastCentered.current;
+    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < RECENTER_M) return;
+    lastCentered.current = p;
+    cameraApi.current?.centerOn(p);
+  }, [following, estimate]);
+  /** Off the loaded map by more than this, offer to build where you are. */
+  const offMap =
+    following && estimate && outsideArea(estimate.position, world.extent) > 40;
+  function toggleFollow() {
+    if (following) {
+      location.stop();
+      return;
+    }
+    if (tracking) return;
+    location.begin("follow");
+    flash(
+      "Following you. On a laptop your position comes from Wi-Fi, so it may be off by a block.",
+    );
+  }
+  function buildAroundMe() {
+    const fix = location.fix;
+    if (!fix) return;
+    void loadCity(
+      {
+        id: `here-${Math.round(fix.lat * 1e4)}-${Math.round(fix.lon * 1e4)}`,
+        name: "Around you",
+        state: "",
+        lat: fix.lat,
+        lon: fix.lon,
+        timezone: world.timezone,
+      },
+      true,
+      800,
+    );
+  }
   function navigation() {
     if (tracking || locating) {
       location.stop();
@@ -2732,12 +3653,30 @@ export default function App({
     }
     setPicking(null);
     lastSpoken.current = "";
+    lastBuzzed.current = "";
+    // The route is chosen by now: a step for the walk itself, not a swap.
+    startTip.current =
+      heatAdvice?.tips.find((t) => !t.startsWith("Take ")) ?? null;
+    // Learn when you choose shade: the heat now, and whether you did.
+    if (walkLog.learning && routeChoices.quickest) {
+      const c = heatConditions(routeEnv, world.origin);
+      setWalkLog((log) => ({
+        ...log,
+        choices: [
+          ...(log.choices ?? []),
+          {
+            feelsLikeC: c.shadeFeelsC + c.sunBoostC,
+            shade: pref === "shade" || pref === "indoors",
+          },
+        ].slice(-200),
+      }));
+    }
     location.begin(true);
   }
   const gpsRouteStatus =
-    location.fix && !snappedLocation
+    startFromYou && !snappedLocation
       ? "Your location is outside the loaded walking paths. Build an area around you or choose a start on the map."
-      : location.fix && !currentRoute && routeStart !== end
+      : startFromYou && !currentRoute && routeStart !== end
         ? "No connected walk from your location with these settings. Try another destination or route option."
         : "";
   useEffect(() => {
@@ -2748,7 +3687,8 @@ export default function App({
     ) {
       location.stop();
       setMessage("You have arrived at your selected mapped destination.");
-      if (voice) speak("You have arrived.");
+      if (voice)
+        speak(translateGuidance("You have arrived.", spokenLang), spokenLang);
       return;
     }
     const text = currentRoute?.directions[0]?.text;
@@ -2757,10 +3697,28 @@ export default function App({
       lastSpoken.current = "";
       return;
     }
+    // A buzz for each new instruction (two short pulses), when asked for.
+    if (buzz && canVibrate && text !== lastBuzzed.current) {
+      lastBuzzed.current = text;
+      navigator.vibrate([90, 70, 90]);
+    }
+    // The start tip belongs to the walk's first instruction, spoken or not.
+    if (text !== lastSpoken.current && !voice) startTip.current = null;
     if (voice && text !== lastSpoken.current) {
       lastSpoken.current = text;
-      // With each new turn, say when shade is close ahead.
-      speak(text + spokenShadeHint(ahead));
+      // With each new turn, say when shade is close ahead; with the first,
+      // the heat check's first step.
+      const tip = startTip.current;
+      startTip.current = null;
+      // A full stop after the instruction, so the hints read as their own
+      // sentences rather than running on.
+      const said = /[.!?]$/.test(text) ? text : `${text}.`;
+      // In the walker's language; the heat check's tip is English-only.
+      speak(
+        translateGuidance(said + spokenShadeHint(ahead), spokenLang) +
+          (tip && spokenLang === "en-US" ? ` ${tip}` : ""),
+        spokenLang,
+      );
     }
     // `location` is a fresh object every render; its fix and stop are what
     // this effect uses.
@@ -2774,6 +3732,8 @@ export default function App({
     end,
     currentRoute,
     voice,
+    buzz,
+    spokenLang,
     location.stop,
   ]);
 
@@ -2837,7 +3797,7 @@ export default function App({
             )}
             <button
               className="icon-button unit-toggle"
-              aria-label={`Show temperatures in ${unit === "F" ? "Celsius" : "Fahrenheit"}`}
+              aria-label={`°${unit}: show temperatures in ${unit === "F" ? "Celsius" : "Fahrenheit"}`}
               title="Temperature unit (U)"
               onClick={() => {
                 const next = unit === "F" ? "C" : "F";
@@ -2911,11 +3871,89 @@ export default function App({
                 <PanelLeftClose size={18} />
               </button>
             </div>
+            {/* Phones: the walk's gist above the fold, a tap from its cards. */}
+            {walkPeek && mode === "explore" && !tracking && (
+              <button
+                type="button"
+                className="walk-peek"
+                onClick={() => {
+                  setTab("route");
+                  requestAnimationFrame(() =>
+                    document.querySelector(".route-choices")?.scrollIntoView({
+                      block: "start",
+                      behavior: window.matchMedia?.(
+                        "(prefers-reduced-motion: reduce)",
+                      ).matches
+                        ? "auto"
+                        : "smooth",
+                    }),
+                  );
+                }}
+              >
+                <Footprints size={15} aria-hidden />
+                <span>{walkPeek}</span>
+                <ChevronDown size={15} aria-hidden />
+              </button>
+            )}
             {(tracking || locating) && (
               <button className="secondary" onClick={navigation}>
                 {tracking ? "End active navigation" : "Cancel location lookup"}{" "}
                 <X size={16} />
               </button>
+            )}
+            {/* On phones the open-building chip lives here, off the map. */}
+            {openInterior && mode === "explore" && (
+              <div
+                className={`interior-row${flatMap ? " is-flat" : ""}`}
+                role="group"
+                aria-label={`Inside ${openInterior.buildingName}${openStatus ? `, ${openStatus.label}` : ""}`}
+              >
+                <span>
+                  Inside <strong>{openInterior.buildingName}</strong>
+                  {openStatus && (
+                    <small
+                      className={`interior-hours ${openStatus.open ? "is-open" : "is-closed"}`}
+                    >
+                      {" "}
+                      · {openStatus.label}
+                    </small>
+                  )}
+                </span>
+                {openInterior.levels.length > 1 && (
+                  <span className="interior-floors">
+                    {openInterior.levels.map((l) => (
+                      <button
+                        key={l.ordinal}
+                        className="chip"
+                        aria-pressed={insideLevel === l.ordinal}
+                        onClick={() => setInsideLevel(l.ordinal)}
+                      >
+                        {l.name}
+                      </button>
+                    ))}
+                  </span>
+                )}
+                <button
+                  className="text-button"
+                  onClick={() => setInsideId(null)}
+                >
+                  Show the outside
+                </button>
+              </div>
+            )}
+            {following && (
+              <div className="follow-status" role="status">
+                <LocateFixed size={15} aria-hidden />
+                <span>
+                  {location.status || "Following you"}
+                  {estimate && estimate.speed >= 0.35
+                    ? ` · ${(estimate.speed * 3.6).toFixed(1)} km/h`
+                    : ""}
+                </span>
+                <button className="text-button" onClick={toggleFollow}>
+                  Stop
+                </button>
+              </div>
             )}
             <OmniSearch
               catalog={catalog}
@@ -2940,20 +3978,25 @@ export default function App({
                 setGenOpen(true);
               }}
             />
-            <button
-              type="button"
-              className="generate-entry"
-              onClick={() => {
-                setGenPrompt("");
-                setGenOpen(true);
-              }}
-            >
-              <Sparkles size={15} aria-hidden />
-              <span>
-                <strong>Generate a city</strong>
-                <small>Describe any city, real or imagined, and walk it</small>
-              </span>
-            </button>
+            {/* Mid-walk, the walk comes first: no city generator. */}
+            {!tracking && (
+              <button
+                type="button"
+                className="generate-entry"
+                onClick={() => {
+                  setGenPrompt("");
+                  setGenOpen(true);
+                }}
+              >
+                <Sparkles size={15} aria-hidden />
+                <span>
+                  <strong>Generate a city</strong>
+                  <small>
+                    Describe any city, real or imagined, and walk it
+                  </small>
+                </span>
+              </button>
+            )}
             <CityGenerator
               key={genOpen ? `open-${genPrompt}` : "closed"}
               open={genOpen}
@@ -2976,6 +4019,17 @@ export default function App({
               render={photoRender}
               onClose={() => setPhotoRender(null)}
             />
+            {photoScene && (
+              <Suspense fallback={null}>
+                <PhotoScene
+                  open
+                  onClose={() => setPhotoScene(false)}
+                  origin={world.origin}
+                  timeZone={world.timezone}
+                  placeName={world.name.split(" · ")[0]}
+                />
+              </Suspense>
+            )}
             <StreetPhotoCheck
               place={photoCheck?.name ?? null}
               modelShade={photoCheck?.shade ?? null}
@@ -3045,7 +4099,7 @@ export default function App({
                 }}
               >
                 {(mode === "explore"
-                  ? ["route", "heat", "ask", "climate", "data"]
+                  ? ["route", "heat", "ask", "you", "climate", "data"]
                   : ["build", "assistant", "data"]
                 ).map((t) => (
                   <button
@@ -3056,7 +4110,11 @@ export default function App({
                     className={tab === t ? "chosen" : ""}
                     onClick={() => setTab(t)}
                   >
-                    {t === "data" ? "Data & sources" : t}
+                    {t === "data"
+                      ? "Data & sources"
+                      : t === "you"
+                        ? "My walks"
+                        : t}
                   </button>
                 ))}
               </div>
@@ -3067,6 +4125,7 @@ export default function App({
               tab !== "data" &&
               tab !== "heat" &&
               tab !== "ask" &&
+              tab !== "you" &&
               tab !== "transit" && (
                 <section>
                   <OutlookNotice
@@ -3074,6 +4133,26 @@ export default function App({
                     timeZone={world.timezone}
                     origin={world.origin}
                   />
+                  {leave && leave.leaveAt - minute * 60_000 < 3 * 3600_000 && (
+                    <button
+                      className="leave-chip"
+                      onClick={() => setTab("you")}
+                    >
+                      <Clock size={14} aria-hidden />
+                      <span>
+                        Leave by{" "}
+                        <strong>
+                          {new Date(leave.leaveAt).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                          {dayWord(leave.leaveAt) &&
+                            ` ${dayWord(leave.leaveAt)}`}
+                        </strong>{" "}
+                        for {leave.routine.to.label}
+                      </span>
+                    </button>
+                  )}
                   <div className="section-title">
                     <Route size={17} /> Your next walk
                   </div>
@@ -3198,8 +4277,12 @@ export default function App({
                               }}
                             >
                               <span>
-                                {w.fromLabel.replace(/^Path near /, "")} →{" "}
-                                {w.toLabel.replace(/^Path near /, "")}
+                                {w.fromLabel.replace(
+                                  /^(?:Path near|Near) /,
+                                  "",
+                                )}{" "}
+                                →{" "}
+                                {w.toLabel.replace(/^(?:Path near|Near) /, "")}
                               </span>
                               <small>{routeLabels[w.pref]}</small>
                             </button>
@@ -3285,12 +4368,36 @@ export default function App({
                             : `${Math.round(currentRoute.shadeFraction * 100)}% modeled shade`}
                         </span>
                       </div>
+                      {myEta && (
+                        <p className="my-eta">
+                          <Footprints size={14} aria-hidden />
+                          <span>
+                            About{" "}
+                            <strong>{Math.round(myEta.minutes)} min</strong> at
+                            your pace
+                            {usingSamples ? " (sample walks)" : ""}
+                          </span>
+                        </p>
+                      )}
                       {!routeDark && (
                         <HeatStressLine
                           stress={routeStress}
                           shadeFraction={currentRoute.shadeFraction}
                           compareShade={routeChoices.quickest?.shadeFraction}
                         />
+                      )}
+                      <WalkAdvice advice={heatAdvice} />
+                      {closedInside.length > 0 && (
+                        <p className="closed-inside">
+                          <Clock size={14} aria-hidden />
+                          <span>
+                            Closed at this hour:{" "}
+                            {closedInside
+                              .map((c) => `${c.name} (${c.label})`)
+                              .join(", ")}
+                            . Walks go around unless they start or end inside.
+                          </span>
+                        </p>
                       )}
                       {edgeHeat && !routeDark && (
                         <RouteProfile
@@ -3354,12 +4461,40 @@ export default function App({
                           {w}
                         </p>
                       ))}
+                      {sideHints.some(Boolean) && (
+                        <p className="shady-tip">
+                          On{" "}
+                          {sideHints.filter(Boolean).length === 1
+                            ? "one street"
+                            : `${sideHints.filter(Boolean).length} streets`}{" "}
+                          of this walk one sidewalk is much shadier at this
+                          hour: see the directions.
+                        </p>
+                      )}
                       <details>
                         <summary>Walking directions</summary>
                         {currentRoute.directions.map((d, i) => (
                           <p className="direction" key={i}>
                             {i + 1}. {d.text}{" "}
                             <small>{Math.round(d.distance)} m</small>
+                            {sideHints[i] && (
+                              <span className="shady-side">
+                                {" "}
+                                · shade on your {sideHints[i]!.side} (
+                                {Math.round(
+                                  sideHints[i]![sideHints[i]!.side] * 100,
+                                )}
+                                % vs{" "}
+                                {Math.round(
+                                  sideHints[i]![
+                                    sideHints[i]!.side === "left"
+                                      ? "right"
+                                      : "left"
+                                  ] * 100,
+                                )}
+                                %)
+                              </span>
+                            )}
                           </p>
                         ))}
                       </details>
@@ -3429,6 +4564,117 @@ export default function App({
                       setLocalHour(leg.hour);
                     }}
                   />
+                  <details
+                    className="route-options access-options"
+                    open={accessOpenAtStart || undefined}
+                  >
+                    <summary>Accessibility and voice</summary>
+                    <fieldset className="access-needs">
+                      <legend>Set the app up for me</legend>
+                      {ACCESS_PROFILES.map((p) => (
+                        <label className="check" key={p.id}>
+                          <input
+                            type="checkbox"
+                            checked={access.includes(p.id)}
+                            aria-describedby={`access-${p.id}`}
+                            onChange={(e) => {
+                              const on = e.target.checked;
+                              setAccess((list) =>
+                                on
+                                  ? [...list, p.id]
+                                  : list.filter((n) => n !== p.id),
+                              );
+                              if (!on) return;
+                              const s = applyAccessNeed(p.id, canVibrate);
+                              if (s.voice !== undefined) {
+                                setVoice(s.voice);
+                                if (!s.voice) stopSpeech();
+                              }
+                              if (s.buzz !== undefined) setBuzz(s.buzz);
+                              if (s.avoidStairs) setStairs(true);
+                              if (s.preference) setPref(s.preference);
+                              if (s.theme) setTheme(s.theme);
+                              if (s.heatSensitive) setHeatSensitive(true);
+                            }}
+                          />
+                          <span>
+                            {p.label}
+                            <small id={`access-${p.id}`}>{p.does}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                    <label className="access-lang">
+                      Speak directions in
+                      <select
+                        value={spokenLang}
+                        onChange={(e) =>
+                          setSpokenLang(e.target.value as SpokenLang)
+                        }
+                      >
+                        {SPOKEN_LANGS.map((l) => (
+                          <option key={l.code} value={l.code} lang={l.code}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() =>
+                        void speak(
+                          translateGuidance(
+                            "Turn left onto the footpath. Shade in 50 metres.",
+                            spokenLang,
+                          ),
+                          spokenLang,
+                        )
+                      }
+                    >
+                      Hear a sample
+                    </button>
+                  </details>
+                  <details className="route-options map-looks">
+                    <summary>Map look</summary>
+                    <fieldset className="access-needs">
+                      <legend>How the 3D map is drawn</legend>
+                      {MAP_LOOKS.map((l) => (
+                        <label className="check" key={l.id}>
+                          <input
+                            type="radio"
+                            name="map-look"
+                            checked={mapLook === l.id}
+                            aria-describedby={`look-${l.id}`}
+                            onChange={() => {
+                              setMapLook(l.id);
+                              // Each look sets the layers that suit it; each
+                              // stays switchable on the map's tool row.
+                              if (l.id === "heat") setHeatMap(true);
+                              if (l.id === "minimal") {
+                                setHeatMap(false);
+                                setTrees(false);
+                                setPeopleFor({ id: world.id, on: false });
+                              }
+                              if (l.id === "cinematic") {
+                                setTrees(true);
+                                setBuildings(true);
+                                setPeopleFor({ id: world.id, on: true });
+                              }
+                              if (l.id === "standard") {
+                                setTrees(true);
+                                setBuildings(true);
+                              }
+                            }}
+                          />
+                          <span>
+                            {l.label}
+                            <small id={`look-${l.id}`}>{l.does}</small>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  </details>
                   <details className="route-options">
                     <summary>Route options</summary>
                     <label className="check">
@@ -3451,6 +4697,16 @@ export default function App({
                       />
                       Spoken guidance
                     </label>
+                    {canVibrate && (
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={buzz}
+                          onChange={(e) => setBuzz(e.target.checked)}
+                        />
+                        Vibrate at each turn
+                      </label>
+                    )}
                     <label className="check">
                       <input
                         type="checkbox"
@@ -3459,6 +4715,20 @@ export default function App({
                       />
                       Avoid stairs
                     </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={heatSensitive}
+                        onChange={(e) => setHeatSensitive(e.target.checked)}
+                        aria-describedby="heat-sensitive-note"
+                      />
+                      I&apos;m more sensitive to heat
+                    </label>
+                    <p className="fine" id="heat-sensitive-note">
+                      Older adults, pregnancy, heart or lung conditions and some
+                      medicines raise the risk from heat (CDC). The heat check
+                      then speaks up sooner.
+                    </p>
                     <label className="check">
                       <input
                         type="checkbox"
@@ -3585,6 +4855,183 @@ export default function App({
                   }}
                 />
               )}
+            {!atlas && mode === "explore" && tab === "you" && (
+              <MyWalksPanel
+                learning={walkLog.learning}
+                onLearning={(on) =>
+                  setWalkLog((log) => ({ ...log, learning: on }))
+                }
+                following={following}
+                onFollow={toggleFollow}
+                walks={realWalks}
+                samples={usingSamples}
+                pace={pace}
+                places={myPlaces}
+                routines={myRoutines}
+                leave={leave}
+                remind={!!walkLog.remind}
+                leaveAdvice={leaveAdvice}
+                onCalendar={
+                  leave
+                    ? () => {
+                        // A repeating event with an alert: the phone's own
+                        // calendar reminds, even with Walk-Free closed.
+                        const a = document.createElement("a");
+                        a.href = URL.createObjectURL(
+                          new Blob(
+                            [
+                              leaveEvent(
+                                leave.routine,
+                                leave.leaveAt,
+                                leave.minutes,
+                                Date.now(),
+                                5,
+                                leave.arriveBy,
+                              ),
+                            ],
+                            { type: "text/calendar" },
+                          ),
+                        );
+                        a.download = "walk-free-leave-by.ics";
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+                        setMessage(
+                          "Open the file to add it to your calendar: it repeats on the days you make this walk, with an alert 5 minutes before.",
+                        );
+                      }
+                    : undefined
+                }
+                reminder={reminder}
+                onRemind={(on) => {
+                  remindOn.current = on;
+                  setWalkLog((log) => ({ ...log, remind: on }));
+                  if (!on) {
+                    cancelLeaveReminder();
+                    setReminder(null);
+                    return;
+                  }
+                  // Ask for permission now, in the click (Safari needs it).
+                  void scheduleReminder();
+                }}
+                persona={persona}
+                role={role}
+                onRole={(r) => setWalkLog((log) => ({ ...log, role: r }))}
+                shadeAboveC={shadeAboveC}
+                sun={sunThisWeek}
+                streak={walkStreak(walkLog.walks)}
+                onShareWeek={
+                  // Only real walks are worth sharing, never the samples.
+                  sunThisWeek && sunThisWeek.walks > 0 && !usingSamples
+                    ? () => {
+                        void shareWeekCard({
+                          place: world.name.split(" · ")[0],
+                          ...sunThisWeek,
+                          streak: walkStreak(walkLog.walks).days,
+                        }).then((r) => {
+                          if (r === "downloaded")
+                            flash(
+                              "Saved your week as an image (walk-free-week.png).",
+                            );
+                        });
+                      }
+                    : undefined
+                }
+                formatTemp={(c) => formatTemp(c, unit)}
+                onSample={() => {
+                  const walks = sampleWalks(world, Date.now(), campusArea?.day);
+                  if (!walks.length) {
+                    setMessage(
+                      "This map has too few named places for sample walks. Try a campus.",
+                    );
+                    return;
+                  }
+                  setWalkLog((log) => ({
+                    ...log,
+                    walks: [...log.walks.filter((w) => !w.sample), ...walks],
+                  }));
+                }}
+                onImport={(file) => {
+                  if (file.size > MAX_IMPORT_BYTES) {
+                    setMessage(
+                      "That file is too large to be a walks export (5 MB at most).",
+                    );
+                    return;
+                  }
+                  void file
+                    .text()
+                    .then((text) => {
+                      const data: unknown = JSON.parse(text);
+                      // Counts for the message from the log as it is; the
+                      // same merge is applied to the latest log (a fix may
+                      // arrive while the file is read).
+                      const r = importWalks(walkLogRef.current, data);
+                      // Refuse what this device couldn't keep: a log past
+                      // the browser's storage would lose every later walk.
+                      if (r.added && !saveLog(account.id, r.log)) {
+                        setMessage(
+                          "Those walks don't fit in this browser's storage alongside yours, so nothing was imported.",
+                        );
+                        return;
+                      }
+                      setWalkLog((log) => {
+                        const merged = importWalks(log, data).log;
+                        // Imported walks are history, not news.
+                        lastWalkId.current =
+                          merged.walks.filter((w) => !w.sample).at(-1)?.id ??
+                          lastWalkId.current;
+                        return merged;
+                      });
+                      setMessage(
+                        `${r.added} walk${r.added === 1 ? "" : "s"} imported` +
+                          (r.skipped
+                            ? `, ${r.skipped} already here, too old to keep or unreadable`
+                            : "") +
+                          (r.dropped
+                            ? `; your ${r.dropped} oldest made room (400 at most)`
+                            : "") +
+                          ".",
+                      );
+                    })
+                    .catch((e) =>
+                      setMessage(
+                        e instanceof SyntaxError
+                          ? "That file isn't an exported walks file."
+                          : e instanceof Error
+                            ? e.message
+                            : "Those walks couldn't be read.",
+                      ),
+                    );
+                }}
+                onExport={() => {
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(
+                    new Blob(
+                      [
+                        JSON.stringify(
+                          walkLog.walks.filter((w) => !w.sample),
+                          null,
+                          1,
+                        ),
+                      ],
+                      { type: "application/json" },
+                    ),
+                  );
+                  a.download = "walk-free-my-walks.json";
+                  a.click();
+                  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+                }}
+                onDelete={() => {
+                  if (
+                    !window.confirm(
+                      "Delete every walk logged on this device and everything learned from them?",
+                    )
+                  )
+                    return;
+                  deleteLog(account.id);
+                  setWalkLog(emptyLog());
+                }}
+              />
+            )}
             {!atlas && mode === "explore" && tab === "heat" && (
               <HeatRiskWeek
                 risk={outlook?.heatRisk}
@@ -3600,6 +5047,8 @@ export default function App({
             {!atlas && mode === "explore" && tab === "heat" && (
               <RefugeCard
                 coverage={refuges}
+                slowPace={slowPace}
+                onSlowPace={setSlowPace}
                 shown={refugeMap}
                 onToggle={setRefugeMap}
                 onShow={(street) => {
@@ -3669,13 +5118,13 @@ export default function App({
                   <div className="eyebrow">
                     Selected point · {probeLabel(probe)}
                   </div>
-                  <h3>
+                  <h2>
                     {sunDirection(env, world.origin).y <= 0
                       ? "After sunset"
                       : isShaded(probe, world, env)
                         ? "In modeled shade"
                         : "Exposed to the sun"}
-                  </h3>
+                  </h2>
                   <p>
                     {heatIndexC(env.temperatureC, env.humidity) === null
                       ? "Heat index is outside the hot/humid range."
@@ -3831,12 +5280,17 @@ export default function App({
                         className="icon-button"
                         aria-label="Delete object"
                         onClick={() => {
-                          edit({
+                          // Its inside (and indoor paths) go with it.
+                          const gone = {
                             ...world,
                             objects: world.objects.filter(
                               (o) => o.id !== selected,
                             ),
-                          });
+                          };
+                          edit(
+                            selected ? removeInterior(gone, selected) : gone,
+                          );
+                          if (insideId === selected) setInsideId(null);
                           setSelected(null);
                         }}
                       >
@@ -3883,6 +5337,44 @@ export default function App({
                         />
                       </label>
                     ))}
+                    {object.kind !== "tree" && (
+                      <Suspense fallback={null}>
+                        <IndoorImport
+                          world={world}
+                          building={object}
+                          at={env.dateTime}
+                          open={insideId === object.id}
+                          level={insideLevel}
+                          onOpen={(open) => {
+                            setInsideId(open ? object.id : null);
+                            // Start on a floor this building has (the one
+                            // nearest the ground), not one left from another.
+                            const floors =
+                              world.indoor?.find(
+                                (i) => i.buildingId === object.id,
+                              )?.levels ?? [];
+                            if (open && floors.length)
+                              // Keep a floor just picked (queued) if it's here.
+                              setInsideLevel((current) =>
+                                floors.some((l) => l.ordinal === current)
+                                  ? current
+                                  : [...floors].sort(
+                                      (a, b) =>
+                                        Math.abs(a.ordinal) -
+                                        Math.abs(b.ordinal),
+                                    )[0].ordinal,
+                              );
+                            // Look in close enough to see the rooms.
+                            if (open) setFocusOn(footprintRing(object));
+                          }}
+                          onLevel={setInsideLevel}
+                          onChange={(next, note) => {
+                            edit(next);
+                            setMessage(note);
+                          }}
+                        />
+                      </Suspense>
+                    )}
                   </div>
                 )}
               </section>
@@ -4001,6 +5493,7 @@ export default function App({
                           const c = refugeCoverage(
                             world,
                             findRefuges(world, heatEnv, places),
+                            slowPace ? SLOW_WALK_M_PER_MIN : undefined,
                           );
                           return c
                             ? {
@@ -4062,6 +5555,12 @@ export default function App({
               just the destination.
               <button
                 className="text-button footer-shortcuts"
+                onClick={() => setGuideOpen(true)}
+              >
+                How it works
+              </button>
+              <button
+                className="text-button footer-shortcuts"
                 onClick={() => setShowShortcuts(true)}
               >
                 Keyboard shortcuts
@@ -4096,6 +5595,8 @@ export default function App({
                 edgeColors={heatOverlay?.colors}
                 insets={mapInsets}
                 theme={theme}
+                interior={openInterior}
+                level={insideLevel}
               />
             ) : (
               <>
@@ -4125,14 +5626,24 @@ export default function App({
                   cameraApi={cameraApi}
                   onBearing={setBearing}
                   routeShade={routeShade}
+                  openInterior={insideId}
+                  interiorLevel={insideLevel}
                   pickingEndpoint={!!picking}
                   showWalkingPaths={showPaths && mode === "explore"}
                   locationPoint={userPosition || undefined}
+                  locationAccuracy={
+                    estimate
+                      ? Math.max(estimate.uncertainty, 4)
+                      : location.fix?.accuracy
+                  }
+                  locationHeading={estimate?.heading ?? null}
                   showTrees={trees}
                   showBuildings={buildings}
                   heat={heatOverlay}
                   insets={mapInsets}
                   theme={theme}
+                  look={mapLook}
+                  onLookFailed={() => setMapLook("standard")}
                   ambient={sky}
                   walkthrough={walking ? walk3d : null}
                   labels={mode === "explore" ? areaLabels : undefined}
@@ -4223,6 +5734,17 @@ export default function App({
                   </button>
                 )
               ))}
+            {guideOpen && !tourOpen && (
+              <FirstRunGuide
+                onClose={() => setGuideOpen(false)}
+                onTour={
+                  world.provenance.live &&
+                  prebuiltAreaFor(world.origin.lat, world.origin.lon, 1000)
+                    ? openTour
+                    : undefined
+                }
+              />
+            )}
             {!atlas && view === "2d" && mode === "explore" && currentRoute && (
               <div className="walk-banner" role="status" aria-live="polite">
                 <strong>
@@ -4501,6 +6023,13 @@ export default function App({
                   >
                     <Building2 size={19} />
                   </button>
+                  <button
+                    title="Step into a photo: rebuild a street in 3D"
+                    aria-label="Step into a photo"
+                    onClick={() => setPhotoScene(true)}
+                  >
+                    <ImageUp size={19} />
+                  </button>
                   {!(view === "2d" && mode === "explore") && (
                     <button
                       title="Save a picture of this view"
@@ -4510,38 +6039,62 @@ export default function App({
                       <Camera size={19} />
                     </button>
                   )}
-                  {!(view === "2d" && mode === "explore") && (
+                  {/* Tools used now and then, kept out of the row. */}
+                  <div className="map-more desktop-only" ref={moreRef}>
                     <button
-                      className="desktop-only"
-                      title={
-                        recording
-                          ? "Recording the day…"
-                          : "Record the day as a time-lapse video"
-                      }
-                      aria-label="Record the day as a time-lapse video"
-                      aria-pressed={recording}
-                      disabled={recording}
-                      onClick={() => void recordDay()}
+                      ref={moreButton}
+                      title="More tools"
+                      aria-label="More tools"
+                      aria-expanded={moreOpen}
+                      aria-controls="map-more-menu"
+                      onClick={() => setMoreOpen((o) => !o)}
                     >
-                      <Video size={19} />
+                      <Ellipsis size={19} />
                     </button>
-                  )}
-                  <button
-                    className="desktop-only"
-                    title="Import scene"
-                    aria-label="Import scene"
-                    onClick={() => upload.current?.click()}
-                  >
-                    <Upload size={19} />
-                  </button>
-                  <button
-                    className="desktop-only"
-                    title="Export scene"
-                    aria-label="Export scene"
-                    onClick={exportWorld}
-                  >
-                    <Download size={19} />
-                  </button>
+                    {moreOpen && (
+                      <div
+                        id="map-more-menu"
+                        className="map-more-menu"
+                        role="group"
+                        aria-label="More tools"
+                      >
+                        {!(view === "2d" && mode === "explore") && (
+                          <button
+                            aria-label="Record the day as a time-lapse video"
+                            aria-pressed={recording}
+                            disabled={recording}
+                            onClick={() => {
+                              setMoreOpen(false);
+                              void recordDay();
+                            }}
+                          >
+                            <Video size={17} aria-hidden />
+                            {recording
+                              ? "Recording the day…"
+                              : "Record the day as a time-lapse"}
+                          </button>
+                        )}
+                        <button
+                          aria-label="Import scene"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            upload.current?.click();
+                          }}
+                        >
+                          <Upload size={17} aria-hidden /> Import scene
+                        </button>
+                        <button
+                          aria-label="Export scene"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            exportWorld();
+                          }}
+                        >
+                          <Download size={17} aria-hidden /> Export scene
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {show3dNav &&
                   heatOverlay &&
@@ -4599,6 +6152,17 @@ export default function App({
                     role="group"
                     aria-label="Map view controls"
                   >
+                    <button
+                      type="button"
+                      title={following ? "Stop following me" : "Follow me"}
+                      aria-label={following ? "Stop following me" : "Follow me"}
+                      aria-pressed={following}
+                      className={following ? "is-on" : undefined}
+                      disabled={tracking}
+                      onClick={toggleFollow}
+                    >
+                      <LocateFixed size={18} />
+                    </button>
                     <button
                       type="button"
                       title="Zoom in (+)"
@@ -4731,6 +6295,57 @@ export default function App({
               <div className="loading">
                 <span className="spinner" />
                 {busy}
+              </div>
+            )}
+            {/* On the flat map rooms simply draw over the roof, and the
+                walking banner owns the top; the chip is for the 3D cutaway. */}
+            {openInterior && !offMap && !flatMap && mode === "explore" && (
+              <div
+                className="offmap-banner interior-chip"
+                role="group"
+                aria-label={`Inside ${openInterior.buildingName}${openStatus ? `, ${openStatus.label}` : ""}`}
+              >
+                <span>
+                  Inside{" "}
+                  <strong title={openInterior.buildingName}>
+                    {openInterior.buildingName}
+                  </strong>
+                  {openStatus && (
+                    <small
+                      className={`interior-hours ${openStatus.open ? "is-open" : "is-closed"}`}
+                    >
+                      {" "}
+                      · {openStatus.label}
+                    </small>
+                  )}
+                </span>
+                {openInterior.levels.length > 1 &&
+                  openInterior.levels.map((l) => (
+                    <button
+                      key={l.ordinal}
+                      className="chip"
+                      aria-pressed={insideLevel === l.ordinal}
+                      onClick={() => setInsideLevel(l.ordinal)}
+                    >
+                      {l.name}
+                    </button>
+                  ))}
+                <button
+                  className="text-button"
+                  onClick={() => setInsideId(null)}
+                >
+                  Show the outside
+                </button>
+              </div>
+            )}
+            {offMap && !busy && (
+              <div className="offmap-banner" role="status">
+                <span>
+                  You&apos;ve walked off the {world.name.split(" · ")[0]} map.
+                </span>
+                <button className="primary" onClick={buildAroundMe}>
+                  Build the map around you
+                </button>
               </div>
             )}
             {message && (

@@ -375,3 +375,44 @@ Meta's Model API has no text-to-speech model (`/v1/audio/speech` and `/v1/tts/sy
 - Piper's English audio of a reply, sent back through Muse Voice Transcribe, came back nearly word for word ("Luther Lane is the coolest right now at an estimated feels like 80 degrees with full shade…").
 - No Content-Security-Policy violations from the voice. One `script-src eval` report comes from the main bundle and appears before the voice loads, as it did before this change.
 - `npm test`: 683 pass; `npm run build` and `npm run lint` pass. Not yet tried on an iPhone, where playback depends on the tap that sent the question (handled by `unlockAudio`).
+
+## Post-judging features — built 2026-11-06, merged 2026-11-10
+
+Built in a separate copy and held back while the project was being judged, then merged onto `main` after judging (on top of the voice-question and spoken-reply work above). Web speech now reads sentence by sentence with the shared `bestVoice` picker. See `docs/NEXT_FEATURES.md` for what each feature does.
+
+- `npm test`: 836 tests pass across 88 files (after merging onto main). New suites cover follow-me smoothing; the on-device neural network and pace model; routines, leave-by and walker type; reminders and their races; walk import and the calendar event; walk sun exposure; trip heat; the street-shade model and compass maths; shady-side hints; photo vanishing points and rebuilt street size (landscape and portrait); EXIF lens, GPS, direction and date; floor-plan tracing (three plans, including an L-shaped building); placing plans in buildings; and routing through interiors, up stairs or by lift to rooms. Added on the afternoon of 6 November: the heat check (with HeatRisk and heat sensitivity), opening hours and closed buildings, and sun avoided. Added that evening: leave-by up to a week ahead, the spoken start tip, drinking fountains, "Vibrate at each turn", Share my week, open buildings as cool refuges, the assistant's set_building_hours tool, the "More tools" menu, and the walking streak. Added late that night (9–10:30 PM): spoken directions in six languages (`speech-i18n`), accessibility profiles (`access-profiles`), the globe's coastline data (`globe-land`), and refuge coverage at an older walker's pace.
+- `npx tsc --noEmit`, `npx eslint .` and `npm run build` pass. The new code adds about 25 kB gzipped to the main bundle; the photo dialog and floor-plan tools load on demand.
+- Two new dependencies, `postprocessing` and `@react-three/postprocessing`, for the Cinematic map look. They build into their own chunk (`vendor-effects`, about 159 kB gzipped) that loads only when someone picks Cinematic; the shared 3D chunk grows by about 10 kB (uncompressed) for the map-look settings. Run `npm ci` after applying the patch. The landing page's globe also loads on demand (about 5 kB gzipped) when it scrolls into view.
+- Merged onto `main` at `5a73747` (three conflicts, resolved by keeping both sides: web speech uses the shared `bestVoice` picker, sentence by sentence). The lockfile was regenerated and `npm ci` installs cleanly. After the merge: full suite, typecheck, lint and build pass; smoke runs on desktop and phone, the accessibility profiles and spoken Spanish sample, the map-look and guide fixes, and a full axe sweep of every tab, desktop and phone, all pass.
+- Headless Chromium against a local dev server, at desktop and 390 × 844 phone sizes:
+  - following with simulated GPS, and logging a simulated two-minute walk
+  - My walks with sample walks on UT Austin and Midtown Manhattan
+  - reminders, using a stubbed Notification API because headless Chromium reports notifications as blocked
+  - the calendar download and walk import
+  - floor plans placed in UT buildings, two floors linked by stairs, and a route to an upstairs room
+  - the photo dialog and its shade timeline
+  - a regression sweep of the existing app with no page or console errors
+  - axe checks on the new panels in the default and night themes, with no violations
+  - a full-page axe sweep of every tab and the Design studio, desktop and phone, in all four themes: clean after fixing issues the app already had (°F/°C button name, Climate summary contrast, two heading levels, night-theme coloured text)
+  - a phone run from search to a simulated GPS walk, and the 360 px tool row
+  - the four map looks (Standard, Cinematic, Heat focus, Bare bones) with no errors; Cinematic on UT Austin by day and the noir fiction city at night, with ambient occlusion, bloom and vignette visible
+  - on a phone: the Blind and Wheelchair profiles giving larger text and the step-free route, a Spanish sample line spoken with an es-ES voice, and both surviving a reload; axe clean
+  - the five-step first-run guide on a phone: Back/Next, Escape, staying closed after a reload; axe clean
+  - the landing-page globe: markers link to each place's demo, the no-WebGL fallback list, and reduced motion
+  - a final regression sweep (smoke desktop and phone) and a full axe sweep of every tab, desktop and phone, after tonight's changes: no errors, no violations
+- Thirteen independent code reviews found 90 defects. 88 are fixed and covered by tests or browser checks. Two are documented as known limits: a floor plan whose corridor is narrower than its doors can't be split from the rooms, and a real place name starting "Near " loses that word in the saved-walks list.
+- An older end-to-end check ("S switches style and it persists") fails about half the time on both the original code and the patch, so it isn't caused by the patch.
+- Not yet validated:
+  - real walks on phones and laptops; positions were simulated
+  - native reminders on iOS and Android builds
+  - a real IMDF archive and real OSM indoor data; the importers were tested with built features
+  - real floor-plan scans and real street photos
+  - street-shade timings compared with shade on the ground
+  - opening hours from real IMDF venues and OSM buildings
+  - "sun avoided" against real logged walks
+  - the share sheet, "Vibrate at each turn" and multi-day web reminders on real phones and laptops
+  - the assistant's set_building_hours tool with the live model
+  - spoken directions with real phone voices in each language (only a stubbed speech engine was used), and native app speech, which still uses the device's own text-to-speech
+  - Cinematic's frame rate on mid-range phones; it was only seen in a software renderer
+  - the larger-text setting (CSS zoom) on iOS Safari, and the profiles with blind, low-vision, deaf and wheelchair-using testers
+  - the globe's coastlines, which are a simplified outline drawn for the page

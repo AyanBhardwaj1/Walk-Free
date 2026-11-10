@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import FictionGallery from "./FictionGallery";
 import FeatureScene from "./FeatureScene";
+import CoverageSection from "./CoverageSection";
 
 export function Brand() {
   return (
@@ -988,6 +989,8 @@ export default function LandingPage({
             <ArrowUpRight size={15} aria-hidden />
           </a>
         </section>
+
+        <CoverageSection base={signedIn ? "/app" : "/demo"} />
 
         <section className="landing-ask reveal" id="assistant">
           <div className="section-intro">

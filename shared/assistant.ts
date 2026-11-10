@@ -219,6 +219,35 @@ export const ASSISTANT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "my_walks",
+      description:
+        "What Walk-Free has learned from the person's own logged walks, on their device: their walking pace, their regular trips (routines), when to leave for the next one, and what kind of walker they are. Also how hot the next walk will be and what the shade route saves, and how many walking minutes were in direct sun this week. Use for 'when should I leave for class?', 'how fast do I walk?', 'what are my usual walks?' or 'how much sun am I getting on my walks?'. Returns learning_off when they haven't turned learning on.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "set_building_hours",
+      description:
+        "Set or clear the opening hours of a building whose inside is mapped (an imported floor plan), so walks go around it while it's closed. Convert the person's words to OpenStreetMap opening_hours syntax, for example 'open 7 to 10 on weekdays, 9 to 5 Saturdays, closed Sundays' becomes 'Mo-Fr 07:00-22:00; Sa 09:00-17:00; Su off'. Pass hours as an empty string to clear them. Only for buildings with a mapped inside; say so if there's none.",
+      parameters: {
+        type: "object",
+        properties: {
+          building: { type: "string" },
+          hours: {
+            type: "string",
+            description:
+              "OpenStreetMap opening_hours: day ranges (Mo-Fr), times (07:00-22:00, split with commas), 'off', ';' between rules, or 24/7. Empty to clear.",
+          },
+        },
+        required: ["building", "hours"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "cool_refuges",
       description:
         "Places to get out of the heat in the loaded area at the time shown (air-conditioned cool stops, shade shelters, mostly shaded parks), how much of the walking network is within a 5- and 10-minute walk of one, and the streets farthest from any. Use for 'where can I cool down?' or 'where does campus need a cooling centre?'",

@@ -338,6 +338,17 @@ export function scenarioAt(
   return { ...env, dateTime: iso, temperatureC: env.temperatureC + shift };
 }
 
+/** Whether a forecast reaches this time (an hour of it close enough). */
+export function forecastCovers(
+  forecast: WeatherForecast | null | undefined,
+  iso: string,
+) {
+  const t = Date.parse(iso);
+  return (forecast?.hours ?? []).some(
+    (h) => Math.abs(Date.parse(h.time) - t) < FORECAST_REACH_MS,
+  );
+}
+
 export function weatherAt(
   env: Environment,
   iso: string,

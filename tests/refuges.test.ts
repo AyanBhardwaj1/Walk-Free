@@ -6,6 +6,7 @@ import {
   findRefuges,
   refugeColor,
   refugeCoverage,
+  SLOW_WALK_M_PER_MIN,
 } from "../src/lib/refuges.js";
 import { runTool, type ToolHost } from "../src/lib/assistant-tools.js";
 
@@ -108,5 +109,26 @@ describe("cool refuges within reach", () => {
       "{}",
     )) as { paths_within_10_min_percent: number };
     expect(out.paths_within_10_min_percent).toBeGreaterThan(0);
+  });
+});
+
+describe("refuge coverage at an older walker's pace", () => {
+  it("counts more minutes, and fewer paths in reach, at 3.28 km/h", () => {
+    const refuge = [
+      {
+        name: "Library",
+        kind: "cool-stop" as const,
+        nodeId: "a",
+        point: [0, 0] as [number, number],
+      },
+    ];
+    const usual = refugeCoverage(line(), refuge)!;
+    const slow = refugeCoverage(line(), refuge, SLOW_WALK_M_PER_MIN)!;
+    // The far path is 5 minutes away at 78 m/min, about 7.1 at 54.7.
+    expect(slow.minutes.get("C")!).toBeCloseTo(
+      (5 * 78) / SLOW_WALK_M_PER_MIN,
+      5,
+    );
+    expect(slow.within[0]).toBeLessThan(usual.within[0]);
   });
 });

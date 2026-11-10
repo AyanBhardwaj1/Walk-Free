@@ -72,6 +72,13 @@ export default defineConfig({
           // Vite's preload helper is used by every page: keep it out of the
           // 3D chunk, or the landing page would preload three.js.
           if (id.includes("vite/preload-helper")) return "vendor-react";
+          // The cinematic look's effects load only when it's chosen.
+          if (
+            /node_modules\/(postprocessing|n8ao|@react-three\/postprocessing)\//.test(
+              id,
+            )
+          )
+            return "vendor-effects";
           if (/node_modules\/(three|@react-three)\//.test(id))
             return "vendor-3d";
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id))

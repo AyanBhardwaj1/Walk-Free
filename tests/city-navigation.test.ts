@@ -3,6 +3,7 @@ import { parseOsmWorld, type OsmResponse } from "../server/data";
 import {
   defaultEndpoints,
   destinationCatalog,
+  placeName,
   searchDestinations,
 } from "../src/lib/destinations";
 import { compareRoutes, route } from "../src/lib/routing";
@@ -126,7 +127,13 @@ describe("built campus navigation", () => {
       catalog = destinationCatalog(w);
     const found = searchDestinations(catalog, "campus library", "", 60);
     expect(found.total).toBe(1);
-    expect(found.shown[0].label).toBe("Path near Campus Library");
+    expect(found.shown[0].label).toBe("Near Campus Library");
+    // The bare place rides along, so a real name that starts with "Near"
+    // is never cut short where only the place is shown.
+    expect(found.shown[0].place).toBe("Campus Library");
+    expect(placeName(found.shown[0])).toBe("Campus Library");
+    expect(placeName({ label: "Near East Hall" })).toBe("Near East Hall");
+    expect(placeName({ label: "Path near Old Gym" })).toBe("Old Gym");
     expect(found.shown[0].id).toBe("osm-node-4");
     // The street's plain path points share one label and are listed once.
     expect(searchDestinations(catalog, "college walk", "", 60).total).toBe(2);

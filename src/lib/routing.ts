@@ -8,6 +8,8 @@ import type {
   RoutePreference,
 } from "../../shared/types.js";
 import { createShadeTester } from "./environment.js";
+import { upstairs } from "./indoor/ids.js";
+import { closedInteriors } from "./indoor/hours.js";
 
 export const routePreferences: RoutePreference[] = [
   "quickest",
@@ -124,6 +126,7 @@ export function samplePolyline(points: Point[], count: number): Point[] {
 }
 
 /** Snap to an existing path node, never create an off-network connection. */
+
 export function nearestWalkNode(
   w: World,
   point: Point,
@@ -133,7 +136,7 @@ export function nearestWalkNode(
   let best: GraphNode | null = null,
     distance = maxDistance;
   for (const n of w.graph.nodes) {
-    if (!connected.has(n.id)) continue;
+    if (!connected.has(n.id) || upstairs(n.id)) continue;
     const d = Math.hypot(n.point[0] - point[0], n.point[1] - point[1]);
     if (d <= distance) {
       best = n;
@@ -155,8 +158,28 @@ function planner(
   const sunPenalty = clampSunAversion(o.sunAversion) - 1;
   const shadedAt = createShadeTester(w, o.environment);
   const nodeIds = new Set(w.graph.nodes.map((n) => n.id));
+  // Buildings closed at this hour are walked around: their indoor paths
+  // are left out (the short outdoor links to their doors stay, as dead
+  // ends, so a walk can still reach a door or leave from beside one). A
+  // walk that starts or ends inside (every path touching that end is the
+  // building's indoor path, as at a room or a GPS fix split into a
+  // corridor) keeps the building open.
+  let closed = closedInteriors(w, o.environment.dateTime);
+  if (closed.length) {
+    const inside = (node: string, tag: string) => {
+      const touching = w.graph.edges.filter(
+        (e) => e.from === node || e.to === node,
+      );
+      return (
+        touching.length > 0 &&
+        touching.every((e) => e.id.startsWith(tag) && e.indoor !== "no")
+      );
+    };
+    closed = closed.filter((tag) => !inside(from, tag) && !inside(to, tag));
+  }
   for (const e of w.graph.edges) {
     if (
+      (e.indoor !== "no" && closed.some((tag) => e.id.startsWith(tag))) ||
       !nodeIds.has(e.from) ||
       !nodeIds.has(e.to) ||
       e.distance <= 0 ||
