@@ -1,5 +1,6 @@
 import type { Point, World } from "../../shared/types.js";
 import { walkEdges, type WalkConstraints } from "./destinations.js";
+import { upstairs } from "./indoor/ids.js";
 
 /** Project onto a real walkable edge. Splitting preserves its direction and access attributes. */
 export function snapWalkPosition(
@@ -17,6 +18,8 @@ export function snapWalkPosition(
   } | null = null;
   let distance = maxDistance;
   for (const edge of walkEdges(world, constraints)) {
+    // Never onto another floor, or partway up the stairs to one.
+    if (upstairs(edge.from) || upstairs(edge.to)) continue;
     const lengths = edge.points
       .slice(1)
       .map((p, i) =>

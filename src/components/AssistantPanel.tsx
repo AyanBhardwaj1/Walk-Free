@@ -41,6 +41,8 @@ const toolLabels: Record<string, string> = {
   plant_shade_trees: "Planted shade trees",
   plan_tree_planting: "Found where trees help most",
   cool_refuges: "Mapped cool refuges",
+  set_building_hours: "Set a building's hours",
+  my_walks: "Checked your walks",
 };
 export const toolActivity = (name: string) =>
   toolLabels[name] ?? "Worked on it";
@@ -68,9 +70,16 @@ export function traceText(raw: string, limit = 600) {
  * Questions to start with, named for this map when we know its hottest
  * street and a landmark, so they work in any campus or invented city.
  */
-export function suggestionsFor(hints?: { street?: string; place?: string }) {
+export function suggestionsFor(hints?: {
+  street?: string;
+  place?: string;
+  /** Where the person's next usual walk goes, if learned. */
+  routine?: string;
+}) {
   return [
-    "Where is it hottest at 3 PM?",
+    hints?.routine
+      ? `When should I leave for ${hints.routine}?`
+      : "Where is it hottest at 3 PM?",
     hints?.place
       ? `Find me the shadiest way to ${hints.place}`
       : "Find me the shadiest way across this map",
@@ -131,7 +140,7 @@ export default function AssistantPanel({
   /** No account: a few shared questions a day, and no key settings. */
   guest?: boolean;
   /** This map's hottest street and a landmark, for the suggestions. */
-  hints?: { street?: string; place?: string };
+  hints?: { street?: string; place?: string; routine?: string };
   messages: ChatMessage[];
   status: string | null;
   error: string;

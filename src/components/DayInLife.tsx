@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CalendarClock, Pause, Play, Sun } from "lucide-react";
-import type { DayLeg, DayPlan } from "../lib/day-plan";
+import type { DayLeg, DayPlan, DayStop } from "../lib/day-plan";
+import { placeName } from "../lib/destinations";
 import { formatTemp, useUnit } from "../lib/units";
 
 const clock = (hour: number) => {
@@ -8,7 +9,7 @@ const clock = (hour: number) => {
     m = Math.round((hour % 1) * 60);
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 };
-const place = (label: string) => label.replace(/^Path near /, "");
+const place = (stop: DayStop) => placeName(stop);
 const STEP_MS = 2600;
 
 /**
@@ -117,7 +118,7 @@ export default function DayInLife({
               <span className="day-what">
                 <strong>{leg.title}</strong>
                 <small>
-                  {place(leg.from.label)} → {place(leg.to.label)}
+                  {place(leg.from)} → {place(leg.to)}
                 </small>
               </span>
               <span className="day-heat">

@@ -18,6 +18,8 @@ export interface DayStop {
   role: "home" | "coffee" | "work" | "lunch" | "errand";
   id: string;
   label: string;
+  /** The nearby place a "Near X" label was made from. */
+  place?: string;
 }
 export interface DayLeg {
   from: DayStop;
@@ -91,6 +93,7 @@ export function pickStops(
     role,
     id: d.id,
     label: d.label,
+    ...(d.place ? { place: d.place } : {}),
   });
   const centre: Point = [0, 0];
   const byCentre = [...places].sort(
@@ -152,7 +155,12 @@ function pickNamed(world: World, hints: DayHints) {
   for (const role of roles) {
     const d = matchDestinations(catalog, hints[role]!)[0];
     if (!d) return null;
-    out[role] = { role, id: d.id, label: d.label };
+    out[role] = {
+      role,
+      id: d.id,
+      label: d.label,
+      ...(d.place ? { place: d.place } : {}),
+    };
   }
   return new Set(roles.map((r) => out[r].id)).size === roles.length
     ? out

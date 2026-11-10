@@ -14,6 +14,9 @@ import { coolWalkability } from "./cool-walkability.js";
 import { treePriorities } from "./tree-priority.js";
 import { heatStress, UTCI_BANDS, utciBand, walkUtci } from "./heat-stress.js";
 import { findRefuges, refugeCoverage } from "./refuges.js";
+import { routeAdvice } from "./walk-advice.js";
+import { sunDirection } from "./environment.js";
+import { hoursStatus, parseOpeningHours } from "./opening-hours.js";
 import { plantShadeRow, type PlantingResult } from "./planting.js";
 import {
   atLocalHour,
@@ -29,6 +32,16 @@ import {
   scenarioAt,
   type PlaceHeat,
 } from "./heat.js";
+
+/** Route names as the heat check says them to the assistant. */
+const ROUTE_NAMES = {
+  quickest: "the quickest route",
+  shade: "the shade route",
+  scenic: "the scenic route",
+  indoors: "the cool-stops route",
+  stepfree: "the step-free route",
+  night: "the lit route",
+} as const;
 
 /** What the assistant may read and change in the running app. */
 export interface ToolHost {
@@ -61,7 +74,11 @@ export interface ToolHost {
     realism: "sketch" | "detailed" | "dense",
   ): Promise<string>;
   applyPlanting(result: PlantingResult, before: World): void;
+  /** Sets (or, with null, clears) a mapped building's opening hours. */
+  setBuildingHours?(buildingId: string, hours: string | null): void;
   proposeDesign(request: string): Promise<string>;
+  /** What the walk log has taught (pace, routines, leave-by, profile). */
+  walker?(): unknown;
 }
 
 const hour = z.number().min(0).max(23.99);
@@ -95,6 +112,7 @@ const schemas = {
   }),
   build_area: z.object({ place: z.string().min(1).max(120) }),
   cool_refuges: z.object({}),
+  my_walks: z.object({}),
   plan_tree_planting: z.object({
     count: z.number().int().min(1).max(5).optional(),
   }),
@@ -104,6 +122,10 @@ const schemas = {
   }),
   propose_design: z.object({ request: z.string().min(1).max(1000) }),
   plant_shade_trees: z.object({ street: z.string().min(1).max(120) }),
+  set_building_hours: z.object({
+    building: z.string().min(1).max(120),
+    hours: z.string().max(500),
+  }),
 };
 
 const words = (s: string) =>
@@ -246,6 +268,22 @@ export async function runTool(
       const name = (id: string) =>
         host.catalog.find((d) => d.id === id)?.label ?? id;
       const stress = heatStress(env, host.world.origin);
+      // After dark, shade means nothing: no heat check (as in the app).
+      const advice =
+        stress && sunDirection(env, host.world.origin).altitude > 0
+          ? routeAdvice(options, preference, stress, ROUTE_NAMES)
+          : null;
+      // Mapped interiors closed at this hour: routes walk around them.
+      const closed = (host.world.indoor ?? []).flatMap((i) => {
+        const status = hoursStatus(
+          i.hours,
+          new Date(env.dateTime),
+          host.world.timezone,
+        );
+        return status && !status.open
+          ? [{ building: i.buildingName, hours: status.label }]
+          : [];
+      });
       return {
         from: name(start),
         ...(fromWalk
@@ -291,6 +329,20 @@ export async function runTool(
             },
           ];
         }),
+        ...(advice?.tips.length
+          ? {
+              heat_check: advice.tips,
+              heat_check_note:
+                "Steps for the walk shown on the map; pass them on briefly. Guidance, not medical advice.",
+            }
+          : {}),
+        ...(closed.length
+          ? {
+              closed_buildings: closed,
+              closed_note:
+                "These mapped buildings are closed at this hour: routes go around them unless the walk starts or ends inside one.",
+            }
+          : {}),
       };
     }
     case "heat_ranking": {
@@ -460,6 +512,68 @@ export async function runTool(
       return {
         result: await host.generateCity(a.description, a.realism ?? "detailed"),
       };
+    case "set_building_hours": {
+      const args = a as unknown as z.infer<typeof schemas.set_building_hours>;
+      const scene = host.scene ?? host.world;
+      // The building asked for: an exact name first, then the longest
+      // name the request contains, then the one name containing it.
+      const fold = (t: string) =>
+        t
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "")
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+      // Whole words only: "Art" isn't in "Smart Hall".
+      const within = (outer: string, inner: string) =>
+        ` ${outer} `.includes(` ${inner} `);
+      const asked = searchVariants(args.building)
+        .map(fold)
+        .filter((v) => v.length >= 3);
+      const all = scene.indoor ?? [];
+      const named = (i: (typeof all)[number]) => fold(i.buildingName);
+      const inRequest = all
+        .filter((i) => asked.some((w) => within(w, named(i))))
+        .sort((x, y) => named(y).length - named(x).length);
+      const containing = all.filter((i) =>
+        asked.some((w) => within(named(i), w)),
+      );
+      if (
+        !all.some((i) => asked.includes(named(i))) &&
+        !inRequest.length &&
+        containing.length > 1
+      )
+        return {
+          error: `"${args.building}" could be ${containing.map((i) => i.buildingName).join(" or ")}; ask which.`,
+        };
+      const inside =
+        all.find((i) => asked.includes(named(i))) ??
+        inRequest[0] ??
+        containing[0];
+      if (!inside)
+        return {
+          error: `No building with a mapped inside matches "${args.building}". Its floor plan has to be imported first (select the building in the Design studio).`,
+        };
+      const text = args.hours.trim();
+      if (text && !parseOpeningHours(text))
+        return {
+          error: `Those hours ("${text}") aren't OpenStreetMap opening_hours syntax this app can read. Use day ranges and times like "Mo-Fr 07:00-22:00; Sa 09:00-17:00; Su off".`,
+        };
+      if (!host.setBuildingHours)
+        return { error: "Hours can't be changed from here." };
+      host.setBuildingHours(inside.buildingId, text || null);
+      const status = hoursStatus(
+        text,
+        new Date(host.env.dateTime),
+        host.world.timezone,
+      );
+      return {
+        building: inside.buildingName,
+        hours: text || "cleared (treated as open)",
+        ...(status ? { at_the_time_shown: status.label } : {}),
+        note: "Walks now go around it while it's closed, unless they start or end inside.",
+      };
+    }
     case "plant_shade_trees": {
       // Edit the saved scene, never the copy split at the walker's location.
       const scene = host.scene ?? host.world;
@@ -516,6 +630,8 @@ export async function runTool(
         note: "The top street is highlighted on the map.",
       };
     }
+    case "my_walks":
+      return host.walker?.() ?? { learning_off: true };
     case "cool_refuges": {
       const coverage = refugeCoverage(
         host.world,

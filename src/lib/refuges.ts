@@ -3,9 +3,15 @@ import type { PlaceHeat } from "./heat.js";
 import { openCoolStops } from "./cool-stops.js";
 import { placeHeat } from "./heat.js";
 import { nearestWalkNode } from "./routing.js";
+import { hoursStatus } from "./opening-hours.js";
+import { localHour } from "./heat.js";
+import { COOL_STOP_HOURS } from "../../shared/cool-stops.js";
 
 /** Walking speed used for minutes, as in route cards (m/min). */
 const WALK_M_PER_MIN = 78;
+/** Older people and children, as Barcelona's climate-shelter analysis
+ * assumes: 3.28 km/h. */
+export const SLOW_WALK_M_PER_MIN = 3280 / 60;
 /** A park this shaded at the hour counts as a refuge, like Barcelona's. */
 const SHADED_PARK = 0.5;
 /** How far a refuge may sit from the nearest mapped path. */
@@ -17,15 +23,17 @@ export const REACH_MINUTES = [5, 10] as const;
 
 export interface Refuge {
   name: string;
-  kind: "cool-stop" | "shelter" | "shaded-park";
+  kind: "cool-stop" | "shelter" | "shaded-park" | "indoors";
   nodeId: string;
   point: Point;
 }
 
 /**
  * Places to get out of the heat: air-conditioned cool stops (curated per
- * campus, during their usual hours), mapped shade shelters, and parks that
- * are mostly shaded at this hour, each with the path point nearest it.
+ * campus, during their usual hours), buildings with a mapped inside that
+ * are open (by their hours, or in the daytime when those aren't known),
+ * mapped shade shelters, and parks that are mostly shaded at this hour,
+ * each with the path point nearest it (a building's: its mapped door).
  */
 export function findRefuges(
   world: World,
@@ -40,6 +48,39 @@ export function findRefuges(
     nodeId: s.nodeId,
     point: point.get(s.nodeId) ?? [0, 0],
   }));
+  const hour = localHour(env.dateTime, world.timezone);
+  const daytime = hour >= COOL_STOP_HOURS[0] && hour < COOL_STOP_HOURS[1];
+  for (const inside of world.indoor ?? []) {
+    if (refuges.some((r) => r.name === inside.buildingName)) continue;
+    const status = hoursStatus(
+      inside.hours,
+      new Date(env.dateTime),
+      world.timezone,
+    );
+    if (status ? !status.open : !daytime) continue;
+    // The outdoor end of a doorway into it.
+    const tag = `indoor:${inside.buildingId}:`;
+    const door = world.graph.edges.find(
+      (e) => e.id.startsWith(tag) && e.indoor === "no",
+    );
+    const outside =
+      door && [door.from, door.to].find((id) => !id.startsWith(tag));
+    if (!outside || !point.has(outside)) continue;
+    // The same building under another name, already a cool stop: once.
+    const at = point.get(outside)!;
+    if (
+      refuges.some(
+        (r) => Math.hypot(r.point[0] - at[0], r.point[1] - at[1]) < 25,
+      )
+    )
+      continue;
+    refuges.push({
+      name: inside.buildingName,
+      kind: "indoors",
+      nodeId: outside,
+      point: point.get(outside)!,
+    });
+  }
   for (const a of world.amenities ?? []) {
     if (a.kind !== "shelter") continue;
     const node = nearestWalkNode(world, a.position, ENTRANCE_M);
@@ -83,6 +124,9 @@ export interface RefugeCoverage {
 export function refugeCoverage(
   world: World,
   refuges: Refuge[],
+  /** Walking pace for the minutes, m/min (the usual adult pace by default;
+   * SLOW_WALK_M_PER_MIN for older people and children). */
+  pace = WALK_M_PER_MIN,
 ): RefugeCoverage | null {
   if (!refuges.length || !world.graph.edges.length) return null;
   const links = new Map<string, { to: string; m: number }[]>();
@@ -151,7 +195,7 @@ export function refugeCoverage(
     const a = dist.get(e.from) ?? Infinity,
       b = dist.get(e.to) ?? Infinity;
     // The middle of the path: half its length from the nearer end.
-    const m = (Math.min(a, b) + e.distance / 2) / WALK_M_PER_MIN;
+    const m = (Math.min(a, b) + e.distance / 2) / pace;
     if (!Number.isFinite(m)) continue;
     minutes.set(e.id, m);
     total += e.distance;

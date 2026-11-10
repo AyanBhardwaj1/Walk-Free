@@ -140,7 +140,15 @@ const TRANSFORMS: Record<
       ? [h, s, Math.min(l, 0.05)]
       : neutral
         ? [h, Math.min(s, 0.12), invert(l, 0.07, 0.86)]
-        : [h, s * 0.85, clamp(1 - l * 0.92, 0.18, 0.78)],
+        : // Dark coloured text stays light enough to read on night's
+          // dark panels (a deep red would otherwise land mid-tone, near
+          // 4:1). Light coloured text (made for dark fills, which turn
+          // light) is left to go dark.
+          [
+            h,
+            s * 0.85,
+            clamp(1 - l * 0.92, role === "fg" && l < 0.5 ? 0.68 : 0.18, 0.78),
+          ],
   // Fills go white (or a light tint), text near-black (white on dark
   // fills), lines dark so fields keep their edges, accents strong.
   sunlight: (c, neutral, role) => {

@@ -77,4 +77,11 @@ describe("Sunlight keeps edges visible", () => {
       ).toBeLessThan(1.2);
     }
   });
+
+  it("keeps coloured text readable both ways round at night", () => {
+    // Deep red "in full sun" text on a panel.
+    expect(ratio("#a3432c", "#fffdf6", "night")).toBeGreaterThanOrEqual(4.5);
+    // Light green tour heading on the tour's dark fill (which turns light).
+    expect(ratio("#b9cfa3", "#22301f", "night")).toBeGreaterThanOrEqual(4);
+  });
 });

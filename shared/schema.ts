@@ -79,6 +79,45 @@ export const worldSchema = z.object({
     )
     .max(20000)
     .optional(),
+  indoor: z
+    .array(
+      z.object({
+        buildingId: z.string().max(200),
+        buildingName: z.string().max(200),
+        source: z.string().max(60),
+        hours: z.string().max(500).optional(),
+        levels: z
+          .array(
+            z.object({
+              ordinal: z.number().int().min(-10).max(200),
+              name: z.string().max(100),
+              rooms: z
+                .array(
+                  z.object({
+                    name: z.string().max(200),
+                    ring: z.array(point).min(3).max(2000),
+                    kind: z.enum([
+                      "room",
+                      "corridor",
+                      "stairs",
+                      "elevator",
+                      "restroom",
+                      "other",
+                    ]),
+                  }),
+                )
+                .max(5000),
+              paths: z.array(z.array(point).min(2).max(2000)).max(5000),
+              doors: z.array(point).max(10000),
+              entrances: z.array(point).max(500).optional(),
+              placed: z.boolean().optional(),
+            }),
+          )
+          .max(100),
+      }),
+    )
+    .max(500)
+    .optional(),
   graph: z.object({
     nodes: z
       .array(z.object({ id: z.string(), point, name: z.string().optional() }))

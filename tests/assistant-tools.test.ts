@@ -148,6 +148,135 @@ describe("assistant tools", () => {
     );
   });
 
+  it("passes on the heat check and buildings closed at that hour", async () => {
+    const w = world();
+    w.indoor = [
+      {
+        buildingId: "pcl",
+        buildingName: "Perry-Castañeda Library",
+        source: "IMDF",
+        hours: "Mo-Fr 10:00-18:00",
+        levels: [],
+      },
+    ];
+    // Wednesday 15 July 2026, 3 PM: hot, and the library is open.
+    const hot = { ...env, temperatureC: 38, humidity: 30 };
+    const at = (hour: number) =>
+      runTool(
+        host({ world: w, env: hot }),
+        "plan_route",
+        JSON.stringify({
+          from: "Speedway Gate",
+          to: "the library",
+          leave_at_hour: hour,
+        }),
+      ) as Promise<{ heat_check?: string[]; closed_buildings?: unknown[] }>;
+    const afternoon = await at(15);
+    expect(afternoon.closed_buildings).toBeUndefined();
+    // At 7 PM it has closed.
+    const evening = await at(19);
+    expect(evening.closed_buildings).toEqual([
+      {
+        building: "Perry-Castañeda Library",
+        hours: "Closed · opens Thu 10 AM",
+      },
+    ]);
+    // A short, unshaded walk at 38 °C: very strong heat stress, so the
+    // warning signs (no shadier swap exists on one street).
+    expect(afternoon.heat_check).toEqual([
+      expect.stringMatching(/dizzy, sick or confused/),
+    ]);
+  });
+
+  it("sets a mapped building's hours from what the model read", async () => {
+    const w = world();
+    w.indoor = [
+      {
+        buildingId: "pcl",
+        buildingName: "Perry-Castañeda Library",
+        source: "IMDF",
+        levels: [],
+      },
+    ];
+    const setBuildingHours = vi.fn();
+    const h = host({ world: w, setBuildingHours });
+    const set = (building: string, hours: string) =>
+      runTool(h, "set_building_hours", JSON.stringify({ building, hours }));
+    const ok = (await set(
+      "Perry-Castañeda",
+      "Mo-Fr 07:00-22:00; Sa 09:00-17:00; Su off",
+    )) as { building: string; at_the_time_shown?: string };
+    expect(setBuildingHours).toHaveBeenCalledWith(
+      "pcl",
+      "Mo-Fr 07:00-22:00; Sa 09:00-17:00; Su off",
+    );
+    expect(ok.building).toBe("Perry-Castañeda Library");
+    // Wednesday 15 July, 3 PM in Austin.
+    expect(ok.at_the_time_shown).toBe("Open until 10 PM");
+    // Words that aren't the syntax are refused, not guessed at.
+    expect(await set("Perry-Castañeda", "open late on weekdays")).toMatchObject(
+      {
+        error: expect.stringMatching(/aren't OpenStreetMap opening_hours/),
+      },
+    );
+    // A building without a mapped inside, or a name too short to match.
+    expect(await set("Gregory Gym", "24/7")).toMatchObject({
+      error: expect.stringMatching(/No building with a mapped inside/),
+    });
+    expect(await set("Li", "24/7")).toMatchObject({
+      error: expect.stringMatching(/No building with a mapped inside/),
+    });
+    // Empty hours clear them.
+    await set("Perry-Castañeda Library", "");
+    expect(setBuildingHours).toHaveBeenLastCalledWith("pcl", null);
+    expect(setBuildingHours).toHaveBeenCalledTimes(2);
+  });
+
+  it("picks the building asked for among similar names", async () => {
+    const w = world();
+    const room = (id: string, name: string) => ({
+      buildingId: id,
+      buildingName: name,
+      source: "IMDF",
+      levels: [],
+    });
+    w.indoor = [
+      room("b1", "Green Library"),
+      room("b2", "Green Library Annex"),
+      room("b3", "Main Hall"),
+      room("b4", "Main Hall East"),
+    ];
+    const setBuildingHours = vi.fn();
+    const h = host({ world: w, setBuildingHours });
+    const set = (building: string) =>
+      runTool(
+        h,
+        "set_building_hours",
+        JSON.stringify({ building, hours: "24/7" }),
+      );
+    await set("Green Library Annex");
+    expect(setBuildingHours).toHaveBeenLastCalledWith("b2", "24/7");
+    await set("green library");
+    expect(setBuildingHours).toHaveBeenLastCalledWith("b1", "24/7");
+    // "the library in Main Hall East" names the longer building.
+    await set("the library in Main Hall East");
+    expect(setBuildingHours).toHaveBeenLastCalledWith("b4", "24/7");
+    // Whole words only: "Smart Hall" isn't the building called "Art".
+    w.indoor.push(room("b5", "Art"), room("b6", "Pétion Hall"));
+    expect(await set("Smart Hall")).toMatchObject({
+      error: expect.stringMatching(/No building with a mapped inside/),
+    });
+    // Accents don't get in the way.
+    await set("Petion Hall");
+    expect(setBuildingHours).toHaveBeenLastCalledWith("b6", "24/7");
+    // Only part of a name that fits two buildings: ask which.
+    expect(await set("Green")).toMatchObject({
+      error: expect.stringMatching(
+        /could be Green Library or Green Library Annex/,
+      ),
+    });
+  });
+
   it("starts 'my location' at the walk's current start when there's no fix", async () => {
     const h = host({ currentStartNodeId: "a" });
     const result = (await runTool(

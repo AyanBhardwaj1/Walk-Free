@@ -220,7 +220,7 @@ function PlaceList({
   if (!places.length) return null;
   return (
     <div className="place-list">
-      <h4>{title}</h4>
+      <h2>{title}</h2>
       {places.map((p) => (
         <button key={p.id} onClick={() => onSelect(p)}>
           <span

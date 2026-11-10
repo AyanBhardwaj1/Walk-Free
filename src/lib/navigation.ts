@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { TextToSpeech } from "@capacitor-community/text-to-speech";
+import { speechChunks } from "./speech-i18n.js";
 const background = registerPlugin<BackgroundGeolocationPlugin>(
   "BackgroundGeolocation",
 );
@@ -19,6 +20,7 @@ export async function startTracking(
           "Notification permission is required for background navigation.",
         );
     }
+    let located = false;
     const id = await background.addWatcher(
       {
         backgroundTitle: "Walk-Free navigation",
@@ -30,6 +32,9 @@ export async function startTracking(
       },
       (location, error) => {
         if (error) {
+          // After the first fix, a moment without signal (a tunnel, a
+          // building) isn't the end of the walk; only lost permission is.
+          if (located && error.code !== "NOT_AUTHORIZED") return;
           onError(
             error.code === "NOT_AUTHORIZED"
               ? locationError(1)
@@ -37,13 +42,15 @@ export async function startTracking(
           );
           return;
         }
-        if (location)
+        if (location) {
+          located = true;
           onLocation({
             lat: location.latitude,
             lon: location.longitude,
             accuracy: location.accuracy,
             timestamp: location.time ?? 0,
           });
+        }
       },
     );
     return () => {
@@ -52,8 +59,13 @@ export async function startTracking(
   }
   if (!navigator.geolocation)
     throw Error("Location services are unavailable in this browser.");
+  // After the first fix, a passing "unavailable" or "timed out" (a Wi-Fi
+  // scan that failed, a moment without GPS) shouldn't end the walk; the
+  // watch carries on. A denied permission always does.
+  let located = false;
   const id = navigator.geolocation.watchPosition(
     (p) => {
+      located = true;
       onLocation({
         lat: p.coords.latitude,
         lon: p.coords.longitude,
@@ -61,7 +73,10 @@ export async function startTracking(
         timestamp: p.timestamp,
       });
     },
-    (e) => onError(locationError(e.code)),
+    (e) => {
+      if (located && e.code !== 1) return;
+      onError(locationError(e.code));
+    },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
   );
   return () => navigator.geolocation.clearWatch(id);
@@ -89,21 +104,44 @@ export function speak(text: string, lang?: string | null): Promise<void> {
     );
   if (!("speechSynthesis" in window)) return Promise.resolve();
   speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  if (lang) {
-    utterance.lang = lang;
-    const voice = bestVoice(speechSynthesis.getVoices(), lang);
-    if (voice) utterance.voice = voice;
-  }
-  return new Promise((resolve) => {
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    // Some browsers never fire end without a voice: about 13 words a second
-    // is a safe upper bound on reading time.
-    setTimeout(resolve, 2000 + text.split(/\s+/).length * 450);
-    speechSynthesis.speak(utterance);
-  });
+  // A newer speak() or stopSpeech() ends this one's remaining sentences
+  // too, not just the one playing.
+  const gen = ++speechGen;
+  const language = lang ?? "en-US";
+  // The most natural voice the system has for the language, a touch slower
+  // than default, sentence by sentence so long replies flow and aren't cut.
+  const voice = bestVoice(speechSynthesis.getVoices(), language);
+  const chunks = speechChunks(text);
+  return chunks.reduce<Promise<void>>(
+    (before, chunk) =>
+      before.then(
+        () =>
+          new Promise<void>((resolve) => {
+            if (gen !== speechGen) return resolve();
+            const utterance = new SpeechSynthesisUtterance(chunk);
+            utterance.lang = voice?.lang ?? language;
+            if (voice) utterance.voice = voice;
+            utterance.rate = 0.96;
+            // Some browsers never fire end without a voice: about 13 words
+            // a second is a safe upper bound on reading time.
+            const timer = setTimeout(
+              resolve,
+              2000 + chunk.split(/\s+/).length * 450,
+            );
+            const done = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            utterance.onend = done;
+            utterance.onerror = done;
+            speechSynthesis.speak(utterance);
+          }),
+      ),
+    Promise.resolve(),
+  );
 }
+/** Bumped by each web speak() and stopSpeech(), so older speech stops. */
+let speechGen = 0;
 /**
  * The most natural-sounding installed voice for a language: the browser
  * otherwise often picks a robotic default. Neural and online voices
@@ -137,6 +175,7 @@ export function bestVoice(
   return best as SpeechSynthesisVoice | undefined;
 }
 export function stopSpeech() {
+  speechGen++;
   if (nativeNavigation) void TextToSpeech.stop();
   else if ("speechSynthesis" in window) speechSynthesis.cancel();
 }

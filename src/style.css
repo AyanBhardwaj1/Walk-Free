@@ -1070,8 +1070,9 @@ aside.collapsed ~ .viewport .map-heading {
 .probe-summary .eyebrow {
   font-size: 8px;
   letter-spacing: 1px;
+  color: var(--c-fg-5f6956, #5f6956);
 }
-.probe-summary h3 {
+.probe-summary h2 {
   font: 23px var(--font-display, Georgia, serif);
   font-weight: 400;
   margin: 14px 0;
@@ -1083,7 +1084,7 @@ aside.collapsed ~ .viewport .map-heading {
 .probe-summary small {
   font-size: 10px;
   line-height: 1.7;
-  color: var(--c-fg-8b967e, #8b967e);
+  color: var(--c-fg-5f6956, #5f6956);
 }
 .atlas-map {
   position: absolute;
@@ -1377,7 +1378,7 @@ aside.collapsed ~ .viewport .map-heading {
   font-size: 11px;
   line-height: 1.5;
 }
-.place-list h4 {
+.place-list h2 {
   font-size: 9px;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -2510,6 +2511,43 @@ details.chat-tool::before {
   }
   .app > main .walk-banner {
     top: 62px;
+  }
+}
+/* Narrow phones: the tool row stays clear of the temperature chip and
+   scrolls sideways when it doesn't fit (360 px Android screens), with
+   focus rings drawn inside the buttons so the scroll edge can't clip them. */
+@media (max-width: 650px) {
+  .app > main .map-actions {
+    max-width: calc(100% - 128px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .app > main .map-actions::-webkit-scrollbar {
+    display: none;
+  }
+  .app > main .map-actions button {
+    flex: none;
+  }
+  .app > main .map-actions button:focus-visible {
+    outline-offset: -3px;
+  }
+}
+/* Short phones (under 800 px tall): between the tool row and the
+   time-of-day card there's no room for the zoom and compass column, so
+   it becomes a row on the left, under the temperature chip. */
+@media (max-width: 650px) and (max-height: 800px) {
+  .app > main .map-nav {
+    top: 60px;
+    left: 12px;
+    right: auto;
+    bottom: auto;
+    flex-direction: row;
+  }
+  /* Mid-walk the walking banner takes that spot; pinch and drag still
+     work. */
+  .app > main:has(.walk-banner) .map-nav {
+    display: none;
   }
 }
 .account-controls a {
@@ -4101,26 +4139,329 @@ main:has(.demo-tour) .map-heading {
   color: var(--c-fg-8f3427, #8f3427);
 }
 
+/* Mapped buildings a walk goes around because they're closed */
+.closed-inside {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--c-fg-5f6956, #5f6956);
+}
+.closed-inside svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.interior-hours {
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.interior-hours.is-closed {
+  color: var(--c-fg-8f3427, #8f3427);
+}
+
+/* The map's "More tools" menu */
+.map-more {
+  position: relative;
+}
+.map-actions .map-more-menu {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 6px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  background: var(--c-bg-fcfaf0, #fcfaf0);
+  border: 1px solid var(--c-line-e3e4d7, #e3e4d7);
+  box-shadow: 0 6px 20px var(--c-shadow-27371d14, #27371d14);
+}
+.map-actions .map-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: auto;
+  height: auto;
+  padding: 11px 14px;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--c-fg-313b30, #313b30);
+}
+.map-actions .map-more-menu button:last-child {
+  border-bottom: 0;
+}
+
+/* Days in a row with a walk, in My walks */
+.walk-streak {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 12.5px;
+  color: var(--c-fg-3f5938, #3f5938);
+}
+
+/* Accessibility and voice */
+.access-needs {
+  border: 0;
+  margin: 6px 0 10px;
+  padding: 0;
+}
+.access-needs legend {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.access-needs .check span {
+  display: grid;
+  gap: 2px;
+}
+.access-needs small {
+  font-size: 11.5px;
+  color: var(--c-fg-5f6956, #5f6956);
+}
+.access-lang {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.access-lang select {
+  padding: 8px 10px;
+  border: 1px solid var(--c-line-d7daca, #d7daca);
+  background: var(--c-bg-fffdf6, #fffdf6);
+  color: var(--c-fg-313b30, #313b30);
+  font-size: 13px;
+}
+/* Larger text for low vision (set from Accessibility and voice). */
+html[data-text-size="large"] .app aside,
+html[data-text-size="large"] .app .walk-banner {
+  zoom: 1.15;
+}
+
+/* The first-run guide: a small card over the map, not a blocking dialog */
+.first-run {
+  position: absolute;
+  z-index: 6;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(400px, calc(100% - 24px));
+  padding: 16px 18px;
+  background: var(--c-bg-fffdf6, #fffdf6);
+  border: 1px solid var(--c-line-dedfd0, #dedfd0);
+  box-shadow: 0 10px 30px var(--c-shadow-27371d14, #27371d14);
+}
+.first-run-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.first-run-head small {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-fg-5f6956, #5f6956);
+}
+.first-run h2 {
+  margin: 6px 0;
+  font: 400 22px/1.2 var(--font-display, "Playfair Display", Georgia, serif);
+  color: var(--c-fg-22301f, #22301f);
+}
+.first-run h2:focus {
+  outline: none;
+}
+.first-run p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--c-fg-313b30, #313b30);
+}
+.first-run-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.first-run-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-bg-dedfd0, #dedfd0);
+}
+.first-run-dots span.on {
+  background: var(--c-bg-3f5938, #3f5938);
+}
+.first-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.first-run-actions button {
+  width: auto;
+}
+@media (max-width: 650px) {
+  .first-run {
+    top: 62px;
+  }
+}
+
+/* A building interior's opening hours */
+.indoor-hours {
+  margin: 10px 0;
+}
+.indoor-hours-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.indoor-hours .indoor-hours-head label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.indoor-hours .is-open,
+.indoor-hours .is-closed {
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.indoor-hours .is-open {
+  background: var(--c-bg-e4eedb, #e4eedb);
+  color: var(--c-fg-3f5938, #3f5938);
+}
+.indoor-hours .is-closed {
+  background: var(--c-bg-f6e3dc, #f6e3dc);
+  color: var(--c-fg-8f3427, #8f3427);
+}
+.indoor-hours-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.indoor-hours-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--c-line-d7daca, #d7daca);
+  background: var(--c-bg-fffdf6, #fffdf6);
+  color: var(--c-fg-313b30, #313b30);
+  font-size: 13px;
+}
+.indoor-hours-row button {
+  flex: none;
+  width: auto;
+  padding-inline: 14px;
+}
+.indoor-hours .fine,
+.indoor-hours .chat-error {
+  margin: 4px 0 0;
+}
+
+/* Phones: the chosen walk in one line at the top of the sheet. */
+.walk-peek {
+  display: none;
+}
+@media (max-width: 650px) {
+  .walk-peek {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 6px 0 2px;
+    padding: 8px 10px;
+    border: 1px solid var(--c-line-dedfd0, #dedfd0);
+    background: var(--c-bg-fffdf6, #fffdf6);
+    color: var(--c-fg-313b30, #313b30);
+    font-size: 12.5px;
+    text-align: left;
+    transition: transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .walk-peek span {
+    flex: 1;
+  }
+  .walk-peek:active {
+    transform: scale(0.98);
+  }
+  /* The city generator stays one tap away but takes one line. */
+  .generate-entry {
+    padding: 7px 10px;
+    margin-top: 6px;
+  }
+  .generate-entry small {
+    display: none;
+  }
+}
+
+/* Heat check: what the walk's heat means in practice */
+.walk-advice {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--c-line-dedfd0, #dedfd0);
+  background: var(--c-bg-fffdf6, #fffdf6);
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.walk-advice p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+}
+.walk-advice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.walk-advice ul {
+  margin: 4px 0 0;
+  padding-left: 21px;
+}
+.walk-advice li + li {
+  margin-top: 2px;
+}
+.walk-advice.level-2 {
+  border-left-color: var(--c-line-e0791d, #e0791d);
+}
+.walk-advice.level-3,
+.walk-advice.level-4 {
+  border-left-color: var(--c-line-c8312b, #c8312b);
+}
+.walk-advice.level-3 strong,
+.walk-advice.level-4 strong {
+  color: var(--c-fg-8f3427, #8f3427);
+}
+
 /* SAM 3.1 street photo check */
 .photo-check h2 {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.photo-check .file-button {
+.photo-check .file-button,
+.photo-scene .file-button {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
 }
-.photo-check .file-button input {
+.photo-check .file-button input,
+.photo-scene .file-button input {
   position: absolute;
   inset: 0;
   opacity: 0;
   cursor: pointer;
 }
-.photo-check .file-button.is-busy {
+.photo-check .file-button.is-busy,
+.photo-scene .file-button.is-busy {
   opacity: 0.6;
   pointer-events: none;
 }
@@ -4181,4 +4522,506 @@ main:has(.demo-tour) .map-heading {
 .voice-language > :first-child {
   flex: 0 1 210px;
   min-width: 0;
+}
+
+/* Follow me */
+.follow-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: var(--c-bg-e8f0f6, #e8f0f6);
+  color: var(--c-fg-1f4566, #1f4566);
+}
+.follow-status .text-button {
+  margin-left: auto;
+}
+.map-nav button.is-on {
+  color: var(--c-fg-3479bf, #3479bf);
+}
+.offmap-banner {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--c-bg-faf9f0ed, #faf9f0ed);
+  border: 1px solid var(--c-line-dedfd0, #dedfd0);
+  box-shadow: 0 8px 30px var(--c-shadow-3a452714, #3a452714);
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .offmap-banner {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    flex-wrap: wrap;
+  }
+}
+
+/* My walks */
+.my-walks .walk-card {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--c-line-dedfd3, #dedfd3);
+  background: var(--c-bg-fffdf4, #fffdf4);
+}
+.walk-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.walk-card-head small {
+  font-weight: 400;
+  color: var(--c-fg-7c8670, #7c8670);
+}
+.walk-big {
+  margin: 6px 0 2px;
+  font-size: 22px;
+  font-family: var(--font-display, "Playfair Display", Georgia, serif);
+}
+.walk-big small {
+  font-family: var(--font-body, "DM Sans", system-ui, sans-serif);
+  font-size: 12px;
+  color: var(--c-fg-7c8670, #7c8670);
+}
+.leave-card {
+  border-color: var(--c-line-2f4a33, #2f4a33) !important;
+}
+.routine-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.routine-list li {
+  display: grid;
+  font-size: 12px;
+}
+.routine-list small {
+  color: var(--c-fg-7c8670, #7c8670);
+}
+.sample-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  padding: 8px 10px;
+  background: var(--c-bg-f3eedd, #f3eedd);
+}
+.walk-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+.walk-actions .text-button,
+.leave-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.leave-chip {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-line-2f4a33, #2f4a33);
+  background: var(--c-bg-eef3ea, #eef3ea);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.my-eta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+/* ===== Building interiors ===== */
+.indoor-card {
+  margin: 18px 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-line-dcded3, #dcded3);
+}
+.indoor-card .chip-row {
+  margin: 8px 0 4px;
+}
+.indoor-actions {
+  display: flex;
+  gap: 8px;
+}
+.indoor-actions > button {
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.upload-button.busy {
+  cursor: progress;
+  opacity: 0.7;
+}
+.plan-preview {
+  margin: 10px 0 4px;
+}
+.plan-stage {
+  position: relative;
+  background: var(--c-bg-fffdf6, #fffdf6);
+  border: 1px solid var(--c-line-dcded3, #dcded3);
+}
+.plan-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: 0.55;
+}
+.plan-stage svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.plan-room {
+  fill: var(--c-fg-d9a441, #d9a441);
+  fill-opacity: 0.28;
+  stroke: var(--c-line-8a6420, #8a6420);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.plan-room {
+  cursor: pointer;
+}
+.plan-room:focus-visible {
+  outline: none;
+  stroke-width: 4;
+}
+.plan-room.is-stairs {
+  fill: var(--c-fg-3f6f8f, #3f6f8f);
+  fill-opacity: 0.35;
+}
+.plan-room.is-elevator {
+  fill: var(--c-fg-7a4f8f, #7a4f8f);
+  fill-opacity: 0.35;
+}
+.plan-path {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-line-3f5938, #3f5938);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+.plan-door {
+  pointer-events: none;
+  fill: var(--c-fg-3f5938, #3f5938);
+}
+.plan-preview figcaption {
+  font-size: 11px;
+  margin-top: 6px;
+  color: var(--c-fg-4c573f, #4c573f);
+}
+.indoor-level {
+  display: grid;
+  grid-template-columns: auto 72px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+.indoor-level small {
+  color: var(--c-fg-646b5c, #646b5c);
+}
+
+/* ===== Step into a photo ===== */
+dialog.photo-scene {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: none;
+}
+.photo-scene-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.photo-scene-actions > * {
+  flex: 1 1 220px;
+  width: auto;
+}
+.photo-scene .photo-scene-actions > * {
+  margin: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 11px 15px;
+}
+.photo-scene-panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin: 14px 0 6px;
+}
+.photo-scene-panes figure {
+  margin: 0;
+  min-width: 0;
+}
+.photo-scene-panes figcaption {
+  font-size: 11px;
+  margin-top: 6px;
+  color: var(--c-fg-646b5c, #646b5c);
+}
+.tip-editor {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  background: var(--c-bg-ebece1, #ebece1);
+}
+.tip-ray {
+  stroke: var(--c-line-d9a441, #d9a441);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.tip-back {
+  fill: var(--c-fg-d9a441, #d9a441);
+  fill-opacity: 0.12;
+  stroke: var(--c-line-d9a441, #d9a441);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.tip-handle {
+  fill: var(--c-fg-fffdf6, #fffdf6);
+  stroke: var(--c-line-3f5938, #3f5938);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+}
+.tip-handle.tip-vp {
+  fill: var(--c-fg-3f5938, #3f5938);
+  stroke: var(--c-line-fffdf6, #fffdf6);
+}
+.tip-handle:focus-visible {
+  outline: none;
+  stroke: var(--c-line-d9a441, #d9a441);
+  stroke-width: 5;
+}
+.photo-scene-3d {
+  position: relative;
+  width: 100%;
+  background: var(--c-bg-dfe7ec, #dfe7ec);
+  cursor: grab;
+  touch-action: none;
+}
+.photo-scene-3d:active {
+  cursor: grabbing;
+}
+.photo-scene-3d canvas {
+  position: absolute;
+  inset: 0;
+}
+.photo-scene-walk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.photo-scene-walk input {
+  flex: 1;
+}
+.photo-scene label.photo-scene-eye {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: normal;
+}
+.photo-scene .photo-scene-eye input {
+  display: inline-block;
+  width: 72px;
+  margin: 0;
+  padding: 3px 6px;
+  font: inherit;
+}
+.photo-scene .file-button,
+.photo-scene .photo-scene-walk {
+  letter-spacing: normal;
+  color: inherit;
+}
+.photo-scene .file-button {
+  margin: 0;
+}
+.photo-scene .file-button:focus-within {
+  outline: 2px solid var(--c-line-3f5938, #3f5938);
+  outline-offset: 2px;
+}
+.interior-chip {
+  max-width: calc(100% - 32px);
+  flex-wrap: wrap;
+}
+.interior-chip strong {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* ===== Shade along a photographed street ===== */
+.street-shade {
+  margin: 16px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-line-dcded3, #dcded3);
+}
+.street-shade h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.compass-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.photo-scene label.street-shade-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 auto;
+  font-size: 11px;
+  letter-spacing: normal;
+  color: inherit;
+}
+.photo-scene .street-shade-date input {
+  margin: 0;
+  padding: 4px 6px;
+  font: inherit;
+}
+.shade-timeline {
+  margin: 10px 0 4px;
+}
+.shade-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.shade-track {
+  position: relative;
+  height: 14px;
+  background: var(--c-bg-ebece1, #ebece1);
+  overflow: hidden;
+}
+.shade-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.shade-track i.is-shade {
+  background: var(--c-bg-3f6f8f, #3f6f8f);
+}
+.shade-track i.is-sun {
+  background: var(--c-bg-e9b949, #e9b949);
+}
+.shade-axis {
+  position: relative;
+  height: 14px;
+  margin-left: 150px;
+  font-size: 10px;
+  color: var(--c-fg-646b5c, #646b5c);
+}
+.shade-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.shade-summary {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (max-width: 600px) {
+  .shade-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .shade-axis {
+    margin-left: 0;
+  }
+}
+.shade-now {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.leave-advice {
+  margin: 6px 0;
+  padding: 6px 9px;
+  font-size: 12px;
+  background: var(--c-bg-fbf1dc, #fbf1dc);
+}
+/* The new panels' small print, dark enough to read (WCAG AA). */
+.my-walks .fine,
+.my-walks .walk-big small,
+.my-walks .routine-list small,
+.my-walks .walk-card-head small,
+.my-walks .field-label,
+.my-walks .check,
+.photo-scene .fine,
+.photo-scene .intro-small,
+.photo-scene figcaption,
+.indoor-card .fine {
+  color: var(--c-fg-646b5c, #646b5c);
+}
+.interior-row {
+  display: none;
+}
+.interior-row.is-flat {
+  display: flex;
+}
+.interior-row {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--c-bg-eef3ea, #eef3ea);
+}
+.interior-floors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+@media (max-width: 650px) {
+  .app > main .interior-chip {
+    display: none;
+  }
+  .interior-row {
+    display: flex;
+  }
+}
+.shady-side {
+  font-size: 11px;
+  color: var(--c-fg-3f6f8f, #3f6f8f);
+}
+.shady-tip {
+  font-size: 12px;
+  margin: 8px 0;
+  color: var(--c-fg-3f6f8f, #3f6f8f);
 }

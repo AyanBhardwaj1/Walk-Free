@@ -44,7 +44,7 @@ describe("assistant demo without a model", () => {
     const h = host();
     const pair = demoPair(h)!;
     expect(pair).toEqual(demoPair(host()));
-    expect(pair[0]).not.toMatch(/^Path near/);
+    expect(pair[0]).not.toMatch(/^(Path near|Near) /);
     expect(pair[0]).not.toBe(pair[1]);
   });
 
